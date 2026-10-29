@@ -252,7 +252,7 @@ export const M = {
   nanobots: { dps: 12, dur: [5, 8, 8] as [number, number, number], range: 28, jump: 10 },
   blink: { range: [10, 13, 13] as [number, number, number] },
   armor: { shield: 40, dur: 6, radius: 4, damage: [30, 50, 50] as [number, number, number] },
-  arms: { dur: 8, every: [0.7, 0.5, 0.5] as [number, number, number], damage: [14, 20, 20] as [number, number, number], reach: 3 },
+  arms: { dur: 8, dur3: 8, every: [0.7, 0.5, 0.5] as [number, number, number], damage: [14, 20, 20] as [number, number, number], reach: 3 },
   gravity: { lift: [1.2, 1.6, 1.6] as [number, number, number], damage: [35, 55, 55] as [number, number, number], range: 26, splash: 4 },
   mines: { max: 2, damage: [45, 65, 65] as [number, number, number], radius: 3, range: 22 },
 };
@@ -366,7 +366,7 @@ const MAGE: SkillDef[] = [
     id: 'arms', cls: 'mage', name: 'Nano kollar', w: 1.1, orb: true, cd: () => 12,
     use: (c) => {
       if (!c.t || c.d > 10) return false;
-      const arm = spawnPet(c.u, 'Nano kol', { hp: 9999, dmg: by(c.tier, M.arms.damage), rate: by(c.tier, M.arms.every), range: M.arms.reach, life: M.arms.dur, speed: 99, stunEvery: c.tier >= 3 ? 3 : 0 });
+      const arm = spawnPet(c.u, 'Nano kol', { hp: 9999, dmg: by(c.tier, M.arms.damage), rate: by(c.tier, M.arms.every), range: M.arms.reach, life: c.tier >= 3 ? M.arms.dur3 : M.arms.dur, speed: 99, stunEvery: c.tier >= 3 ? 3 : 0 });
       arm.target = c.t;
       // Arms stay at the mage's side: they cannot be attacked.
       arm.immuneT = 999;
