@@ -1,6 +1,7 @@
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { createActorBody, createMobBody, forwardFromYaw, rightFromYaw } from './actors';
+import { forwardFromYaw, rightFromYaw } from './actors';
+import { createCharacterBody, type SkinName } from './characters';
 import { BOSS, BOTS, DAGGERS, MOBS } from './balance';
 import {
   G,
@@ -22,13 +23,14 @@ import {
 import { enemyVisibility } from './rogue';
 import { findOpenSpot } from './world';
 
-const BOT_LOOKS = [
-  { name: 'Kuzgun', body: '#2f3b5c', head: '#d8c8b0', weapon: '#7fd6ff' },
-  { name: 'Engerek', body: '#3d5c2f', head: '#e0d2b4', weapon: '#b8ff6a' },
-  { name: 'Akrep', body: '#6b4a1f', head: '#cdb79a', weapon: '#ffb14a' },
-  { name: 'Baykuş', body: '#5c2f55', head: '#e3cfc3', weapon: '#ff7ae0' },
-  { name: 'Çakal', body: '#5a5a5a', head: '#d9c6a6', weapon: '#fff07a' },
-  { name: 'Sırtlan', body: '#2f5c58', head: '#d6c2a8', weapon: '#7affd8' },
+/** Rival players. Two Kenney survivor skins, tinted so each bot is easy to tell apart. */
+export const BOT_LOOKS: { name: string; body: string; head: string; weapon: string; skin: SkinName; tint: string }[] = [
+  { name: 'Kuzgun', body: '#2f3b5c', head: '#d8c8b0', weapon: '#7fd6ff', skin: 'maleB', tint: '#9fb4ff' },
+  { name: 'Engerek', body: '#3d5c2f', head: '#e0d2b4', weapon: '#b8ff6a', skin: 'femaleA', tint: '#b8f0a0' },
+  { name: 'Akrep', body: '#6b4a1f', head: '#cdb79a', weapon: '#ffb14a', skin: 'maleB', tint: '#ffd08a' },
+  { name: 'Baykuş', body: '#5c2f55', head: '#e3cfc3', weapon: '#ff7ae0', skin: 'femaleA', tint: '#f0a8e8' },
+  { name: 'Çakal', body: '#5a5a5a', head: '#d9c6a6', weapon: '#fff07a', skin: 'maleB', tint: '#e8e8e8' },
+  { name: 'Sırtlan', body: '#2f5c58', head: '#d6c2a8', weapon: '#7affd8', skin: 'femaleA', tint: '#9ff0e0' },
 ];
 
 let mobPackT = 0;
@@ -53,7 +55,13 @@ function farSpot(rand: () => number, minDist: number): Vector3 {
 }
 
 function spawnBot(look: (typeof BOT_LOOKS)[number], level: number, xp: number, team: number, rand: () => number) {
-  const body = createActorBody(G.scene, G.world, `bot${G.nextId}`, look, true, {});
+  const body = createCharacterBody(G.scene, G.world, `bot${G.nextId}`, look.skin, { tint: look.tint, hpBar: true });
+  // A glowing pistol in the right hand so bots read as armed players.
+  const gun = MeshBuilder.CreateBox(`bot${G.nextId}-gun`, { width: 0.1, height: 0.14, depth: 0.5 }, G.scene);
+  gun.material = glowMat(look.weapon, 0.9);
+  gun.parent = body.root;
+  gun.position.set(0.32, 1.05, 0.4);
+  gun.isPickable = false;
   const pos = farSpot(rand, 18);
   const hp = BOTS.maxHp + BOTS.hpPerLevel * (level - 1);
   const u = makeUnit('bot', look.name, body, pos, team, hp, {
@@ -72,10 +80,11 @@ function spawnPack(rand: () => number, room = MOBS.maxAlive) {
   const min = minutes();
   for (let i = 0; i < n; i++) {
     const p = center.add(new Vector3((rand() - 0.5) * 3, 0, (rand() - 0.5) * 3));
-    const body = createMobBody(G.scene, G.world, `mob${G.nextId}`, '#6e5a3c', {});
-    makeUnit('mob', 'Hurda tazısı', body, p, -1, MOBS.hp(min), {
-      radius: 0.5,
-      height: 1.1,
+    const skin: SkinName = rand() < 0.5 ? 'zombieA' : 'zombieC';
+    const body = createCharacterBody(G.scene, G.world, `mob${G.nextId}`, skin, { height: 1.75, hpBar: true, hpColor: '#e0a33f' });
+    makeUnit('mob', 'Zombi', body, p, -1, MOBS.hp(min), {
+      radius: 0.45,
+      height: 1.75,
       yaw: rand() * Math.PI * 2,
       ai: { home: center.clone(), target: null, think: 0, attackT: 0, windT: -1, wander: p.clone(), wanderT: 0 },
     });
@@ -83,10 +92,9 @@ function spawnPack(rand: () => number, room = MOBS.maxAlive) {
 }
 
 export function spawnBoss(rand: () => number) {
-  const body = createActorBody(G.scene, G.world, `boss${G.nextId}`, { body: '#3a2a22', head: '#9c8b7a', weapon: '#ff5a3b' }, true, {});
-  body.root.scaling.setAll(2.2);
+  const body = createCharacterBody(G.scene, G.world, `boss${G.nextId}`, 'zombieC', { height: 4.2, tint: '#ff9a7a' });
   const pos = farSpot(rand, 20);
-  boss = makeUnit('boss', 'Hurda Devi', body, pos, -1, BOSS.hp(minutes()), {
+  boss = makeUnit('boss', 'Zombi Devi', body, pos, -1, BOSS.hp(minutes()), {
     radius: 1.1,
     height: 4,
     level: 12,
@@ -375,7 +383,7 @@ export function updateAI(dt: number, rand: () => number, announce: Announce) {
     bossIndex++;
     if (!boss?.alive) {
       spawnBoss(rand);
-      announce('Hurda Devi şehre geldi!');
+      announce('Zombi Devi şehre geldi!');
     }
   }
   if (boss && !boss.alive) boss = null;

@@ -22,9 +22,34 @@ export type HouseSlot = { x: number; z: number; y: number; scale: number; rotY: 
 /** Size of the house model in its own units (about 1.8 wide, 1.47 tall). */
 export const HOUSE = { size: 1.8, height: 1.47 };
 
+/** Kenney retro urban props (CC0); sizes are half width/depth and height in kit units. */
+export const PROPS = {
+  'truck-grey': { hw: 0.41, hd: 0.82, h: 1.01 },
+  'truck-green': { hw: 0.41, hd: 0.82, h: 1.01 },
+  'truck-flat': { hw: 0.41, hd: 0.82, h: 1.01 },
+  'truck-grey-cargo': { hw: 0.41, hd: 0.58, h: 0.74 },
+  'detail-dumpster-closed': { hw: 0.3, hd: 0.25, h: 0.54 },
+  'detail-dumpster-open': { hw: 0.32, hd: 0.26, h: 0.55 },
+  'detail-barrier-strong-type-a': { hw: 0.33, hd: 0.12, h: 0.33 },
+  'detail-barrier-strong-damaged': { hw: 0.33, hd: 0.12, h: 0.33 },
+  'tree-large': { hw: 0.1, hd: 0.1, h: 1.7 },
+  'tree-pine-large': { hw: 0.1, hd: 0.1, h: 1.7 },
+  'tree-shrub': { hw: 0.39, hd: 0.39, h: 0.3 },
+  pallet: { hw: 0.5, hd: 0.5, h: 0.15 },
+  'detail-bench': { hw: 0.3, hd: 0.16, h: 0.41 },
+  'detail-light-single': { hw: 0.04, hd: 0.04, h: 0.96 },
+  'detail-bricks-type-a': { hw: 0.29, hd: 0.27, h: 0.2 },
+  'detail-block': { hw: 0.25, hd: 0.25, h: 0.5 },
+  planks: { hw: 0.56, hd: 0.29, h: 0.1 },
+};
+export type PropName = keyof typeof PROPS;
+/** Where a prop model goes (its collision box is already in `boxes`). */
+export type PropSlot = { name: PropName; x: number; y: number; z: number; rotY: number; scale: number };
+
 export type World = {
   boxes: Box[];
   houses: HouseSlot[];
+  props: PropSlot[];
   shadows: ShadowGenerator;
   seed: number;
 };
@@ -77,6 +102,15 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
 
   const boxes: Box[] = [];
   const houses: HouseSlot[] = [];
+  const props: PropSlot[] = [];
+  /** Place a prop: quarter turns only, so the collision box stays axis-aligned. */
+  const addProp = (name: PropName, x: number, z: number, y = 0, quarter = 0, scale = 3.2, solid = true) => {
+    const p = PROPS[name];
+    const [hw, hd] = quarter % 2 ? [p.hd, p.hw] : [p.hw, p.hd];
+    if (solid) boxes.push({ x, z, hw: hw * scale, hd: hd * scale, y0: y, y1: y + p.h * scale });
+    props.push({ name, x, y, z, rotY: (quarter * Math.PI) / 2, scale });
+  };
+  const pick = <T,>(list: T[]) => list[Math.floor(rand() * list.length)];
   const statics: Mesh[] = [];
   const wallMats = ['#8d8a86', '#a37b64', '#6f7a82', '#9b9076', '#7c5f57'].map((c, i) => mat(scene, `wall${i}`, c));
   const roofMat = mat(scene, 'roof', '#4a4342');
@@ -165,21 +199,23 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
         }
       }
 
-      // Street clutter: wrecked cars and street lamps.
-      if (rand() < 0.7) {
+      // Street clutter: wrecked trucks, then smaller junk on the sidewalk edges.
+      if (rand() < 0.75) {
         const along = rand() < 0.5;
         const ox = along ? between(-BLOCK / 2, BLOCK / 2) : BLOCK / 2 + STREET / 2;
         const oz = along ? BLOCK / 2 + STREET / 2 : between(-BLOCK / 2, BLOCK / 2);
-        addBox(cx + ox, cz + oz, along ? 4 : 2, along ? 2 : 4, 0, 1.3, rustMat);
+        addProp(pick(['truck-grey', 'truck-green', 'truck-flat', 'truck-grey-cargo'] as PropName[]), cx + ox, cz + oz, 0, along ? 1 : 0);
       }
-      const lamp = MeshBuilder.CreateCylinder(`lamp${n++}`, { height: 5, diameter: 0.18 }, scene);
-      lamp.position.set(cx + BLOCK / 2 + 0.6, 2.5, cz + BLOCK / 2 + 0.6);
-      lamp.material = roofMat;
-      statics.push(lamp);
-      const bulb = MeshBuilder.CreateSphere(`bulb${n++}`, { diameter: 0.5 }, scene);
-      bulb.position.set(lamp.position.x, 5.1, lamp.position.z);
-      bulb.material = lampMat;
-      statics.push(bulb);
+      for (let k = 0, m = 1 + Math.floor(rand() * 3); k < m; k++) {
+        const side = Math.floor(rand() * 4);
+        const t = between(-BLOCK / 2 + 1.5, BLOCK / 2 - 1.5);
+        const edge = BLOCK / 2 + 0.3;
+        const [x, z] = [[t, edge], [t, -edge], [edge, t], [-edge, t]][side];
+        const name = pick(['detail-dumpster-closed', 'detail-dumpster-open', 'detail-barrier-strong-type-a', 'detail-barrier-strong-damaged', 'detail-bench', 'detail-bricks-type-a', 'pallet', 'tree-large', 'tree-pine-large', 'tree-shrub'] as PropName[]);
+        addProp(name, cx + x, cz + z, 0.25, side < 2 ? 0 : 1, 3.2, name !== 'tree-shrub');
+      }
+      // Street lamp at the block corner.
+      addProp('detail-light-single', cx + BLOCK / 2 + 0.6, cz + BLOCK / 2 + 0.6, 0, 0, 5);
     }
   }
 
@@ -199,7 +235,7 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
   }
 
   for (const m of statics) m.freezeWorldMatrix();
-  return { boxes, houses, shadows, seed };
+  return { boxes, houses, props, shadows, seed };
 }
 
 function overlapsFootprint(b: Box, x: number, z: number, r: number) {

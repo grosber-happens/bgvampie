@@ -10,7 +10,9 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Culling/ray';
 import './style.css';
 import { Input } from './input';
+import { loadCharacterKit } from './characters';
 import { placeHouses } from './houses';
+import { placeProps } from './props';
 import { attachGun } from './gun';
 import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
@@ -79,6 +81,7 @@ const scene = new Scene(engine);
 const world = buildWorld(scene, seed, { houseModel: true });
 const input = new Input(canvas);
 placeHouses(scene, world).catch((e) => console.error('House model failed to load', e));
+placeProps(scene, world).catch((e) => console.error('Street props failed to load', e));
 $('seed').textContent = `Şehir #${seed} · N: yeni şehir${DEBUG ? ' · L seviye · B boss · K para' : ''}`;
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
@@ -535,7 +538,7 @@ G.hooks.kill = (killer, victim) => {
   if (victim.kind === 'decoy') return;
   const kName = killer ? (killer === player ? 'Sen' : killer.name) : 'Zehir';
   if (victim.kind !== 'mob' || killer === player) feed(`${kName} ▸ ${victim.name}${killer === player && xp ? `  +${xp} XP` : ''}`);
-  if (victim.kind === 'boss') toast(killer === player ? "Hurda Devi'ni sen devirdin!" : `${kName} Hurda Devi'ni devirdi`, 2.5);
+  if (victim.kind === 'boss') toast(killer === player ? "Zombi Devi'ni sen devirdin!" : `${kName} Zombi Devi'ni devirdi`, 2.5);
 };
 
 // ---- Match ---------------------------------------------------------------------------
@@ -597,6 +600,7 @@ function resetMatch() {
 }
 
 function start() {
+  if (!ready) return;
   if (dead) {
     location.reload();
     return;
@@ -629,7 +633,18 @@ document.addEventListener('pointerlockchange', () => {
   }
 });
 
-resetMatch();
+// Characters (Kenney survivors and zombies) load first; the match is set up once they are in.
+let ready = false;
+playBtn.disabled = true;
+playBtn.textContent = 'Yükleniyor…';
+loadCharacterKit(scene)
+  .catch((e) => console.error('Character kit failed to load', e))
+  .then(() => {
+    resetMatch();
+    ready = true;
+    playBtn.disabled = false;
+    playBtn.textContent = 'Oyna';
+  });
 setWeapon('ranged');
 updateCamera(1);
 
@@ -697,6 +712,15 @@ window.addEventListener('resize', () => engine.resize());
   },
   cam: () => camera.position.asArray(),
   logs: () => ({ xpLog, killLog }),
+  debugMeshes: (prefix: string) =>
+    scene.meshes
+      .filter((m) => m.name.startsWith(prefix))
+      .slice(0, 6)
+      .map((m) => {
+        m.computeWorldMatrix(true);
+        const bb = m.getBoundingInfo().boundingBox;
+        return { name: m.name, enabled: m.isEnabled(), vis: m.isVisible, verts: m.getTotalVertices(), min: bb.minimumWorld.asArray().map((v) => +v.toFixed(2)), max: bb.maximumWorld.asArray().map((v) => +v.toFixed(2)), skel: !!m.skeleton, parent: m.parent?.name };
+      }),
   freeze: (sec: number) => {
     for (const u of G.units) if (u !== player) u.stunT = sec;
   },

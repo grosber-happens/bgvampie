@@ -1,7 +1,8 @@
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { createActorBody, forwardFromYaw, recolor, rightFromYaw } from './actors';
+import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
+import { createCharacterBody } from './characters';
 import { DAGGERS, GUN, SHADOW_TRAIL } from './balance';
 import {
   G,
@@ -388,7 +389,10 @@ export function spawnDecoy(at: Vector3, yaw: number, mode: 'run' | 'idle', disgu
       name = b.name;
     }
   }
-  const body = createActorBody(G.scene, G.world, `decoy${G.nextId}`, colors, false, {});
+  const body =
+    disguise && colors.skin
+      ? createCharacterBody(G.scene, G.world, `decoy${G.nextId}`, colors.skin, { tint: colors.tint })
+      : createActorBody(G.scene, G.world, `decoy${G.nextId}`, colors, false, {});
   const lifeT = life ?? (ownedTier('insane') >= 2 ? NUM.decoy.insaneLife : NUM.decoy.life);
   const d = makeUnit('decoy', name, body, at, 0, NUM.decoy.hp, {
     owner: G.player,
@@ -399,7 +403,6 @@ export function spawnDecoy(at: Vector3, yaw: number, mode: 'run' | 'idle', disgu
     level: G.player.level,
     ai: { mode, runT: mode === 'run' ? 1.6 : 0, dir: forwardFromYaw(yaw), fireT: 0, firing: -1, trick: null },
   });
-  if (disguise) recolor(body, colors);
   puff(at, '#b46cff');
   return d;
 }

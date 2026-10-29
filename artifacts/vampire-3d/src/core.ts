@@ -8,6 +8,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { disposeBody, flash, forwardFromYaw, type ActorBody } from './actors';
 import { BACKSTAB, COMBAT_LOCK, ROGUE } from './balance';
 import type { Input } from './input';
+import type { SkinName } from './characters';
 import { groundHeight, pointHitsObstacle, resolveWalls, type World } from './world';
 
 export type Kind = 'player' | 'bot' | 'mob' | 'boss' | 'decoy';
@@ -44,7 +45,9 @@ export type Unit = {
   /** Decoys: who made it and when it vanishes. */
   owner?: Unit;
   lifeT?: number;
-  colors?: { body: string; head: string; weapon: string };
+  colors?: { body: string; head: string; weapon: string; skin?: SkinName; tint?: string };
+  /** Position last frame (drives run/idle animations). */
+  prev?: Vector3;
   /** Behavior data for bots, mobs, bosses and decoys. */
   ai?: Record<string, any>;
 };
@@ -304,6 +307,17 @@ export function tickStatus(u: Unit, dt: number) {
   u.flashT = Math.max(0, u.flashT - dt * 6);
   flash(u.body, u.flashT, u.tint);
   if (u.body.hpBar) u.body.hpBar.scaling.x = Math.max(0, u.hp / u.maxHp);
+  // Animated characters: run while moving, jump while in the air, idle otherwise.
+  if (u.body.play && dt > 0) {
+    const prev = u.prev ?? u.pos;
+    const speed = Math.hypot(u.pos.x - prev.x, u.pos.z - prev.z) / dt;
+    const air = u.velY > 0.5 || u.velY < -2;
+    if (u.stunT > 0) u.body.play('idle', 0.3);
+    else if (air) u.body.play('jump');
+    else if (speed > 0.6) u.body.play('run', Math.max(0.6, Math.min(1.6, speed / 6)));
+    else u.body.play('idle');
+    u.prev = u.pos.clone();
+  }
   u.body.root.position.copyFrom(u.pos);
   u.body.root.rotation.y = u.yaw;
   // Stunned units show a small spin of stars (a yellow ring).
