@@ -1,6 +1,6 @@
-# [Project name]
+# Vampire Battleground
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A local fantasy arena prototype combining automatic survivors-style combat with a shrinking-ring battleground, PvE enemies, class-restricted loot, and a manual dash.
 
 ## Run & Operate
 
@@ -22,19 +22,23 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/vampire-battleground/` — playable browser prototype
+- `artifacts/vampire-battleground/src/game/useGameEngine.ts` — local match rules, bot simulation, class skills, loot, and fog
+- `artifacts/vampire-battleground/src/game/` — class selection, arena rendering, and match HUD
+- `artifacts/vampire-battleground/src/index.css` — game theme and map styling
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The first playable version simulates 19 rival bots locally; it does not provide online multiplayer, matchmaking, or server-authoritative combat.
+- Keep the initial prototype focused on the match loop before adding persistent progression or live multiplayer infrastructure.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Players choose Rogue, Mage, Fighter, or Archer, then enter a shrinking fantasy arena with automatic attacks, five class skills, PvE enemies, class-locked chests, defensive gear, and a manual cooldown dash.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- The user plans to use Claude Code alongside Replit Agent for much of the game coding. Keep work easy to hand off through a shared Git source and avoid overlapping edits without clear ownership.
 
 ## Gotchas
 
