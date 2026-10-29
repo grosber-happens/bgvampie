@@ -17,6 +17,7 @@ import femaleA from './assets/kenney/survivorFemaleA.png?url';
 import zombieA from './assets/kenney/zombieA.png?url';
 import zombieC from './assets/kenney/zombieC.png?url';
 import type { ActorBody } from './actors';
+import { clayify } from './look';
 import type { World } from './world';
 
 /** Kenney "Animated Characters: Survivors" (CC0): one rig, several skins, idle/run/jump. */
@@ -89,6 +90,7 @@ export function createCharacterBody(scene: Scene, world: World, name: string, sk
   const base = kit.materials[0] as PBRMaterial;
   const mat =
     kitName === 'survivor' ? survivorMaterial(scene, base, opts.skin ?? 'maleB', opts.tint ?? '#ffffff', name) : (base.clone(`${name}-mat`) as PBRMaterial);
+  clayify(mat);
   const meshes: Mesh[] = [];
   for (const m of model.getChildMeshes(false)) {
     if (!(m instanceof Mesh)) continue;

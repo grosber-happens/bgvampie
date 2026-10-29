@@ -5,6 +5,8 @@ import { PointLight } from '@babylonjs/core/Lights/pointLight';
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { glowMat } from './core';
+import { clayLook, splatPlane, watercolorFxMaterial } from './look';
+import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 
 /**
  * Shooting feel: muzzle flash, recoil, camera shake, impact sparks and synthesized sounds.
@@ -60,8 +62,14 @@ export function initFeel(scene: Scene) {
   light.specular = Color3.Black();
   light.range = 9;
   light.intensity = 0;
-  flashMesh = MeshBuilder.CreatePolyhedron('muzzle-flash', { type: 1, size: 0.16 }, scene);
-  flashMesh.material = glowMat('#ffe4a0', 0.95);
+  if (clayLook) {
+    // Watercolor: a camera-facing paint splat instead of a glowing shape.
+    flashMesh = splatPlane('muzzle-flash', 0.6);
+    flashMesh.material = watercolorFxMaterial('#ffd27a', 0.95, 'splat');
+  } else {
+    flashMesh = MeshBuilder.CreatePolyhedron('muzzle-flash', { type: 1, size: 0.16 }, scene);
+    flashMesh.material = glowMat('#ffe4a0', 0.95);
+  }
   flashMesh.isPickable = false;
   flashMesh.isVisible = false;
 }
@@ -72,7 +80,7 @@ export function muzzleFlash(at: Vector3, color = '#ffc46a') {
   light.diffuse = Color3.FromHexString(color);
   light.intensity = 2.2;
   flashMesh.position.copyFrom(at);
-  flashMesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+  if (!clayLook) flashMesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
   flashMesh.scaling.setAll(0.8 + Math.random() * 0.6);
   flashMesh.isVisible = true;
   flashT = 0.05;
@@ -91,13 +99,21 @@ let sparks: Spark[] = [];
 
 export function sparksAt(scene: Scene, at: Vector3, color: string, count = 6, speed = 6) {
   for (let i = 0; i < count; i++) {
-    const m = MeshBuilder.CreateBox('spark', { size: 0.06 }, scene);
-    m.material = glowMat(color);
+    // Watercolor look: small paint drops; classic look: tiny glowing cubes.
+    const m = clayLook ? splatPlane('spark', 0.16) : MeshBuilder.CreateBox('spark', { size: 0.06 }, scene);
+    m.material = clayLook ? splatMat(color) : glowMat(color);
     m.isPickable = false;
     m.position.copyFrom(at);
     const v = new Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).normalize().scale(speed * (0.4 + Math.random() * 0.6));
     sparks.push({ mesh: m, vel: v, t: 0.25 + Math.random() * 0.2 });
   }
+}
+
+const splatMats = new Map<string, StandardMaterial>();
+function splatMat(color: string) {
+  let m = splatMats.get(color);
+  if (!m) splatMats.set(color, (m = watercolorFxMaterial(color, 1, 'splat')!));
+  return m;
 }
 
 function updateSparks(dt: number) {

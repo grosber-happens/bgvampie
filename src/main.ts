@@ -14,11 +14,12 @@ import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, sparksAt
 import { createHippoBody, loadCharacterKits } from './characters';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
+import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
 import { attachGun } from './gun';
 import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
 import { DAGGERS, GUN, MAX_LEVEL, ROGUE, TOKEN_PRICE } from './balance';
-import { G, PS, chest, dealDamage, fireBullet, glowMat, hostile, inCombat, makeUnit, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
+import { G, PS, chest, dealDamage, fireBullet, glowMat, hostile, inCombat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
 import {
   PLAYSTYLES,
   SKILLS,
@@ -81,8 +82,12 @@ const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
 const world = buildWorld(scene, seed, { houseModel: true });
 const input = new Input(canvas);
-placeHouses(scene, world).catch((e) => console.error('House model failed to load', e));
-placeProps(scene, world).catch((e) => console.error('Street props failed to load', e));
+placeHouses(scene, world)
+  .then(clayifyScene)
+  .catch((e) => console.error('House model failed to load', e));
+placeProps(scene, world)
+  .then(clayifyScene)
+  .catch((e) => console.error('Street props failed to load', e));
 $('seed').textContent = `Şehir #${seed} · N: yeni şehir${DEBUG ? ' · L seviye · B boss · K para' : ''}`;
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
@@ -91,6 +96,8 @@ camera.fov = CAMERA.fov;
 camera.minZ = 0.1;
 
 Object.assign(G, { scene, world, camera, input });
+initLook(scene, camera, world.shadows);
+clayifyScene();
 initFeel(scene);
 
 // A tiny seeded random for spawns so a seed replays the same opening.
@@ -794,6 +801,22 @@ window.addEventListener('resize', () => engine.resize());
     }
   },
   cam: () => camera.position.asArray(),
+  /** Show long-lived samples of the effects in front of the player (for look screenshots). */
+  fxDemo: () => {
+    const f = new Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+    const r = new Vector3(f.z, 0, -f.x);
+    const at = (fw: number, side: number, up: number) => player.pos.add(f.scale(fw)).add(r.scale(side)).add(new Vector3(0, up, 0));
+    lineFx(at(1, 0.4, 1.3), at(14, -1.5, 1.6), '#ffc46a', 6);
+    lineFx(at(1, 0.6, 1.2), at(12, 2.5, 1.0), '#9cff8a', 6);
+    ringFx(at(8, -4, 0), 2.4, '#ff7a3b', 6);
+    spawnFx(MeshBuilder.CreateSphere('boom', { diameter: 2.4, segments: 12 }, scene), at(11, 5, 1.4), '#ffb14a', 6, 0, 0.5);
+    spawnFx(MeshBuilder.CreateSphere('puff', { diameter: 1.4, segments: 8 }, scene), at(7, -2.5, 1.6), '#b58cff', 6, 0, 0.45);
+    for (let i = 0; i < 4; i++) {
+      const p = splatPlane('demo-splat', 0.5 + i * 0.15);
+      p.position.copyFrom(at(4 + i * 1.2, 1.4 + i * 0.6, 1.2 + (i % 2) * 0.5));
+      p.material = watercolorFxMaterial(['#ffd27a', '#ff5a6e', '#ffd27a', '#9cff8a'][i], 1, 'splat') ?? glowMat('#ffd27a');
+    }
+  },
   logs: () => ({ xpLog, killLog }),
   viewFrom: (x: number | null, y = 0, z = 0) => (viewOffset = x === null ? null : new Vector3(x, y, z)),
   showColliders: (x: number, z: number, r: number) => {

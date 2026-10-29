@@ -3,6 +3,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Scene } from '@babylonjs/core/scene';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { clayLook, watercolorFxMaterial } from './look';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { disposeBody, flash, forwardFromYaw, type ActorBody } from './actors';
@@ -113,6 +114,10 @@ const mats = new Map<string, StandardMaterial>();
 export function glowMat(hex: string, alpha = 1): StandardMaterial {
   const key = `${hex}-${alpha}`;
   let m = mats.get(key);
+  if (!m && clayLook) {
+    m = watercolorFxMaterial(hex, alpha)!;
+    mats.set(key, m);
+  }
   if (!m) {
     m = new StandardMaterial(`glow-${key}`, G.scene);
     m.emissiveColor = Color3.FromHexString(hex);
@@ -348,7 +353,7 @@ export function fireBullet(owner: Unit, from: Vector3, dir: Vector3, speed: numb
   // Small bullets are drawn as stretched tracers along their flight; big ones (boss rocks) as balls.
   const mesh =
     size < 0.3
-      ? MeshBuilder.CreateBox('bullet', { width: size * 0.45, height: size * 0.45, depth: Math.min(1.2, speed / 70) }, G.scene)
+      ? MeshBuilder.CreateBox('bullet', { width: size * (clayLook ? 0.8 : 0.45), height: size * (clayLook ? 0.8 : 0.45), depth: Math.min(1.2, speed / 70) }, G.scene)
       : MeshBuilder.CreateSphere('bullet', { diameter: size, segments: 6 }, G.scene);
   mesh.isPickable = false;
   mesh.material = glowMat(color);
@@ -383,7 +388,7 @@ export function updateBullets(dt: number) {
       b.mesh.position.addInPlace(inc);
       const p = b.mesh.position;
       if (pointHitsObstacle(p, G.world.boxes)) {
-        G.hooks.impact(p.clone(), (b.mesh.material as StandardMaterial).emissiveColor.toHexString());
+        G.hooks.impact(p.clone(), b.mesh.material?.metadata?.hex ?? (b.mesh.material as StandardMaterial).emissiveColor.toHexString());
         done = true;
         break;
       }
@@ -423,7 +428,8 @@ export function ringFx(at: Vector3, radius: number, color: string, t: number) {
 export function lineFx(a: Vector3, b: Vector3, color: string, t = 0.15) {
   const d = b.subtract(a);
   const len = d.length();
-  const m = MeshBuilder.CreateBox('trail', { width: 0.06, height: 0.06, depth: len }, G.scene);
+  const w = clayLook ? 0.16 : 0.06; // a brush stroke needs some width to show its wash
+  const m = MeshBuilder.CreateBox('trail', { width: w, height: w, depth: len }, G.scene);
   spawnFx(m, a.add(d.scale(0.5)), color, t, 0, 0.8);
   m.lookAt(b);
 }
