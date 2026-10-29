@@ -25,6 +25,7 @@ import {
   type Unit,
 } from './core';
 import { pointHitsObstacle } from './world';
+import { addShake, sfx } from './feel';
 
 export type SkillId = 'invis' | 'evasion' | 'decoy' | 'poison' | 'sprint' | 'kidney' | 'execute' | 'wink' | 'detonate' | 'insane';
 export type Tier = 1 | 2 | 3;
@@ -318,6 +319,7 @@ export function castSlot(i: number) {
     return;
   }
   if (def.cast(s)) {
+    sfx.skill();
     s.charges -= 1;
     if (s.cd <= 0) s.cd = def.cooldown(s.tier);
   }
@@ -422,6 +424,8 @@ function swapWithDecoy(): boolean {
 }
 
 function explode(d: Unit, radius: number) {
+  sfx.boom();
+  addShake(Math.max(0.15, 0.6 - flatDist(d.pos, G.player.pos) / 30));
   ringFx(d.pos, radius, '#ff7a3b', 0.35);
   spawnFx(MeshBuilder.CreateSphere('boom', { diameter: radius * 1.2, segments: 12 }, G.scene), chest(d), '#ffb14a', 0.3, 1.5, 0.5);
   for (const u of [...G.units]) {

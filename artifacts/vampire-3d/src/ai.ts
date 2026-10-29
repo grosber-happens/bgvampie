@@ -22,6 +22,7 @@ import {
 } from './core';
 import { enemyVisibility } from './rogue';
 import { findOpenSpot } from './world';
+import { addShake, sfx } from './feel';
 
 /** Rival players. Two Kenney survivor skins, tinted so each bot is easy to tell apart. */
 export const BOT_LOOKS: { name: string; body: string; head: string; weapon: string; skin: SkinName; tint: string }[] = [
@@ -324,6 +325,11 @@ function updateBoss(u: Unit, dt: number) {
       ai.ring?.dispose();
       ai.ring = null;
       ringFx(u.pos, BOSS.slamRadius, '#ff5a3b', 0.3);
+      const near = flatDist(u.pos, G.player.pos);
+      if (near < 30) {
+        sfx.boom();
+        addShake(Math.max(0.1, 0.7 - near / 25));
+      }
       for (const t of [...G.units]) {
         if (hostile(u, t) && t.kind !== 'mob' && flatDist(t.pos, u.pos) < BOSS.slamRadius + t.radius && t.pos.y - u.pos.y < 2.5) dealDamage(u, t, BOSS.slamDamage);
       }

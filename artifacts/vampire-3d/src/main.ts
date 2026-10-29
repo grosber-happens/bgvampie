@@ -10,6 +10,7 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Culling/ray';
 import './style.css';
 import { Input } from './input';
+import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, sparksAt, unlockAudio, updateFeel } from './feel';
 import { loadCharacterKit } from './characters';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
@@ -90,6 +91,7 @@ camera.fov = CAMERA.fov;
 camera.minZ = 0.1;
 
 Object.assign(G, { scene, world, camera, input });
+initFeel(scene);
 
 // A tiny seeded random for spawns so a seed replays the same opening.
 let rs = seed;
@@ -121,10 +123,12 @@ const ctl = {
 };
 
 let gunMesh: Mesh = pBody.meshes[2];
+let GUN_Z = gunMesh.position.z;
 attachGun(scene, world, pBody.root)
   .then((gun) => {
     gunMesh.dispose();
     gunMesh = gun;
+    GUN_Z = gun.position.z;
     pBody.meshes[2] = gun;
     setWeapon(ctl.weapon);
   })
@@ -176,6 +180,7 @@ setRogueHost({
 function reload() {
   if (ctl.reloadT > 0 || ctl.ammo >= GUN.magazine) return;
   ctl.reloadT = GUN.reload / hasteMult();
+  sfx.reload();
 }
 
 function isMyDecoyMesh(m: { metadata?: { unitId?: number } }) {
@@ -185,7 +190,10 @@ function isMyDecoyMesh(m: { metadata?: { unitId?: number } }) {
 
 function shoot() {
   if (ctl.reloadT > 0) return;
-  if (ctl.ammo <= 0) return reload();
+  if (ctl.ammo <= 0) {
+    sfx.empty();
+    return reload();
+  }
   ctl.fireCd = GUN.fireRate / hasteMult();
   ctl.ammo -= 1;
   // Aim ray goes from the camera through the crosshair; the bullet flies from the gun to that point.
@@ -196,12 +204,19 @@ function shoot() {
   const from = muzzle();
   const poisoned = weaponPoisoned();
   fireBullet(player, from, target.subtract(from), GUN.speed, GUN.range, GUN.damage, poisoned ? '#7be36f' : '#ffd27a', poisoned);
+  // Feel: flash, kick the camera up and the gun back, a crack of sound.
+  muzzleFlash(from, poisoned ? '#9cff8a' : '#ffc46a');
+  kick(isAiming() ? 0.012 : 0.022, 0.14, 0.035, 0.1);
+  crosshairKick = 1;
+  sfx.shot();
   if (ctl.ammo <= 0) reload();
 }
 
 function swing() {
   ctl.fireCd = DAGGERS.rate / hasteMult();
   ctl.side *= -1;
+  sfx.swing();
+  kick(0.004, 0, 0.01, 0.04);
   const fwd = forwardFromYaw(input.yaw);
   const halfArc = ((DAGGERS.arcDeg / 2) * Math.PI) / 180;
   for (const u of [...G.units]) {
@@ -319,8 +334,10 @@ let aimBlend = 0;
 function updateCamera(dt: number) {
   aimBlend += ((isAiming() ? 1 : 0) - aimBlend) * Math.min(1, AIM.blendSpeed * dt);
   const lerp = (a: number, b: number) => a + (b - a) * aimBlend;
-  camera.fov = lerp(CAMERA.fov, AIM.fov);
-  const dir = aimDirection();
+  camera.fov = lerp(CAMERA.fov, AIM.fov) + feel.fovPunch;
+  // Recoil lifts the view a little and springs back.
+  const cp = Math.cos(input.pitch + feel.recoilPitch);
+  const dir = new Vector3(Math.sin(input.yaw) * cp, Math.sin(input.pitch + feel.recoilPitch), Math.cos(input.yaw) * cp);
   const head = player.pos.add(new Vector3(0, CAMERA.height, 0));
   const pivot = head.add(rightFromYaw(input.yaw).scale(lerp(CAMERA.shoulder, AIM.shoulder)));
   const maxDist = lerp(CAMERA.distance, AIM.distance);
@@ -333,7 +350,10 @@ function updateCamera(dt: number) {
   }
   const pos = pivot.subtract(dir.scale(dist));
   pos.y = Math.max(0.4, pos.y);
+  pos.addInPlace(shakeOffset());
   camera.position.copyFrom(pos);
+  // Gun kicks back toward the player after each shot.
+  gunMesh.position.z = GUN_Z - feel.gunKick;
   camera.setTarget(pos.add(dir));
   // Fade the character while aiming, when the camera is close, and while invisible.
   const vis = enemyVisibility();
@@ -347,7 +367,25 @@ function updateCamera(dt: number) {
 // ---- HUD ---------------------------------------------------------------------------
 let hitMarkerT = 0;
 let toastT = 0;
-G.hooks.hitMarker = () => (hitMarkerT = 0.12);
+let crosshairKick = 0;
+let killMarkerT = 0;
+G.hooks.hitMarker = (crit) => {
+  hitMarkerT = 0.12;
+  sfx.hit(crit);
+};
+G.hooks.impact = (p, color) => {
+  sparksAt(scene, p, color, 5, 5);
+  if (Vector3.Distance(p, player.pos) < 25) sfx.impact();
+};
+G.hooks.shot = (from) => {
+  const d = Vector3.Distance(from, player.pos);
+  if (d < 60) sfx.farShot(d);
+};
+G.hooks.playerHurt = (dmg) => {
+  feel.hurt = Math.min(1, feel.hurt + dmg / 40);
+  addShake(Math.min(0.5, dmg / 60));
+  sfx.hurt();
+};
 
 function toast(text: string, time = 1.6) {
   $('toast').textContent = text;
@@ -450,6 +488,11 @@ function updateHud(dt: number) {
   $('pick-hint').classList.toggle('hidden', prog.pending <= 0);
   $('pick-hint').innerHTML = `Seviye atladın! ${prog.pending > 1 ? `${prog.pending} kart` : 'Kart'} seçmek için <b>Tab</b>`;
   crosshair.classList.toggle('hit', hitMarkerT > 0);
+  crosshair.classList.toggle('kill', killMarkerT > 0);
+  crosshairKick = Math.max(0, crosshairKick - dt * 6);
+  killMarkerT -= dt;
+  crosshair.style.transform = `scale(${1 + crosshairKick * 0.5})`;
+  $('hurt').style.opacity = `${feel.hurt}`;
   crosshair.classList.toggle('aim', aimBlend > 0.5);
 
   const buffs: string[] = [];
@@ -533,6 +576,11 @@ window.addEventListener('keydown', (e) => {
 // ---- Kills -------------------------------------------------------------------------
 G.hooks.kill = (killer, victim) => {
   const xp = rewardKill(killer, victim);
+  const credit = killer?.kind === 'decoy' ? killer.owner : killer;
+  if (credit === player && victim !== player && victim.kind !== 'decoy') {
+    killMarkerT = 0.35;
+    sfx.kill();
+  }
   if (victim.kind === 'bot') botDied(victim);
   if (victim === player) return die(killer);
   if (victim.kind === 'decoy') return;
@@ -619,6 +667,7 @@ function start() {
 }
 
 playBtn.addEventListener('click', () => {
+  unlockAudio();
   start();
   input.lock();
 });
@@ -655,6 +704,7 @@ function simStep(dt: number) {
   for (const u of [...G.units]) if (u.alive) tickStatus(u, dt);
   updateBullets(dt);
   updateFx(dt);
+  updateFeel(dt);
   hitMarkerT -= dt;
 }
 

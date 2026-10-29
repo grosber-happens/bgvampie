@@ -97,7 +97,12 @@ export const G = {
   hooks: {
     kill: (_killer: Unit | null, _victim: Unit) => {},
     number: (_pos: Vector3, _amount: number, _style: 'hit' | 'crit' | 'poison' | 'me' | 'block') => {},
-    hitMarker: () => {},
+    hitMarker: (_crit: boolean) => {},
+    /** A bullet hit a wall or the ground. */
+    impact: (_p: Vector3, _color: string) => {},
+    /** Someone other than the player fired (for distant shot sounds). */
+    shot: (_from: Vector3, _owner: Unit) => {},
+    playerHurt: (_dmg: number) => {},
   },
 };
 
@@ -259,7 +264,8 @@ export function dealDamage(src: Unit | null, target: Unit, amount: number, opts:
   target.lastCombat = G.time;
   if (src) src.lastCombat = G.time;
   if (credit && credit !== src) credit.lastCombat = G.time;
-  if (credit === G.player && !opts.isDot) G.hooks.hitMarker();
+  if (credit === G.player && !opts.isDot) G.hooks.hitMarker(style === 'crit');
+  if (target === G.player) G.hooks.playerHurt(dmg);
   G.hooks.number(opts.at ?? chest(target), dmg, style);
 
   if (opts.poison && credit) applyPoison(credit, target);
@@ -339,11 +345,17 @@ export function tickStatus(u: Unit, dt: number) {
 
 // ---- Bullets ---------------------------------------------------------------
 export function fireBullet(owner: Unit, from: Vector3, dir: Vector3, speed: number, range: number, damage: number, color: string, poison = false, size = 0.16) {
-  const mesh = MeshBuilder.CreateSphere('bullet', { diameter: size, segments: 6 }, G.scene);
+  // Small bullets are drawn as stretched tracers along their flight; big ones (boss rocks) as balls.
+  const mesh =
+    size < 0.3
+      ? MeshBuilder.CreateBox('bullet', { width: size * 0.45, height: size * 0.45, depth: Math.min(1.2, speed / 70) }, G.scene)
+      : MeshBuilder.CreateSphere('bullet', { diameter: size, segments: 6 }, G.scene);
   mesh.isPickable = false;
   mesh.material = glowMat(color);
   mesh.position.copyFrom(from);
+  mesh.lookAt(from.add(dir));
   G.bullets.push({ mesh, vel: dir.normalizeToNew().scale(speed), life: range / speed, damage, owner, poison, radius: size / 2 });
+  if (owner !== G.player) G.hooks.shot(from, owner);
 }
 
 /** First unit hit by a ray, before any wall. */
@@ -371,6 +383,7 @@ export function updateBullets(dt: number) {
       b.mesh.position.addInPlace(inc);
       const p = b.mesh.position;
       if (pointHitsObstacle(p, G.world.boxes)) {
+        G.hooks.impact(p.clone(), (b.mesh.material as StandardMaterial).emissiveColor.toHexString());
         done = true;
         break;
       }
