@@ -7,7 +7,7 @@ import gunUrl from './assets/gun.glb?url';
 import type { World } from './world';
 
 /** The gun model is about 1.9 units long and 1.25 tall (a pistol); this makes it about 0.38 m in the hand. */
-export const GUN = { scale: 0.2, offset: { x: 0.42, y: 0.95, z: 0.3 }, yaw: 0 };
+export const GUN = { scale: 0.2, offset: { x: 0.3, y: 1.22, z: 0.72 }, yaw: 0 };
 
 /** Load the user's gun model and attach it to the player's right side. Returns the mesh. */
 export async function attachGun(scene: Scene, world: World, parent: TransformNode): Promise<Mesh> {

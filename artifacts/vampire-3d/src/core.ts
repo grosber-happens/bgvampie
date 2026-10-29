@@ -314,7 +314,7 @@ export function tickStatus(u: Unit, dt: number) {
   flash(u.body, u.flashT, u.tint);
   if (u.body.hpBar) u.body.hpBar.scaling.x = Math.max(0, u.hp / u.maxHp);
   // Animated characters: run while moving, jump while in the air, idle otherwise.
-  if (u.body.play && dt > 0) {
+  if (u.body.play && dt > 0 && u.kind !== 'player') {
     const prev = u.prev ?? u.pos;
     const speed = Math.hypot(u.pos.x - prev.x, u.pos.z - prev.z) / dt;
     const air = u.velY > 0.5 || u.velY < -2;

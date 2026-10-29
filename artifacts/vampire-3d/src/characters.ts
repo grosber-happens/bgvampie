@@ -11,6 +11,7 @@ import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import '@babylonjs/loaders/glTF/2.0';
 import survivorUrl from './assets/kenney/survivor.glb?url';
+import hippoUrl from './assets/hippo.glb?url';
 import maleB from './assets/kenney/survivorMaleB.png?url';
 import femaleA from './assets/kenney/survivorFemaleA.png?url';
 import zombieA from './assets/kenney/zombieA.png?url';
@@ -21,31 +22,41 @@ import type { World } from './world';
 /** Kenney "Animated Characters: Survivors" (CC0): one rig, several skins, idle/run/jump. */
 export const SKINS = { maleB, femaleA, zombieA, zombieC };
 export type SkinName = keyof typeof SKINS;
+export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'dash';
 
-/** Height of the model in its own units (measured in Blender). */
-const MODEL_HEIGHT = 3.76;
+/**
+ * Two rigged kits:
+ * - survivor: Kenney survivors and zombies (bots, mobs, boss). Model is 3.76 units tall.
+ * - hippo: the user's hippo character (the player), decimated and animated by tools/hippo_blender.py.
+ */
+const KITS = {
+  survivor: { url: survivorUrl, height: 3.76 },
+  hippo: { url: hippoUrl, height: 1.9 },
+};
+type KitName = keyof typeof KITS;
+const kits: Partial<Record<KitName, AssetContainer>> = {};
+const skinTextures = new Map<string, Texture>();
 
-let kit: AssetContainer | null = null;
-const materials = new Map<string, PBRMaterial>();
-
-export async function loadCharacterKit(scene: Scene) {
-  kit = await LoadAssetContainerAsync(survivorUrl, scene, { pluginExtension: '.glb' });
+export async function loadCharacterKits(scene: Scene) {
+  await Promise.all(
+    (Object.keys(KITS) as KitName[]).map(async (k) => {
+      try {
+        kits[k] = await LoadAssetContainerAsync(KITS[k].url, scene, { pluginExtension: '.glb' });
+      } catch (e) {
+        console.error(`Character kit ${k} failed to load`, e);
+      }
+    }),
+  );
 }
 
-export const kitReady = () => kit !== null;
+export const kitReady = (k: KitName) => !!kits[k];
 
-export type Anim = 'idle' | 'run' | 'jump';
-
-function skinMaterial(scene: Scene, skin: SkinName, tint: string, name: string): PBRMaterial {
-  // Each unit gets its own material so a hit flash only lights that unit.
-  const base = kit!.materials[0] as PBRMaterial;
+function survivorMaterial(scene: Scene, base: PBRMaterial, skin: SkinName, tint: string, name: string): PBRMaterial {
   const m = base.clone(`${name}-skin`) as PBRMaterial;
-  let tex = materials.get(skin)?.albedoTexture as Texture | undefined;
+  let tex = skinTextures.get(skin);
   if (!tex) {
     tex = new Texture(SKINS[skin], scene, false, false);
-    const holder = new PBRMaterial(`tex-${skin}`, scene);
-    holder.albedoTexture = tex;
-    materials.set(skin, holder);
+    skinTextures.set(skin, tex);
   }
   m.albedoTexture = tex;
   m.albedoColor = Color3.FromHexString(tint);
@@ -57,24 +68,27 @@ function skinMaterial(scene: Scene, skin: SkinName, tint: string, name: string):
   return m;
 }
 
+type BodyOpts = { kit?: KitName; skin?: SkinName; tint?: string; height?: number; hpBar?: boolean; hpColor?: string };
+
 /**
- * A rigged, animated Kenney character inside an unscaled root (so the hp bar and
- * the weapon can be placed in metres). Returns an ActorBody like the placeholders.
+ * A rigged, animated character inside an unscaled root (so the hp bar and weapons are
+ * placed in metres). Returns an ActorBody like the placeholders.
  */
-export function createCharacterBody(
-  scene: Scene,
-  world: World,
-  name: string,
-  skin: SkinName,
-  opts: { tint?: string; height?: number; hpBar?: boolean; hpColor?: string } = {},
-): ActorBody {
+export function createCharacterBody(scene: Scene, world: World, name: string, skinOrOpts: SkinName | BodyOpts, more: BodyOpts = {}): ActorBody {
+  const opts: BodyOpts = typeof skinOrOpts === 'string' ? { ...more, skin: skinOrOpts } : skinOrOpts;
+  const kitName = opts.kit ?? 'survivor';
+  const kit = kits[kitName]!;
   const root = new TransformNode(name, scene);
   const height = opts.height ?? 1.8;
-  const inst = kit!.instantiateModelsToScene((n) => `${name}-${n}`, false, { doNotInstantiate: true });
+  const inst = kit.instantiateModelsToScene((n) => `${name}-${n}`, false, { doNotInstantiate: true });
   const model = inst.rootNodes[0] as TransformNode;
   model.parent = root;
-  model.scaling.scaleInPlace(height / MODEL_HEIGHT);
-  const mat = skinMaterial(scene, skin, opts.tint ?? '#ffffff', name);
+  model.scaling.scaleInPlace(height / KITS[kitName].height);
+
+  // Each unit gets its own material so a hit flash only lights that unit.
+  const base = kit.materials[0] as PBRMaterial;
+  const mat =
+    kitName === 'survivor' ? survivorMaterial(scene, base, opts.skin ?? 'maleB', opts.tint ?? '#ffffff', name) : (base.clone(`${name}-mat`) as PBRMaterial);
   const meshes: Mesh[] = [];
   for (const m of model.getChildMeshes(false)) {
     if (!(m instanceof Mesh)) continue;
@@ -86,17 +100,18 @@ export function createCharacterBody(
   const anims: Partial<Record<Anim, AnimationGroup>> = {};
   for (const g of inst.animationGroups) {
     g.stop();
-    const key = g.name.replace(`${name}-`, '') as Anim;
-    anims[key] = g;
+    anims[g.name.replace(`${name}-`, '') as Anim] = g;
   }
   let current: Anim | null = null;
-  const play = (a: Anim, speed = 1) => {
+  const play = (wanted: Anim, speed = 1) => {
+    // Survivors have no walk or dash: fall back to run.
+    const a: Anim = anims[wanted] ? wanted : wanted === 'walk' || wanted === 'dash' ? 'run' : wanted;
     const g = anims[a];
     if (!g) return;
     g.speedRatio = speed;
     if (current === a) return;
     if (current) anims[current]?.stop();
-    g.start(a !== 'jump', speed);
+    g.start(a !== 'jump' && a !== 'dash', speed);
     current = a;
   };
   play('idle');
@@ -126,4 +141,10 @@ export function createCharacterBody(
       mat.dispose();
     },
   };
+}
+
+/** The player's hippo body (also used for the player's decoys). */
+export function createHippoBody(scene: Scene, world: World, name: string): ActorBody | null {
+  if (!kits.hippo) return null;
+  return createCharacterBody(scene, world, name, { kit: 'hippo', height: 1.9 });
 }

@@ -11,7 +11,7 @@ import '@babylonjs/core/Culling/ray';
 import './style.css';
 import { Input } from './input';
 import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, sparksAt, unlockAudio, updateFeel } from './feel';
-import { loadCharacterKit } from './characters';
+import { createHippoBody, loadCharacterKits } from './characters';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { attachGun } from './gun';
@@ -102,7 +102,7 @@ const rand = () => {
 
 // ---- Player -----------------------------------------------------------------
 const playerColors = { body: '#7a1f2b', head: '#e9d6c0', weapon: '#ffd27a' };
-const pBody = createActorBody(scene, world, 'player', playerColors, false, {});
+let pBody = createActorBody(scene, world, 'player', playerColors, false, {});
 const player: Unit = makeUnit('player', 'Sen', pBody, new Vector3(), 0, ROGUE.maxHp, { colors: playerColors });
 G.player = player;
 for (const m of pBody.meshes) m.isPickable = false;
@@ -128,8 +128,8 @@ attachGun(scene, world, pBody.root)
   .then((gun) => {
     gunMesh.dispose();
     gunMesh = gun;
+    gun.parent = pBody.root;
     GUN_Z = gun.position.z;
-    pBody.meshes[2] = gun;
     setWeapon(ctl.weapon);
   })
   .catch((e) => console.error('Gun model failed to load', e));
@@ -139,10 +139,26 @@ const blades = [1, -1].map((s) => {
   const b = MeshBuilder.CreateBox('dagger', { width: 0.06, height: 0.06, depth: 0.75 }, scene);
   b.material = glowMat('#ff5a6e', 0.85);
   b.parent = pBody.root;
-  b.position.set(0.45 * s, 1.1, 0.45);
+  b.position.set(0.42 * s, 1.15, 0.75);
   b.isPickable = false;
   return b;
 });
+
+/** Swap the placeholder body for the user's hippo once it has loaded. */
+function usePlayerModel() {
+  const body = createHippoBody(scene, world, 'player-hippo');
+  if (!body) return;
+  for (const m of body.meshes) {
+    m.isPickable = false;
+    m.metadata = { unitId: player.id };
+  }
+  gunMesh.parent = body.root;
+  for (const b of blades) b.parent = body.root;
+  for (const m of pBody.meshes) if (m !== gunMesh) m.dispose();
+  pBody.root.dispose(true);
+  pBody = body;
+  player.body = body;
+}
 
 function setWeapon(w: Weapon) {
   ctl.weapon = w;
@@ -323,6 +339,15 @@ function updatePlayer(dt: number) {
   // Health comes back out of combat.
   if (G.time - player.lastCombat > ROGUE.regenDelay) player.hp = Math.min(player.maxHp, player.hp + ROGUE.regenPerSec * dt);
   updateRogue(dt, ctl.moving, ctl.grounded);
+  // Player animation (the hippo has idle, walk, run, jump and dash).
+  if (pBody.play) {
+    if (ctl.dashT > 0) pBody.play('dash', 1.5);
+    else if (!ctl.grounded) pBody.play('jump');
+    else if (move.lengthSquared() > 0 && !stunned) {
+      if (isAiming() || player.slowT > 0) pBody.play('walk', 1.2);
+      else pBody.play('run', speedMult());
+    } else pBody.play('idle');
+  }
 }
 
 function isAiming() {
@@ -331,6 +356,7 @@ function isAiming() {
 
 // ---- Camera ----------------------------------------------------------------------
 let aimBlend = 0;
+let viewOffset: Vector3 | null = null;
 function updateCamera(dt: number) {
   aimBlend += ((isAiming() ? 1 : 0) - aimBlend) * Math.min(1, AIM.blendSpeed * dt);
   const lerp = (a: number, b: number) => a + (b - a) * aimBlend;
@@ -352,15 +378,21 @@ function updateCamera(dt: number) {
   pos.y = Math.max(0.4, pos.y);
   pos.addInPlace(shakeOffset());
   camera.position.copyFrom(pos);
+  if (viewOffset) {
+    // Test hook: look at the player from a fixed offset.
+    camera.position.copyFrom(player.pos.add(viewOffset));
+    camera.setTarget(player.pos.add(new Vector3(0, 1.1, 0)));
+  }
   // Gun kicks back toward the player after each shot.
   gunMesh.position.z = GUN_Z - feel.gunKick;
-  camera.setTarget(pos.add(dir));
+  if (!viewOffset) camera.setTarget(pos.add(dir));
   // Fade the character while aiming, when the camera is close, and while invisible.
   const vis = enemyVisibility();
   let fade = aimBlend > 0.5 || dist < 1.6 ? 0.3 : 1;
   if (vis === 0) fade = Math.min(fade, 0.2);
   else if (vis < 1) fade = Math.min(fade, 0.55);
   for (const m of pBody.meshes) m.visibility = fade;
+  gunMesh.visibility = fade;
   for (const b of blades) b.visibility = fade;
 }
 
@@ -686,9 +718,10 @@ document.addEventListener('pointerlockchange', () => {
 let ready = false;
 playBtn.disabled = true;
 playBtn.textContent = 'Yükleniyor…';
-loadCharacterKit(scene)
+loadCharacterKits(scene)
   .catch((e) => console.error('Character kit failed to load', e))
   .then(() => {
+    usePlayerModel();
     resetMatch();
     ready = true;
     playBtn.disabled = false;
@@ -762,6 +795,7 @@ window.addEventListener('resize', () => engine.resize());
   },
   cam: () => camera.position.asArray(),
   logs: () => ({ xpLog, killLog }),
+  viewFrom: (x: number | null, y = 0, z = 0) => (viewOffset = x === null ? null : new Vector3(x, y, z)),
   showColliders: (x: number, z: number, r: number) => {
     const m = glowMat('#00ffaa', 0.35);
     for (const b of world.boxes) {

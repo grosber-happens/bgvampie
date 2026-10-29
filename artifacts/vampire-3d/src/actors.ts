@@ -15,7 +15,7 @@ export type ActorBody = {
   baseColor: Color3;
   hpBar?: Mesh;
   /** Animated characters only. */
-  play?: (anim: 'idle' | 'run' | 'jump', speed?: number) => void;
+  play?: (anim: 'idle' | 'walk' | 'run' | 'jump' | 'dash', speed?: number) => void;
   dispose?: () => void;
 };
 
