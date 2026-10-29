@@ -2,7 +2,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { forwardFromYaw, rightFromYaw } from './actors';
 import { createCharacterBody, type SkinName } from './characters';
-import { BOSS, BOTS, DAGGERS, MOBS } from './balance';
+import { BOSS, BOTS, DAGGERS, MOBS, SHADOW_TRAIL } from './balance';
 import {
   G,
   chest,
@@ -20,7 +20,7 @@ import {
   ringFx,
   type Unit,
 } from './core';
-import { hiddenByZone, playerVisibility } from './kit';
+import { hiddenByZone, playerFaded, playerVisibility } from './kit';
 import { findOpenSpot } from './world';
 import { addShake, sfx } from './feel';
 
@@ -125,6 +125,7 @@ function canSee(u: Unit, t: Unit, range: number): boolean {
     // Very close to an enemy you still show a faint outline.
     if (vis === 0) return d < 2.5;
     range *= vis;
+    if (playerFaded()) range = Math.min(range, SHADOW_TRAIL.seeRange);
   }
   return d < range && lineOfSight(chest(u), chest(t));
 }
@@ -254,6 +255,8 @@ function updateBot(u: Unit, dt: number, rand: () => number) {
       ai.fireT = BOTS.fireRate * (0.8 + rand() * 0.5);
       const from = chest(u).add(forwardFromYaw(u.yaw).scale(0.6));
       const aimAt = chest(t).add(new Vector3((rand() - 0.5) * 2, (rand() - 0.5) * 2, (rand() - 0.5) * 2).scale(BOTS.spread * dist));
+      // A faint Rogue is hard to hit from afar: aim well off to one side.
+      if (t === G.player && playerFaded() && dist > SHADOW_TRAIL.nearRange && rand() < SHADOW_TRAIL.missChance) aimAt.x += (rand() < 0.5 ? -1 : 1) * 1.6;
       fireBullet(u, from, aimAt.subtract(from), 70, 45, BOTS.damage * botDamageMult(u), ai.look.weapon);
       ai.ammo -= 1;
       if (ai.ammo <= 0) ai.reloadT = BOTS.reload;

@@ -79,6 +79,8 @@ export type ClassKit = {
   speedMult(): number;
   /** 1 normal, 0.5 faint, 0 hidden (for enemies). */
   visibility?(): number;
+  /** Rogue Gölge izi: faint, so far enemies can't see you and miss more. */
+  faded?(): boolean;
   /** Damage the player (or its allies) deals: class passives change it here. */
   outgoing?(target: Unit, dmg: number, src: Unit | null, opts: HitOpts): Outgoing;
   /** Damage the player takes: shields and damage reduction. Return the damage left. */
@@ -221,6 +223,10 @@ export function playerVisibility() {
   return kit.visibility?.() ?? 1;
 }
 
+export function playerFaded() {
+  return kit.faded?.() ?? false;
+}
+
 // ---- Targeting helpers -------------------------------------------------------------
 export const enemyOfPlayer = (u: Unit) => hostile(G.player, u) && u.team !== 0;
 
@@ -331,6 +337,15 @@ export function wallBehind(u: Unit, dir: Vector3, gap = 1.2): boolean {
   const d = new Vector3(dir.x, 0, dir.z).normalize();
   const p = chest(u).add(d.scale(u.radius + gap));
   return pointHitsObstacle(p, G.world.boxes);
+}
+
+/** Is there a wall, tree or box anywhere up to `maxGap` m behind `u` along `dir`? */
+export function obstacleWithin(u: Unit, dir: Vector3, maxGap: number): boolean {
+  const d = new Vector3(dir.x, 0, dir.z).normalize();
+  for (let g = 0.3; g <= maxGap + 1e-3; g += 0.3) {
+    if (pointHitsObstacle(chest(u).add(d.scale(u.radius + g)), G.world.boxes)) return true;
+  }
+  return false;
 }
 
 // ---- Effects --------------------------------------------------------------------------

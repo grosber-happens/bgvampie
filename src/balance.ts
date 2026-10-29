@@ -6,8 +6,8 @@
 
 // ---- Rogue character ------------------------------------------------------
 export const ROGUE = {
-  maxHp: 100,
-  hpPerLevel: 6,
+  maxHp: 125,
+  hpPerLevel: 9,
   /** Damage bonus per character level above 1. */
   damagePerLevel: 0.04,
   /** Out of combat this long, then health comes back. */
@@ -18,30 +18,33 @@ export const ROGUE = {
 /** Short-range assassination pistol: few bullets, hits hard. */
 export const GUN = { magazine: 6, fireRate: 0.32, damage: 26, speed: 90, range: 50, reload: 1.5 };
 /** Twin laser daggers: fast left/right slashes. */
-export const DAGGERS = { rate: 0.32, damage: 20, range: 2.3, arcDeg: 100 };
+export const DAGGERS = { rate: 0.32, damage: 22, range: 2.3, arcDeg: 100 };
 
 /** Backstab passive: hitting from behind (more than 120° from where the target faces). */
-export const BACKSTAB = { angleDeg: 120, mult: 1.5 };
+export const BACKSTAB = { angleDeg: 120, mult: 1.8 };
 /**
  * Passive 2 (Gölge izi): a dash leaves a decoy where it starts (once per `cooldown`).
- * Standing still for `stillTime` makes you faint (also once per `cooldown`).
- * Faint = enemies see you at `fadeVis` of their normal range, for `fadeTime` seconds.
- * It breaks when you attack, take damage, or an enemy stays within `breakRange` m (in sight) for `breakTime` s.
+ * Standing still for `stillTime` makes you faint for `fadeTime` s (also once per `cooldown`).
+ * Faint: enemies farther than `seeRange` m can't see you, and shots from beyond `nearRange` m miss `missChance` of the time.
+ * It breaks when you attack, take damage, or an enemy stays within `nearRange` m (in sight) for `breakTime` s.
  */
-export const SHADOW_TRAIL = { stillTime: 2.5, decoyLife: 6, cooldown: 8, fadeTime: 10, fadeVis: 0.5, breakRange: 12, breakTime: 1.5 };
+export const SHADOW_TRAIL = { stillTime: 2.5, decoyLife: 6, cooldown: 8, fadeTime: 10, seeRange: 20, nearRange: 8, missChance: 0.5, breakTime: 1.5 };
+
+/** Rogue decoys die to this many hits, whatever the damage. */
+export const DECOY_HITS = 2;
 
 /** "Out of combat" means no damage dealt or taken for this long (needed for invisibility). */
 export const COMBAT_LOCK = 2;
 
 // ---- Mage (design doc 2.2) ------------------------------------------------
 export const MAGE = {
-  stats: { maxHp: 95, hpPerLevel: 6, damagePerLevel: 0.04, regenDelay: 5, regenPerSec: 5 },
+  stats: { maxHp: 105, hpPerLevel: 7, damagePerLevel: 0.06, regenDelay: 5, regenPerSec: 5 },
   /** Wand: a quick laser bolt, no ammo but it heats up. */
-  wand: { rate: 0.28, damage: 17, range: 45, heatPerShot: 0.12, coolPerSec: 0.45, overheatLock: 1.5 },
+  wand: { rate: 0.28, damage: 13, range: 45, heatPerShot: 0.16, coolPerSec: 0.45, overheatLock: 1.5 },
   /** Rod: long, slow sweeps that push a little. */
   rod: { rate: 0.6, damage: 26, range: 3.2, arcDeg: 150, push: 1.2 },
   /** Passive 1: after this long out of combat, the next hit is blocked. */
-  spellShieldEvery: 8,
+  spellShieldEvery: 10,
   /** Passive 2: an orb every few seconds, up to a cap that grows with level. */
   orbEvery: 4,
   orbCap: (level: number) => (level >= 12 ? 5 : level >= 6 ? 4 : 3),
@@ -49,24 +52,24 @@ export const MAGE = {
 
 // ---- Fighter ---------------------------------------------------------------
 export const FIGHTER = {
-  stats: { maxHp: 130, hpPerLevel: 9, damagePerLevel: 0.035, regenDelay: 5, regenPerSec: 6 },
-  sword: { rate: 0.42, damage: 30, range: 2.9, arcDeg: 120 },
+  stats: { maxHp: 125, hpPerLevel: 8, damagePerLevel: 0.035, regenDelay: 5, regenPerSec: 5 },
+  sword: { rate: 0.42, damage: 28, range: 2.9, arcDeg: 120 },
   /** Thrown energy spears: 3 in hand, each comes back after a while. */
-  spear: { rate: 0.6, damage: 34, speed: 48, range: 40, count: 3, regen: 2.2 },
+  spear: { rate: 0.6, damage: 45, speed: 48, range: 40, count: 3, regen: 2.2 },
   /** Passive 1: shield points every few seconds, up to a cap. */
   shieldEvery: 10,
   shieldAmount: 20,
   shieldCap: 40,
   /** Passive 2: heal a share of damage dealt. */
-  lifesteal: 0.1,
+  lifesteal: 0.07,
 };
 
 // ---- Scout -----------------------------------------------------------------
 export const SCOUT = {
-  stats: { maxHp: 100, hpPerLevel: 7, damagePerLevel: 0.04, regenDelay: 5, regenPerSec: 5 },
-  claws: { rate: 0.24, damage: 13, range: 2.1, arcDeg: 110 },
+  stats: { maxHp: 90, hpPerLevel: 6, damagePerLevel: 0.03, regenDelay: 5, regenPerSec: 5 },
+  claws: { rate: 0.24, damage: 17, range: 2.1, arcDeg: 110 },
   /** Sniper: damage grows while scoped (right mouse), unscoped shots are weak. */
-  sniper: { rate: 1.1, minDamage: 24, maxDamage: 110, chargeTime: 1.4, range: 90, magazine: 4, reload: 2.2 },
+  sniper: { rate: 1.1, minDamage: 28, maxDamage: 80, chargeTime: 2.0, range: 90, magazine: 4, reload: 2.2 },
   /** Passive 1: a cybernetic wolf that hunts what you last hit. */
   companion: { hp: 70, damage: 12, rate: 0.8, speed: 9.5, range: 18, respawn: 20 },
   /** Passive 2: hitting someone at least this much lower deals bonus damage. */

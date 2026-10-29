@@ -45,13 +45,13 @@ import {
 type T3 = [number, number, number];
 export const MNUM = {
   sonic: { range: 8, cone: [70, 95, 95] as T3, push: [4, 6, 6] as T3, damage: 18, stun: 0.5 },
-  bombs: { count: [1, 2, 2] as T3, damage: 40, radius: 2.6, speed: 10, life: 8, dust: { radius: 3, t: 3, slow: 0.4 } },
+  bombs: { count: [1, 2, 2] as T3, damage: 32, radius: 2.6, speed: 10, life: 8, dust: { radius: 3, t: 3, slow: 0.4 } },
   fog: { radius: [6, 9, 9] as T3, dur: 7 },
   sunray: { dur: [3, 5, 5] as T3, dps: [30, 30, 30] as T3, range: 22 },
   nanobots: { dps: [12, 12, 12] as T3, dur: [5, 8, 8] as T3, range: 28, jump: 10 },
   blink: { range: [10, 13, 13] as T3 },
-  armor: { shield: 40, dur: 6, radius: 4, damage: [30, 50, 50] as T3 },
-  arms: { dur: 8, every: [0.7, 0.5, 0.5] as T3, damage: [14, 20, 20] as T3, reach: 3, stun: 0.25 },
+  armor: { shield: [40, 55, 75] as T3, dur: 6, radius: 4, damage: [40, 65, 65] as T3 },
+  arms: { dur: [8, 8, 10] as T3, every: [0.7, 0.5, 0.4] as T3, damage: [18, 26, 30] as T3, reach: 3, stun: 0.25 },
   gravity: { lift: [1.2, 1.6, 1.6] as T3, damage: [35, 55, 55] as T3, range: 26, height: 3, splash: 4 },
   mines: { max: 2, damage: [45, 65, 65] as T3, radius: 3, trigger: 2.2, range: 22 },
 };
@@ -146,12 +146,12 @@ const SKILLS: Record<string, SkillDef> = {
   armor: {
     id: 'armor',
     name: 'Nano zırh',
-    desc: '(n) 40 kalkan. Kalkan bitince ya da 6 sn dolunca patlar, etrafa hasar verir.',
-    tiers: ['40 kalkan, 30 patlama hasarı', 'Patlama hasarı 50', 'Patlamanın vurduğu her rakip 1 nano küre geri verir'],
+    desc: '(n) Kalkan (40/55/75). Kalkan bitince ya da 6 sn dolunca patlar, etrafa hasar verir.',
+    tiers: ['40 kalkan, 40 patlama hasarı', '55 kalkan, patlama hasarı 65', '75 kalkan; patlamanın vurduğu her rakip 1 nano küre geri verir'],
     orb: true,
     cooldown: () => 14,
-    cast: () => {
-      armor = MNUM.armor.shield;
+    cast: (s) => {
+      armor = byTier(s.tier, MNUM.armor.shield);
       armorT = MNUM.armor.dur;
       return true;
     },
@@ -159,12 +159,12 @@ const SKILLS: Record<string, SkillDef> = {
   arms: {
     id: 'arms',
     name: 'Nano kollar',
-    desc: '(n) Yanında 8 sn duran ve yakındaki en yakın rakibe vuran iki robotik kol.',
-    tiers: ['0.7 sn\'de bir 14 hasar', 'Daha hızlı ve sert: 0.5 sn, 20 hasar', 'Her 3. vuruş 0.25 sn sersemletir'],
+    desc: '(n) Yanında 8 sn (3. seviyede 10 sn) duran ve yakındaki en yakın rakibe vuran iki robotik kol.',
+    tiers: ['0.7 sn\'de bir 18 hasar', 'Daha hızlı ve sert: 0.5 sn, 26 hasar', '0.4 sn, 30 hasar, 10 sn; her 3. vuruş 0.25 sn sersemletir'],
     orb: true,
     cooldown: () => 12,
-    cast: () => {
-      armsT = MNUM.arms.dur;
+    cast: (s) => {
+      armsT = byTier(s.tier, MNUM.arms.dur);
       showArms(true);
       return true;
     },

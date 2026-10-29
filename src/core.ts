@@ -7,7 +7,7 @@ import { clayLook, watercolorFxMaterial } from './look';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { disposeBody, flash, forwardFromYaw, type ActorBody } from './actors';
-import { BACKSTAB, COMBAT_LOCK } from './balance';
+import { BACKSTAB, COMBAT_LOCK, DECOY_HITS } from './balance';
 import type { Input } from './input';
 import type { SkinName } from './characters';
 import { groundHeight, pointHitsObstacle, resolveWalls, type World } from './world';
@@ -269,6 +269,8 @@ export function dealDamage(src: Unit | null, target: Unit, amount: number, opts:
     }
   }
 
+  // Decoys die to a fixed number of hits, whatever the damage.
+  if (target.kind === 'decoy' && !opts.isDot) dmg = target.maxHp / DECOY_HITS;
   target.hp -= dmg;
   target.flashT = 1;
   target.lastCombat = G.time;

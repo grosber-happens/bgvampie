@@ -47,7 +47,7 @@ export const SNUM = {
   smoke: { range: 22, radius: 4, damage: [25, 40, 40] as T3, dur: 8 },
   pack: { count: [1, 2, 2] as T3, haste: { mult: 1.2, t: 5 } },
   hunt: { dur: [6, 9, 9] as T3, bonus: [0.2, 0.3, 0.3] as T3, range: 45 },
-  pounce: { range: [10, 13, 13] as T3, damage: [30, 45, 45] as T3, speed: 28, down: 0.5 },
+  pounce: { range: [10, 13, 13] as T3, damage: [40, 55, 55] as T3, speed: 28, down: 0.5 },
   rend: { hits: [5, 7, 7] as T3, damage: 8, bleed: 8, bleedT: 4, every: 0.15 },
   drone: { dur: [10, 15, 15] as T3, radius: [14, 20, 20] as T3 },
   trap: { max: [2, 3, 3] as T3, root: [1.5, 2.2, 2.2] as T3, damage: 10, trigger: 1.2, range: 16 },

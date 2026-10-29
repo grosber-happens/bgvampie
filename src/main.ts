@@ -28,6 +28,7 @@ import {
   kit,
   learn,
   maxCharges,
+  playerFaded,
   playerVisibility,
   resetKit,
   setHost,
@@ -376,7 +377,7 @@ function updateCamera(dt: number) {
   const vis = playerVisibility();
   let fade = aimBlend > 0.5 || dist < 1.6 ? 0.3 : 1;
   if (vis === 0) fade = Math.min(fade, 0.2);
-  else if (vis < 1) fade = Math.min(fade, 0.55);
+  else if (vis < 1 || playerFaded()) fade = Math.min(fade, 0.55);
   if (blinkHidden) fade = 0;
   for (const m of pBody.meshes) m.visibility = fade;
   if (weaponNodes) for (const n of Object.values(weaponNodes)) for (const m of n.getChildMeshes()) m.visibility = fade;

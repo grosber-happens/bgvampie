@@ -18,12 +18,12 @@ import {
   host,
   meleeTargets,
   ownedTier,
+  obstacleWithin,
   puff,
   push,
   registerKit,
   sweep,
   updateCooldowns,
-  wallBehind,
   weaponPart,
   zones,
   type ClassKit,
@@ -40,15 +40,17 @@ import { pointHitsObstacle } from './world';
 type T3 = [number, number, number];
 export const FNUM = {
   second: { dur: [5, 7, 7] as T3, rate: [0.6, 0.45, 0.45] as T3, wave: { damage: 15, range: 10 } },
-  rain: { radius: [3.5, 5, 5] as T3, damage: [40, 60, 60] as T3, delay: 0.6, range: 32, spikes: { t: 3, slow: 0.4, dps: 6 } },
+  rain: { radius: [3.5, 5, 5] as T3, damage: [45, 65, 65] as T3, delay: 0.6, range: 32, spikes: { t: 3, slow: 0.4, dps: 6 } },
   eshield: { dur: [3, 5, 5] as T3, hp: [80, 80, 140] as T3, arcDeg: 140, wave: { range: 8, share: 0.7 } },
   chain: { range: [16, 20, 20] as T3, slow: { share: 0.5, t: 1 }, damage: 15 },
-  pierce: { damage: [60, 80, 80] as T3, range: 40, pin: 0.25 },
+  /** Pins to a wall within `wallGap` m behind; the pin lasts `pinNear` s up close (within `near` m) down to `pinFar` s at max range. */
+  pierce: { damage: [60, 80, 80] as T3, range: 40, wallGap: 3, near: 5, pinNear: 1.5, pinFar: 0.25 },
   charge: { dist: [9, 12, 12] as T3, speed: 30, damage: 25, stun: 0.6 },
   leap: { dist: [10, 13, 13] as T3, damage: [35, 55, 55] as T3, radius: 4, up: 12, lift: 0.6 },
   whirl: { dur: [2.5, 3.5, 3.5] as T3, damage: [12, 18, 18] as T3, every: 0.3, radius: 3 },
   overpower: { dur: [5, 7, 7] as T3, dmg: 0.3, lifesteal: [0.1, 0.2, 0.2] as T3 },
-  recall: { damage: [25, 40, 40] as T3, slow: { share: 0.4, t: 2 } },
+  /** `perSpear`: damage to a target for each spear stuck in it; `damage`: to others on the way back. */
+  recall: { damage: [25, 40, 40] as T3, perSpear: 15, slow: { share: 0.4, t: 2 } },
 };
 
 const SKILLS: Record<string, SkillDef> = {
@@ -119,7 +121,7 @@ const SKILLS: Record<string, SkillDef> = {
   pierce: {
     id: 'pierce',
     name: 'Delici mızrak',
-    desc: 'Düz hatta birden fazla rakibi delen güçlü bir mızrak. Arkasında duvar olan rakibi her zaman duvara çiviler (0.25 sn sersemletme).',
+    desc: 'Düz hatta birden fazla rakibi delen güçlü bir mızrak. Arkasında 3 m içinde duvar, ağaç ya da kutu olan rakibi oraya çiviler: yakından 1.5 sn, 40 m\'den 0.25 sn.',
     tiers: ['60 hasar, 11 sn bekleme', 'Hasar 80, bekleme 8 sn', 'Mızrak düştüğü yerden eline geri döner, yolda çarptığı rakiplere de vurur'],
     cooldown: (t) => byTier(t, [11, 8, 8]),
     cast: (s) => {
@@ -128,10 +130,14 @@ const SKILLS: Record<string, SkillDef> = {
       beamFx(from, point, '#ffd27a', 0.2, 0.12);
       sfx.throw();
       kick(0.02, 0.12, 0.03, 0.1);
+      const N = FNUM.pierce;
       for (const u of hits) {
         dealDamage(G.player, u, dmg, { at: chest(u) });
-        if (wallBehind(u, dir)) {
-          stun(u, FNUM.pierce.pin);
+        if (u.alive && obstacleWithin(u, dir, N.wallGap)) {
+          const d = flatDist(G.player.pos, u.pos);
+          const k = Math.min(1, Math.max(0, (d - N.near) / (N.range - N.near)));
+          stun(u, N.pinNear + (N.pinFar - N.pinNear) * k);
+          puff(u.pos, '#ffd27a', 0.8);
         }
       }
       if (s.tier === 3) returning.push({ from: point.clone(), t: 0, dmg: dmg * 0.5, hit: [], slow: false });
@@ -202,13 +208,17 @@ const SKILLS: Record<string, SkillDef> = {
   recall: {
     id: 'recall',
     name: 'Mızrak geri çağırma',
-    desc: 'Yere saplanmış ya da atılmış tüm mızraklarını eline geri çekersin; geçtikleri rakiplere hasar verir.',
+    desc: 'Rakiplere saplanmış tüm mızraklarını eline geri çekersin. Saplı her mızrak 15 hasar verir; dönerken yoldaki rakiplere de vurur.',
     tiers: ['25 hasar, 10 sn bekleme', 'Hasar 40, bekleme 7 sn', 'Geri dönerken çarptığı rakipleri 2 sn %40 yavaşlatır'],
     cooldown: (t) => byTier(t, [10, 7, 7]),
-    blocked: () => (stuck.length ? null : 'Atılmış mızrak yok'),
+    blocked: () => (stuck.length ? null : 'Saplı mızrak yok'),
     cast: (s) => {
       for (const sp of stuck) {
-        returning.push({ from: sp.mesh.position.clone(), t: 0, dmg: byTier(s.tier, FNUM.recall.damage), hit: [], slow: s.tier === 3 });
+        if (sp.on.alive) {
+          dealDamage(G.player, sp.on, FNUM.recall.perSpear, { at: sp.mesh.position.clone() });
+          if (s.tier === 3) slowUnit(sp.on, FNUM.recall.slow.share, FNUM.recall.slow.t);
+        }
+        returning.push({ from: sp.mesh.position.clone(), t: 0, dmg: byTier(s.tier, FNUM.recall.damage), hit: [sp.on], slow: s.tier === 3 });
         sp.mesh.dispose();
       }
       stuck = [];
@@ -244,7 +254,10 @@ let swingSide = 1;
 let pending: { at: Vector3; r: number; t: number; tier: number }[] = [];
 type Flying = { mesh: Mesh; vel: Vector3; life: number };
 let flying: Flying[] = [];
-let stuck: { mesh: Mesh; t: number }[] = [];
+/** Spears stuck in enemies (they ride along until recalled, the target dies, or they time out). */
+let stuck: { mesh: Mesh; on: Unit; t: number; off: Vector3 }[] = [];
+/** Missed spears lying on the ground for a moment before they fade. */
+let dropped: { mesh: Mesh; t: number }[] = [];
 let returning: { from: Vector3; t: number; dmg: number; hit: Unit[]; slow: boolean }[] = [];
 let shieldMesh: Mesh | null = null;
 let whirlMesh: Mesh | null = null;
@@ -259,8 +272,10 @@ function reset() {
   pending = [];
   for (const f of flying) f.mesh.dispose();
   for (const s of stuck) s.mesh.dispose();
+  for (const s of dropped) s.mesh.dispose();
   flying = [];
   stuck = [];
+  dropped = [];
   returning = [];
 }
 
@@ -306,7 +321,7 @@ function updateSpears(dt: number) {
       f.mesh.position.addInPlace(inc);
       const p = f.mesh.position;
       if (pointHitsObstacle(p, G.world.boxes) || p.y < 0.05) {
-        stickSpear(f.mesh);
+        dropSpear(f.mesh);
         G.hooks.impact(p.clone(), '#ffd27a');
         return false;
       }
@@ -314,16 +329,15 @@ function updateSpears(dt: number) {
         if (!hostile(G.player, u) || u.team === 0) continue;
         if (p.y > u.pos.y - 0.1 && p.y < u.pos.y + u.height + 0.1 && flatDist(p, u.pos) < u.radius + 0.15) {
           dealDamage(G.player, u, S.damage, { at: p.clone() });
-          // The spear drops at the target's feet.
-          f.mesh.position.set(u.pos.x, u.pos.y + 0.4, u.pos.z);
-          stickSpear(f.mesh);
+          // The spear sticks in the target and rides along.
+          stickSpear(f.mesh, u, f.vel);
           return false;
         }
       }
     }
     f.life -= dt;
     if (f.life <= 0) {
-      stickSpear(f.mesh);
+      dropSpear(f.mesh);
       return false;
     }
     return true;
@@ -334,10 +348,23 @@ function updateSpears(dt: number) {
     if (spearRegen >= S.regen) {
       spearRegen = 0;
       spears += 1;
-      const old = stuck.shift();
-      old?.mesh.dispose();
     }
   } else spearRegen = 0;
+  dropped = dropped.filter((d) => {
+    d.t += dt;
+    if (d.t < SPEAR_DROP_LIFE) return true;
+    d.mesh.dispose();
+    return false;
+  });
+  stuck = stuck.filter((s) => {
+    s.t += dt;
+    if (s.on.alive && s.t < SPEAR_STUCK_LIFE) {
+      s.mesh.position.copyFrom(s.on.pos).addInPlace(s.off);
+      return true;
+    }
+    s.mesh.dispose();
+    return false;
+  });
   // Returning spears fly to the player and hit whoever is on the way.
   returning = returning.filter((r) => {
     r.t += dt * 2.5;
@@ -354,10 +381,26 @@ function updateSpears(dt: number) {
   });
 }
 
-function stickSpear(mesh: Mesh) {
-  mesh.material = glowMat('#ffd27a', 0.5);
-  stuck.push({ mesh, t: 0 });
-  while (stuck.length > FIGHTER.spear.count) stuck.shift()!.mesh.dispose();
+/** At most this many spears stick in one target; missed spears fade after a moment. */
+const SPEAR_MAX_PER_TARGET = 8;
+const SPEAR_STUCK_LIFE = 15;
+const SPEAR_DROP_LIFE = 1;
+
+function stickSpear(mesh: Mesh, on: Unit, vel: Vector3) {
+  mesh.material = glowMat('#ffd27a', 0.6);
+  // Half sunk in, it rides along with the target.
+  mesh.position.addInPlace(vel.normalizeToNew().scale(0.35));
+  stuck.push({ mesh, on, t: 0, off: mesh.position.subtract(on.pos) });
+  const mine = stuck.filter((s) => s.on === on);
+  if (mine.length > SPEAR_MAX_PER_TARGET) {
+    mine[0].mesh.dispose();
+    stuck.splice(stuck.indexOf(mine[0]), 1);
+  }
+}
+
+function dropSpear(mesh: Mesh) {
+  mesh.material = glowMat('#ffd27a', 0.4);
+  dropped.push({ mesh, t: 0 });
 }
 
 // ---- Per frame ---------------------------------------------------------------------

@@ -55,13 +55,13 @@ export type SkillId = 'invis' | 'evasion' | 'decoy' | 'poison' | 'sprint' | 'kid
 export const NUM = {
   invis: { dur: [3, 4.5, 4.5] as [number, number, number] },
   evasion: { dur: [2.5, 4, 5.5] as [number, number, number], immune: 2 },
-  decoy: { life: 8, insaneLife: 12, hp: 30, max: 3 },
+  decoy: { life: 8, insaneLife: 12, hp: 30, max: 4 },
   poison: { slow: [0.3, 0.4, 0.4] as [number, number, number], dps: [6, 10, 10] as [number, number, number], coat: 6, boost: 5 },
   sprint: { dur: 4, mult: 1.45, haste: 1.35 },
   kidney: { stun: [0.55, 0.55, 1] as [number, number, number], range: 2.8, damage: 10 },
   execute: { damage: [70, 95, 95] as [number, number, number], missing: 0.4, bossCap: 150, range: 55 },
   wink: { range: [12, 16, 20] as [number, number, number], stun: 0.25 },
-  detonate: { radius: [3.5, 4.5, 4.5] as [number, number, number], damage: 55 },
+  detonate: { radius: [4.5, 5.5, 5.5] as [number, number, number], damage: 70 },
   insane: { share: 0.3, fireFor: 2, rate: 0.4, range: 16 },
 };
 
@@ -214,7 +214,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     id: 'detonate',
     name: 'Detonate',
     desc: 'Nişangâhtaki kopyanı patlatır (nişangâhta kopya yoksa en yakındakini).',
-    tiers: ['3.5 m patlama, 11 sn bekleme', '4.5 m patlama, 8 sn bekleme', 'Tüm kopyalar birden patlar'],
+    tiers: ['4.5 m patlama, 70 hasar, 11 sn bekleme', '5.5 m patlama, 8 sn bekleme', 'Tüm kopyalar birden patlar'],
     cooldown: (t) => byTier(t, [11, 8, 8]),
     blocked: noDecoy,
     cast: (s) => {
@@ -301,7 +301,6 @@ export function speedMult() {
 export function enemyVisibility() {
   if (PS.invisT > 0) return 0;
   if (PS.semiInvis && !inCombat(G.player)) return 0.5;
-  if (fadeT > 0) return SHADOW_TRAIL.fadeVis;
   return 1;
 }
 
@@ -328,7 +327,7 @@ export function updateRogue(dt: number, moving: boolean, grounded: boolean) {
     fadeT -= dt;
     // A close enemy that keeps you in sight sees through it.
     const me = chest(G.player);
-    const watched = enemiesNear(G.player.pos, SHADOW_TRAIL.breakRange).some((u) => lineOfSight(chest(u), me));
+    const watched = enemiesNear(G.player.pos, SHADOW_TRAIL.nearRange).some((u) => lineOfSight(chest(u), me));
     watchedT = watched ? watchedT + dt : Math.max(0, watchedT - dt);
     if (watchedT >= SHADOW_TRAIL.breakTime) breakFade();
   }
@@ -502,7 +501,7 @@ export const ROGUE_KIT: ClassKit = {
   stats: ROGUE,
   dash: { anim: 'dash', speed: 26, time: 0.18, cd: 1.0, color: '#b46cff' },
   weaponNames: { ranged: 'Suikast tabancası', melee: 'İkili lazer hançer' },
-  passives: ['Backstab: arkadan vuruş x1.5', 'Gölge izi: dash başladığı yerde kopya bırakır; 2.5 sn durunca 10 sn silikleşirsin'],
+  passives: ['Backstab: arkadan vuruş x1.8', 'Gölge izi: dash başladığı yerde kopya bırakır; 2.5 sn durunca 10 sn silikleşirsin'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
   buildWeapons(root) {
@@ -530,7 +529,7 @@ export const ROGUE_KIT: ClassKit = {
     const b: string[] = [];
     if (PS.invisT > 0) b.push(`Görünmez ${PS.invisT.toFixed(1)}`);
     else if (fadeT > 0 && !PS.semiInvis) b.push(`Silik ${fadeT.toFixed(1)}`);
-    else if (enemyVisibility() < 1) b.push('Yarı silik');
+    else if (PS.semiInvis && enemyVisibility() < 1) b.push('Yarı silik');
     if (PS.evasionImmuneT > 0) b.push('Hasar almaz');
     else if (PS.evasionT > 0) b.push(`Evasion ${PS.evasionT.toFixed(1)}`);
     if (PS.poisonBoostT > 0) b.push('Zehir x2');
@@ -540,6 +539,7 @@ export const ROGUE_KIT: ClassKit = {
   },
   speedMult,
   visibility: enemyVisibility,
+  faded: () => fadeT > 0,
   outgoing(target, dmg, src, opts) {
     let crit = false;
     // Backstab passive: the attacker's position decides (a decoy shooting from behind counts too).
