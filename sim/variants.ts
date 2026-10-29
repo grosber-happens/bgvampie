@@ -35,7 +35,10 @@ export const VARIANTS: Record<string, { name: string; apply: () => void }> = {
 };
 void S;
 
-for (const id of (process.env.VARIANT ?? '').split(',').filter(Boolean)) {
+/** Changes the user approved on 2026-10-29, applied with TUNED=1 (PACKAGE=0 leaves them out). */
+export const PACKAGE = ['s_dmg', 's_hp', 's_charge', 'r_hp', 'r_back', 'r_clone', 'm_hp', 'm_arms', 'm_armor2', 'm_armor_tier', 'm_arms3b', 'm_wand', 'f_spear'];
+const picked = [...(process.env.TUNED === '1' && process.env.PACKAGE !== '0' ? PACKAGE : []), ...(process.env.VARIANT ?? '').split(',').filter(Boolean)];
+for (const id of picked) {
   if (!VARIANTS[id]) throw new Error(`unknown variant ${id}`);
   VARIANTS[id].apply();
 }
