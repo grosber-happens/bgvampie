@@ -221,6 +221,13 @@ export const CLASSES: Record<ClassId, ClassStats> = {
 /** Class passives (src/balance.ts). */
 export const PASSIVES = {
   rogue: { backstabMult: 1.5, trailStill: 2.5, trailLife: 6, trailCd: 8 },
+  /**
+   * ROGUE2=1, the user's Rogue rework: standing still only fades (no copy), a dash leaves the copy
+   * (on the trail cooldown), and stealth no longer grants Backstab: the Rogue has to get behind.
+   */
+  rogue2: { on: process.env.ROGUE2 === '1', behindDot: -0.5 },
+  /** Gölge izi addition (FADE=1): standing still also makes the Rogue faded for `life` s. */
+  rogueFade: { on: process.env.FADE === '1' || process.env.ROGUE2 === '1', life: 10, see: 20, near: 8, hitMult: 0.5, breakNear: 8, breakTime: 1.5 },
   mage: { shieldEvery: 8, orbEvery: 4, orbs: (lvl: number) => (lvl >= 12 ? 5 : lvl >= 6 ? 4 : 3) },
   fighter: { every: 10, shield: 20, cap: 40, lifesteal: 0.1 },
   scout: { beastHp: 70, beastDmg: 12, beastRate: 0.8, beastRange: 18, respawn: 20, highGroundMult: 1.2, highGroundChance: 0.3 },

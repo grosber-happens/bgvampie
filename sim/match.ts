@@ -43,6 +43,7 @@ import {
   hostile,
   jump,
   losBlocked,
+  isBehind,
   makeUnit,
   onPlatform,
   minutes,
@@ -245,6 +246,8 @@ function makePlayer(cls: ClassId, styleIndex: number, x: number, z: number): Uni
     sprintHaste: false,
     stillT: 0,
     trailCd: 0,
+    fadeNearT: 0,
+    fadeCd: 0,
     kills: 0,
     bossKills: 0,
     mobKills: 0,
@@ -452,10 +455,11 @@ function weaponHit(u: Unit, t: Unit, melee: boolean) {
   const w = melee ? C.melee : C.ranged;
   const d = dist(u, t);
   let dmg = w.dmg;
+  u.fadeT = 0;
   // Attacking breaks invisibility; an unseen approach lets the Rogue strike from behind.
   if (u.stealthT > 0) {
     u.stealthT = 0;
-    if (melee) u.backstabT = Math.max(u.backstabT, 0.6);
+    if (melee && !PASSIVES.rogue2.on) u.backstabT = Math.max(u.backstabT, 0.6);
   }
   // Melee cannot reach someone standing on a platform from below.
   if (melee && W.obstacles.length && onPlatform(t) !== onPlatform(u) && t.kind === 'player') return;
@@ -583,6 +587,7 @@ function playerStep(u: Unit, dt: number) {
   p.secondT -= dt;
   p.eshieldT -= dt;
   p.trailCd -= dt;
+  p.fadeCd -= dt;
   b.gcd -= dt;
   const outOfCombat = W.time - u.lastCombat > MATCH.regenDelay;
   if (outOfCombat) heal(u, C.regenPerSec * dt);
@@ -613,9 +618,24 @@ function playerStep(u: Unit, dt: number) {
       }
     }
   } else if (p.cls === 'rogue') {
-    if (p.stillT >= PASSIVES.rogue.trailStill && p.trailCd <= 0) {
+    if (PASSIVES.rogue2.on) {
+      // Standing still only fades; the copy comes from the dash (see the dash code).
+      if (p.stillT >= PASSIVES.rogue.trailStill && p.fadeCd <= 0) {
+        u.fadeT = PASSIVES.rogueFade.life;
+        p.fadeNearT = 0;
+        p.fadeCd = PASSIVES.rogue.trailCd;
+      }
+    } else if (p.stillT >= PASSIVES.rogue.trailStill && p.trailCd <= 0) {
       makeDecoy(u, PASSIVES.rogue.trailLife);
       p.trailCd = PASSIVES.rogue.trailCd;
+      if (PASSIVES.rogueFade.on) (u.fadeT = PASSIVES.rogueFade.life), (p.fadeNearT = 0), (p.fadeCd = PASSIVES.rogue.trailCd);
+    }
+    // Faded: an enemy staying close with a clear view sees through it.
+    if (u.fadeT > 0) {
+      const F = PASSIVES.rogueFade;
+      const close = W.players.some((e) => e !== u && e.alive && dist(e, u) < F.breakNear && !(W.obstacles.length && losBlocked(e, u)));
+      p.fadeNearT = close ? p.fadeNearT + dt : 0;
+      if (p.fadeNearT >= F.breakTime) u.fadeT = 0;
     }
   }
 
@@ -660,6 +680,11 @@ function playerStep(u: Unit, dt: number) {
   b.dashT -= dt;
   if (t && b.dashT <= 0 && u.stunT <= 0) {
     const D = C.dash;
+    // Rogue rework: the copy is left where the dash starts.
+    if (PASSIVES.rogue2.on && p.cls === 'rogue' && p.trailCd <= 0 && (b.flee || (p.melee && d > C.melee.range + 1 && d < 15) || (!p.melee && t.kind === 'player' && t.p!.melee && d < 4))) {
+      makeDecoy(u, PASSIVES.rogue.trailLife);
+      p.trailCd = PASSIVES.rogue.trailCd;
+    }
     if (b.flee) {
       moveAway(u, t, 0);
       jump(u, u.x + (u.x - t.x) * 10, u.z + (u.z - t.z) * 10, D.dist);
@@ -672,9 +697,29 @@ function playerStep(u: Unit, dt: number) {
       b.dashT = D.cd;
     }
   }
+  // Rogue with Gölge izi ready: hold still out of combat (no enemy player near) to fade.
+  const waitFade =
+    PASSIVES.rogueFade.on && p.cls === 'rogue' && p.fadeCd <= 0 && u.fadeT <= 0 && !b.flee && W.time - u.lastCombat > 2 &&
+    !W.players.some((e) => e !== u && e.alive && dist(e, u) < 15 && canSee(e, u));
+  if (waitFade) {
+    p.stillT += dt;
+    return;
+  }
   // Movement.
   const speedMult = p.vehicle && W.time - u.lastCombat > 3 && !t ? VEHICLE.speedMult : 1;
-  if (b.flee && t) {
+  const sneak = PASSIVES.rogue2.on && u.stealthT > 0 && t && t.kind === 'player' && !b.flee && p.melee;
+  if (sneak) {
+    // Invisible: circle round to the target's back before striking.
+    const fx = t!.faceX || (u.x - t!.x) / Math.max(0.01, d);
+    const fz = t!.faceZ || (u.z - t!.z) / Math.max(0.01, d);
+    const bx = t!.x - fx * 1.2;
+    const bz = t!.z - fz * 1.2;
+    // Go wide around the front so the target's view cone is avoided.
+    const side = { x: t!.x - fz * 3, z: t!.z + fx * 3 };
+    const inFront = !isBehind(u, t!) && d < 5;
+    if (inFront) moveToward(u, side.x, side.z);
+    else moveToward(u, bx, bz);
+  } else if (b.flee && t) {
     moveAway(u, t);
   } else if (b.flee) {
     // Run from the closest enemy player; with nobody close, carry on.
@@ -703,11 +748,17 @@ function playerStep(u: Unit, dt: number) {
   u.z = clamp(u.z, -MAP_HALF, MAP_HALF);
   const moved = Math.hypot(u.x - before.x, u.z - before.z);
   p.stillT = moved < 0.05 ? p.stillT + dt : 0;
+  // Facing: toward the target, else along the way we moved.
+  if (t) {
+    const k = Math.max(0.01, d);
+    (u.faceX = (t.x - u.x) / k), (u.faceZ = (t.z - u.z) / k);
+  } else if (moved > 0.05) (u.faceX = (u.x - before.x) / moved), (u.faceZ = (u.z - before.z) / moved);
 
   // Attacks.
   if (!t || b.flee && d > 4) return;
   // Invisible: hold fire until close enough to strike from behind.
   if (u.stealthT > 0 && d > C.melee.range + 0.3) return;
+  if (PASSIVES.rogue2.on && u.stealthT > 0.6 && t.kind === 'player' && !isBehind(u, t)) return;
   const haste = u.hasteT > 0 ? u.hasteAmt : 1;
   u.atkT -= dt * haste;
   // Fighter: second sword and blade storm run on their own clocks.
@@ -912,6 +963,7 @@ function tickStatus(u: Unit, dt: number) {
   u.drT -= dt;
   u.immuneT -= dt;
   u.stealthT -= dt;
+  u.fadeT -= dt;
   u.fogT -= dt;
   u.hasteT -= dt;
   u.speedT -= dt;

@@ -61,6 +61,8 @@ export type PlayerState = {
   sprintHaste: boolean;
   stillT: number;
   trailCd: number;
+  fadeNearT: number;
+  fadeCd: number;
   // Stats for the report.
   kills: number;
   bossKills: number;
@@ -96,6 +98,11 @@ export type Unit = {
   drAmt: number;
   immuneT: number;
   stealthT: number;
+  /** Faded (Gölge izi): hard to spot and hit from range. */
+  fadeT: number;
+  /** Where the unit is looking (unit vector, 0,0 = unknown). */
+  faceX: number;
+  faceZ: number;
   fogT: number;
   hasteT: number;
   hasteAmt: number;
@@ -234,6 +241,9 @@ export function makeUnit(kind: Kind, name: string, x: number, z: number, hp: num
     drAmt: 0,
     immuneT: 0,
     stealthT: 0,
+    fadeT: 0,
+    faceX: 0,
+    faceZ: 0,
     fogT: 0,
     hasteT: 0,
     hasteAmt: 0,
@@ -294,6 +304,7 @@ export function hitChance(src: Unit, dst: Unit, d: number, range: number, acc = 
   let c = aim * acc * clamp(1.1 - (0.6 * d) / range, 0.3, 1);
   if (dst.smokeT > 0 || dst.fogT > 0) c *= 0.35;
   if (src.smokeT > 0 || src.fogT > 0) c *= 0.6;
+  if (dst.fadeT > 0 && d > PASSIVES.rogueFade.near) c *= PASSIVES.rogueFade.hitMult;
   return clamp(c, 0, 0.98);
 }
 
@@ -302,8 +313,16 @@ export function canSee(src: Unit, dst: Unit): boolean {
   const d = dist(src, dst);
   if (dst.stealthT > 0 && d > 4) return false;
   if (dst.fogT > 0 && d > 6) return false;
+  if (dst.fadeT > 0 && d > PASSIVES.rogueFade.see) return false;
   if (W.obstacles.length && d > 6 && losBlocked(src, dst)) return false;
   return true;
+}
+
+/** True when `a` stands behind `t` (outside a 240° cone in front of where `t` looks). */
+export function isBehind(a: Unit, t: Unit): boolean {
+  if (!t.faceX && !t.faceZ) return false;
+  const d = Math.max(0.01, dist(a, t));
+  return ((a.x - t.x) * t.faceX + (a.z - t.z) * t.faceZ) / d < PASSIVES.rogue2.behindDot;
 }
 
 // ---- Damage ---------------------------------------------------------------
@@ -325,7 +344,10 @@ export function damage(src: Unit | null, dst: Unit, raw: number, type: DmgType):
     dmg *= powerMult(src);
     // Rogue Backstab: after Wink, or a small chance in melee brawls (circling the target).
     if (src.p.cls === 'rogue' && (type === 'melee' || type === 'skill' || type === 'ranged')) {
-      const behind = src.backstabT > 0 || (type === 'melee' && W.rand() < (dst.kind === 'player' ? 0.15 : 0.05));
+      const behind =
+        src.backstabT > 0 ||
+        (type === 'melee' && PASSIVES.rogue2.on && isBehind(src, dst)) ||
+        (type === 'melee' && W.rand() < (dst.kind === 'player' ? 0.15 : 0.05));
       if (behind) dmg *= PASSIVES.rogue.backstabMult;
     }
     // Scout high ground: some ranged shots come from above (after Kanca, always).
@@ -356,6 +378,9 @@ export function damage(src: Unit | null, dst: Unit, raw: number, type: DmgType):
     dst.shield -= a;
     dmg -= a;
   }
+  // Taking damage or attacking ends the faded look.
+  if (dmg > 0 && type !== 'storm') dst.fadeT = 0;
+  if (owner) owner.fadeT = 0;
   dst.hp -= dmg;
   const now = W.time;
   if (type !== 'storm') {
