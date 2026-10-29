@@ -574,7 +574,7 @@ export const FIGHTER_KIT: ClassKit = {
   stats: FIGHTER.stats,
   dash: { anim: 'dash_fighter', speed: 30, time: 0.2, cd: 1.1, color: '#ff9a3b' },
   weaponNames: { ranged: 'Enerji mızrakları', melee: 'Lazer kılıcı' },
-  passives: ['Kalkan jeneratörü: 10 sn\'de bir 20 kalkan', 'Can çalma: verdiğin hasarın %10\'u'],
+  passives: ['Kalkan jeneratörü: 10 sn\'de bir 20 kalkan', 'Can çalma: verdiğin hasarın %7\'si'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
   buildWeapons,

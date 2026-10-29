@@ -2,7 +2,7 @@
 
 3D third-person battle royale prototype, built with Babylon.js + TypeScript. This replaced the earlier 2D Replit prototype; that version is still in the git history.
 
-Gameplay design doc: kept in the project files (`design/oynanis-tasarimi.md`).
+Full game design brief: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md). Notes for Replit Agent: [`replit.md`](replit.md).
 
 ## Run
 
@@ -21,7 +21,7 @@ WASD move · mouse aim · left click attack · F switch melee/ranged · R reload
 ## What is in it
 
 - Over-the-shoulder camera, aimed attacks, shooting feel (tracers, muzzle flash, recoil, shake, sounds)
-- Rogue class: all 10 skills with 3 tiers, Backstab and shadow-trail passives, 3 playstyle starts
+- 4 classes (Rogue, Mage, Fighter, Scout): 10 skills each with 3 tiers, two weapons, passives, 3 playstyle starts and a class-specific dash
 - Level-up offer of 3 cards, max level 12, XP from players, mobs and bosses (balance in `src/balance.ts`)
 - Local bots (Kenney survivors), zombie packs and a zombie boss at minutes 5, 13 and 21
 - Ruined city block with walkable houses (voxelized colliders) and Kenney urban props
@@ -31,7 +31,10 @@ WASD move · mouse aim · left click attack · F switch melee/ranged · R reload
 
 - `src/main.ts`: game loop, player, camera, HUD, cards UI
 - `src/core.ts`: units, damage, bullets, effects
-- `src/rogue.ts`: Rogue skills and passives
+- `src/kit.ts`: class kit registry and shared skill helpers
+- `src/rogue.ts`, `src/mage.ts`, `src/fighter.ts`, `src/scout.ts`: the class kits
+- `src/balance.ts`: every tunable number
+- `src/look.ts`: clay and watercolor look
 - `src/progression.ts`: XP, levels, card offers
 - `src/ai.ts`: bots, mobs, boss, spawn director
 - `src/world.ts`, `src/houses.ts`, `src/props.ts`: map, collision, props

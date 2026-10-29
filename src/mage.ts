@@ -565,7 +565,7 @@ export const MAGE_KIT: ClassKit = {
   stats: MAGE.stats,
   dash: { anim: 'dash_mage', speed: 42, time: 0.11, cd: 1.2, color: '#7ad7ff', blink: true },
   weaponNames: { ranged: 'Lazer wand', melee: 'Uzun asa' },
-  passives: ['Büyü kalkanı: savaş dışında 8 sn sonra sıradaki vuruşu engeller', 'Nano küreler: (n) yeteneklerin kaynağı'],
+  passives: ['Büyü kalkanı: savaş dışında 10 sn sonra sıradaki vuruşu engeller', 'Nano küreler: (n) yeteneklerin kaynağı'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
   buildWeapons,
