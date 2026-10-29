@@ -69,12 +69,17 @@ const STEP_DOWN = 0.45;
  */
 const S4 = {
   spMax: 100,
-  spRegen: 34,
+  spRegen: 32,
   /** Breath starts coming back this long after the last dash or sprint. */
-  spDelay: 0.55,
-  dashCost: 26,
-  /** Shortest gap between two chained dashes. */
-  dashLock: 0.16,
+  spDelay: 0.6,
+  dashCost: 24,
+  /** Shortest gap between two chained dashes: the next dash can cut into the slide of the last one. */
+  dashLock: 0.12,
+  /** A dash is a burst then a short slide: the slide adds this much time (fraction of the class dash time). */
+  slide: 0.4,
+  /** Running out of breath: no regen and slower steps for this long. */
+  winded: 1.1,
+  windedSlow: 0.82,
   sprintMult: 1.55,
   sprintDrain: 15,
   /** Two W taps within this gap start a sprint that lasts while W is held. */
@@ -171,6 +176,9 @@ const ctl = {
   weapon: 'ranged' as Weapon,
   fireCd: 0,
   dashT: 0,
+  dashTotal: 0,
+  winded: 0,
+  ghostT: 0,
   dashCd: 0,
   dashDir: new Vector3(),
   moving: false,
@@ -328,14 +336,18 @@ function updatePlayer(dt: number) {
   }
   if (input.consume('KeyG') && !tryReel() && INV.set >= 5) toast(T('reel'));
   ctl.dashLock -= dt;
+  ctl.winded = Math.max(0, ctl.winded - dt);
   ctl.sinceDash += dt;
   const cost = S4.dashCost * gearDashCost();
   const canDash = () => !stunned && ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0);
   const doDash = (dir: Vector3) => {
     ctl.dashDir = dir;
-    ctl.dashT = dash.time;
+    ctl.dashT = ctl.dashTotal = dash.time * (1 + S4.slide);
+    ctl.ghostT = 0;
+    feel.fovPunch += 0.07;
     ctl.dashLock = S4.dashLock;
     ctl.sp -= cost;
+    if (ctl.sp <= 0.5) ctl.winded = S4.winded;
     ctl.spIdle = 0;
     ctl.sinceDash = 0;
     ctl.velH.setAll(0);
@@ -356,10 +368,11 @@ function updatePlayer(dt: number) {
   ctl.sprinting = !stunned && ctl.wSprint && move.lengthSquared() > 0 && ctl.grounded && ctl.sp > 0 && ctl.dashT <= 0 && !isAiming() && INV.bandT <= 0;
   if (ctl.sprinting) {
     ctl.sp = Math.max(0, ctl.sp - S4.sprintDrain * dt);
+    if (ctl.sp <= 0) ctl.winded = S4.winded;
     ctl.spIdle = 0;
   } else if (ctl.dashT <= 0) {
     ctl.spIdle += dt;
-    if (ctl.spIdle > S4.spDelay) ctl.sp = Math.min(S4.spMax, ctl.sp + S4.spRegen * dt);
+    if (ctl.spIdle > S4.spDelay && ctl.winded <= 0) ctl.sp = Math.min(S4.spMax, ctl.sp + S4.spRegen * dt);
   }
 
   // Space: with A or D held it is a side dash; otherwise ground jump, dash-jump, wall run jump-off,
@@ -421,7 +434,16 @@ function updatePlayer(dt: number) {
 
   if (ctl.dashT > 0) {
     ctl.dashT -= dt;
-    player.pos.addInPlace(ctl.dashDir.scale(dash.speed * dt));
+    // Burst then slide: full push for the first ~70%, then the feet catch the ground.
+    const k = 1 - Math.max(0, ctl.dashT) / ctl.dashTotal;
+    const burst = 0.7;
+    const f = k < burst ? 1.3 - 0.5 * (k / burst) : 0.45 * (1 - (k - burst) / (1 - burst));
+    player.pos.addInPlace(ctl.dashDir.scale(dash.speed * f * dt));
+    ctl.ghostT -= dt;
+    if (k < burst && ctl.ghostT <= 0 && !dash.blink) {
+      ctl.ghostT = 0.035;
+      dashGhost();
+    }
     dashTouch(ctl.dashDir);
     if (ctl.dashT <= 0) dashFx(false);
   } else if (ctl.wallRunT > 0) {
@@ -433,7 +455,7 @@ function updatePlayer(dt: number) {
     if (!wallNormal()) ctl.wallRunT = 0;
   } else {
     const slow = player.slowT > 0 ? player.slowMul : 1;
-    const run = ctl.sprinting ? S4.sprintMult : 1;
+    const run = (ctl.sprinting ? S4.sprintMult : 1) * (ctl.winded > 0 ? S4.windedSlow : 1);
     const speed = stunned || ctl.slamming ? 0 : MOVE.speed * kit.speedMult() * gearSpeedMult() * run * slow * (ctl.grounded ? 1 : MOVE.airControl) * (isAiming() ? AIM.moveMult : 1);
     player.pos.addInPlace(move.scale(speed * dt)).addInPlace(ctl.velH.scale(dt));
     ctl.velH.scaleInPlace(Math.max(0, 1 - (ctl.grounded ? 10 : 1.2) * dt));
@@ -500,8 +522,22 @@ function updatePlayer(dt: number) {
 }
 
 /** Dash trail in the class color; the Mage blinks (the body vanishes and pops back). */
+/** A fading after-image along the dash: a thin slab the size of the body, in the class colour. */
+function dashGhost() {
+  const m = MeshBuilder.CreateBox('ghost', { width: 0.55, height: 1.5, depth: 0.22 }, scene);
+  m.rotation.y = player.yaw;
+  spawnFx(m, player.pos.add(new Vector3(0, 0.85, 0)), kit.dash.color, 0.2, 0, 0.32);
+}
 function dashFx(begin: boolean) {
   const d = kit.dash;
+  if (begin) {
+    // Dust kicked up where the dash starts, behind the feet.
+    for (let i = 0; i < 4; i++) {
+      const puff = MeshBuilder.CreateSphere('dust', { diameter: 0.35, segments: 6 }, scene);
+      const off = ctl.dashDir.scale(-0.4 - Math.random() * 0.4).add(new Vector3((Math.random() - 0.5) * 0.6, 0.15, (Math.random() - 0.5) * 0.6));
+      spawnFx(puff, player.pos.add(off), '#d8cbb0', 0.35, 2.2, 0.5);
+    }
+  }
   ringFx(player.pos, begin ? 0.9 : 0.7, d.color, 0.3);
   if (d.blink) {
     spawnFx(MeshBuilder.CreateSphere('blink', { diameter: 1.4, segments: 8 }, scene), chest(player), d.color, 0.3, 2.5, 0.5);
@@ -577,7 +613,15 @@ function poseBody(dt: number) {
     rz = side > 0 ? -0.42 : 0.42;
   } else if (ctl.slamming) rx = 0.55;
   else if (ctl.sprinting) rx = 0.14;
-  else if (ctl.dashT > 0) rx = 0.22;
+  else if (ctl.dashT > 0) {
+    // Lean into the dash; a side dash tips the body sideways, the slide sinks it low.
+    const side = Vector3.Dot(ctl.dashDir, rightFromYaw(player.yaw));
+    const ahead = Vector3.Dot(ctl.dashDir, forwardFromYaw(player.yaw));
+    const k = 1 - ctl.dashT / ctl.dashTotal;
+    rx = 0.3 * ahead + 0.12;
+    rz = -0.55 * side;
+    up = k > 0.6 ? -0.18 * Math.sin(((k - 0.6) / 0.4) * Math.PI) : 0;
+  } else if (ctl.winded > 0) rx = 0.2;
   const r = pBody.root;
   r.rotation.x += (rx - r.rotation.x) * (ctl.flipT > 0 ? 1 : Math.min(1, dt * 14));
   r.rotation.z += (rz - r.rotation.z) * Math.min(1, dt * 12);
@@ -699,6 +743,7 @@ function updateHud(dt: number) {
   $('weapon').textContent = `${hud(kit.weaponText(ctl.weapon))} (F)`;
   $('sp-fill').style.width = `${(ctl.sp / S4.spMax) * 100}%`;
   $('sp-fill').parentElement!.classList.toggle('low', ctl.sp < S4.dashCost * gearDashCost());
+  $('sp-fill').parentElement!.classList.toggle('winded', ctl.winded > 0);
   const band = bandageShare();
   ($('band-ring').firstElementChild as SVGCircleElement).style.strokeDasharray = `${band * 119.4} 200`;
   const bcd = bandageCdShare();

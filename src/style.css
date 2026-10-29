@@ -252,3 +252,7 @@ body.reel #crosshair { border-color: var(--rose); }
 #overlay.paused .postcard { display: none; }
 @media (max-width: 900px) { .postcard { display: none; } }
 .chip-art { width: 18px; height: 18px; object-fit: cover; border-radius: 4px; vertical-align: -4px; margin-right: 3px; border: 1.5px solid var(--ink); }
+/* Out of breath: the bar shakes and goes pale for a moment. */
+.bar.sp.winded { animation: winded 0.18s linear infinite; }
+.bar.sp.winded #sp-fill { filter: grayscale(0.8); }
+@keyframes winded { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(2px); } }
