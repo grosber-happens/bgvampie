@@ -29,7 +29,7 @@ export const MATCH = {
 
 // ---- Map: 5 regions -------------------------------------------------------
 /** Square map, half size. 1 km x 1 km: crossing it on foot takes about 2.5 minutes. */
-export const MAP_HALF = 500;
+export const MAP_HALF = Number(process.env.MAP_HALF ?? 500);
 /** Kızıl Katedral is a disc in the middle; the four other regions are the corners. */
 export const CATHEDRAL_RADIUS = 160;
 
@@ -100,6 +100,8 @@ export const BOSS = {
   speed: 5,
   /** Out of fights for this long, the boss heals back to full. */
   resetAfter: 12,
+  /** Move a boss lair that the ring has closed into the next safe circle. */
+  spawnInsideRing: false,
 };
 
 // ---- Experience -----------------------------------------------------------
@@ -142,6 +144,8 @@ export type Weapon = {
   /** Magazine and reload. Without `mag` the weapon never runs dry. */
   mag?: number;
   reload?: number;
+  /** Mage wand: heat per shot, cooling per second, lock time when it reaches 1. */
+  heat?: { perShot: number; coolPerSec: number; lock: number };
   /** Fighter spears: each thrown spear comes back after this long (instead of a reload). */
   ammoRegen?: number;
   /** Melee only: extra targets hit around the main one (arc sweeps: daggers 100°, claws 110°, sword 120°, rod 150°). */
@@ -187,7 +191,7 @@ export const CLASSES: Record<ClassId, ClassStats> = {
     regenPerSec: 5,
     melee: { dmg: 26, rate: 0.6, range: 3.2, cleave: 2 },
     // Wand heat: 0.12 per shot, cools 0.45/s. At full fire rate it heats 0.43/s, so it never locks.
-    ranged: { dmg: 17, rate: 0.28, range: 45, acc: 1.05 },
+    ranged: { dmg: 17, rate: 0.28, range: 45, acc: 1.05, heat: { perShot: 0.12, coolPerSec: 0.45, lock: 1.5 } },
     dash: { dist: 4.6, cd: 1.2 },
   },
   fighter: {
@@ -221,6 +225,12 @@ export const PASSIVES = {
   fighter: { every: 10, shield: 20, cap: 40, lifesteal: 0.1 },
   scout: { beastHp: 70, beastDmg: 12, beastRate: 0.8, beastRange: 18, respawn: 20, highGroundMult: 1.2, highGroundChance: 0.3 },
 };
+
+/**
+ * Simulated player behaviour: how fast they back off while shooting, how calm they stay early
+ * (minutes until full aggression), how big an edge they want before starting a fight.
+ */
+export const AI = { kiteSpeed: 0.6, calmUntil: 45, engageAt: 1.2, defendAt: 0.8, fleeAt: 0.4 };
 
 /** How well the simulated players aim (0..1), randomised per player. */
 export const AIM = { min: 0.5, max: 0.8 };

@@ -4,6 +4,7 @@
  * fight each other and follow the shrinking ring. Last one alive wins.
  */
 import {
+  AI,
   AIM,
   BOSS,
   BOSS_NAMES,
@@ -30,6 +31,7 @@ import {
   W,
   aoe,
   canSee,
+  DT,
   clamp,
   damage,
   dist,
@@ -40,7 +42,9 @@ import {
   hooks,
   hostile,
   jump,
+  losBlocked,
   makeUnit,
+  onPlatform,
   minutes,
   moveAway,
   moveToward,
@@ -51,9 +55,11 @@ import {
   slow,
   stun,
   xpNeeded,
+  type Obstacle,
   type Unit,
 } from './core.ts';
 import { POOL, SKILLS, STYLES, decoysOf, makeDecoy, spawnBeast } from './kits.ts';
+import './tuning.ts';
 
 // ---- Map ------------------------------------------------------------------
 export function regionAt(x: number, z: number): RegionId {
@@ -122,6 +128,25 @@ function spawnPack(c: Camp) {
 
 function spawnBoss(l: BossLair) {
   const min = minutes();
+  if (BOSS.spawnInsideRing && l.region !== 'katedral') {
+    const g = ringGoal();
+    if (dist(l, g) > g.r - 15) {
+      // Prefer a spot of the boss's own region inside the next circle; else the circle's edge toward the region.
+      let spot: { x: number; z: number } | null = null;
+      for (let i = 0; i < 300 && !spot; i++) {
+        const a = W.rand() * Math.PI * 2;
+        const r = Math.sqrt(W.rand()) * (g.r - 15);
+        const c = { x: g.x + Math.cos(a) * r, z: g.z + Math.sin(a) * r };
+        if (regionAt(c.x, c.z) === l.region) spot = c;
+      }
+      if (!spot) {
+        const d = Math.max(1, dist(l, g));
+        spot = { x: g.x + ((l.x - g.x) / d) * (g.r - 15) * 0.8, z: g.z + ((l.z - g.z) / d) * (g.r - 15) * 0.8 };
+      }
+      l.x = spot.x;
+      l.z = spot.z;
+    }
+  }
   const mult = l.region === 'katedral' ? BOSS.cathedralMult : 1;
   l.unit = makeUnit('boss', BOSS_NAMES[l.region], l.x, l.z, BOSS.hp(min) * mult, {
     region: l.region,
@@ -284,14 +309,12 @@ function chooseCard(u: Unit) {
  * so the AI does not secretly know which class is stronger.
  */
 function threat(u: Unit): number {
-  return ((u.hp + u.shield) / u.maxHp) * (1 + 0.12 * (u.p!.level - 1));
+  return (u.hp / u.maxHp) * (1 + 0.12 * (u.p!.level - 1));
 }
 
 const SIGHT_SNIPER = 70;
-/** Simulated player behaviour. */
-export const AI = { kiteSpeed: 0.6, calmUntil: 30, engageAt: 1.2, defendAt: 0.8, fleeAt: 0.4 };
 
-type Brain = { goalCamp: Camp | null; dashT: number; think: number; goal: { x: number; z: number } | null; flee: boolean; gcd: number; lastX: number; lastZ: number; chaseT: number; ignore: Map<Unit, number> };
+type Brain = { blindT: number; seenX: number; seenZ: number; goalCamp: Camp | null; dashT: number; think: number; goal: { x: number; z: number } | null; flee: boolean; gcd: number; lastX: number; lastZ: number; chaseT: number; ignore: Map<Unit, number> };
 const brains = new Map<Unit, Brain>();
 
 function think(u: Unit) {
@@ -345,7 +368,6 @@ function think(u: Unit) {
       const engage = ratio * (0.5 + p.aggression * phase) * (1 + 0.08 * lvlGap) > AI.engageAt;
       // Hurt enemies busy with something else are tempting.
       const thirdParty = best.target && best.target !== u && best.hp < best.maxHp * 0.5 && W.rand() < p.aggression * phase;
-      if (process.env.SIMDEBUG3 && p.style === 'vahşi') console.log('E', W.time.toFixed(1), u.id, 'lvl', p.level, 'vs', best.p!.cls, best.p!.level, 'd', bd.toFixed(0), 'ratio', ratio.toFixed(2), 'engage', engage, 'attacked', attacked, 'hp', u.hp.toFixed(0), '/', u.maxHp);
       if (engage || thirdParty || (attacked && ratio > AI.defendAt)) t = best;
       else if (attacked) b.flee = true;
       // Not worth it: leave them be for a while and keep farming.
@@ -430,6 +452,13 @@ function weaponHit(u: Unit, t: Unit, melee: boolean) {
   const w = melee ? C.melee : C.ranged;
   const d = dist(u, t);
   let dmg = w.dmg;
+  // Attacking breaks invisibility; an unseen approach lets the Rogue strike from behind.
+  if (u.stealthT > 0) {
+    u.stealthT = 0;
+    if (melee) u.backstabT = Math.max(u.backstabT, 0.6);
+  }
+  // Melee cannot reach someone standing on a platform from below.
+  if (melee && W.obstacles.length && onPlatform(t) !== onPlatform(u) && t.kind === 'player') return;
   if (p.cls === 'scout' && !melee) {
     const scoped = !p.melee && d > 10;
     dmg = scoped ? w.minDmg! + (w.dmg - w.minDmg!) * clamp(u.chargeT / w.charge!, 0, 1) : w.minDmg!;
@@ -457,6 +486,75 @@ function weaponHit(u: Unit, t: Unit, melee: boolean) {
   }
   // Scout companion hunts what you hit.
   for (const x of W.units) if (x.alive && x.owner === u && x.kind === 'pet' && (x.name === 'Yoldaş' || x.name === 'Sürü')) x.target = t;
+}
+
+// ---- Arena tactics ----------------------------------------------------------
+const nearestOf = (u: Unit, kind: Obstacle['kind']) => {
+  let best: Obstacle | null = null;
+  let bd = Infinity;
+  for (const o of W.obstacles) if (o.kind === kind && dist(u, o) < bd) (bd = dist(u, o)), (best = o);
+  return best;
+};
+
+/** Cover, high ground and flanking around buildings. Returns true when it moved the unit. */
+function arenaMove(u: Unit, t: Unit, b: Brain): boolean {
+  const p = u.p!;
+  const seen = canSee(u, t);
+  const tx = seen ? t.x : b.seenX;
+  const tz = seen ? t.z : b.seenZ;
+  const d = dist(u, t);
+  // Rogue: break line of sight behind a building to go invisible, then come back unseen.
+  const invis = p.skills.find((s) => s.id === 'invis');
+  if (p.cls === 'rogue' && invis && invis.charges > 0 && u.stealthT <= 0 && (p.melee || u.hp < u.maxHp * 0.6)) {
+    const cover = nearestOf(u, 'building');
+    if (cover) {
+      const k = Math.max(0.1, dist(cover, t));
+      const spot = { x: cover.x + ((cover.x - t.x) / k) * (cover.r + 1.2), z: cover.z + ((cover.z - t.z) / k) * (cover.r + 1.2) };
+      if (dist(u, spot) > 1) moveToward(u, spot.x, spot.z);
+      return true;
+    }
+  }
+  // Ranged Scout: get on a platform and stay there.
+  if (p.cls === 'scout' && !p.melee) {
+    const plat = nearestOf(u, 'platform');
+    const blind = !seen || losBlocked(u, t);
+    b.blindT = blind ? b.blindT + DT() : 0;
+    // Stuck behind cover for a while: come down and hunt.
+    if (b.blindT < 3) {
+      if (plat && !onPlatform(u) && d > 6) {
+        moveToward(u, plat.x, plat.z, dist(u, plat) < plat.r + 2 ? 0.5 : 1);
+        return true;
+      }
+      if (plat && onPlatform(u) && d > 4) return true;
+    }
+  }
+  // Melee closing in on a shooter in the open: hop from cover to cover toward them.
+  if (p.melee && seen && d > 12 && t.p && !t.p.melee && u.stealthT <= 0) {
+    let best: { x: number; z: number } | null = null;
+    let bd = d - 4;
+    for (const o of W.obstacles) {
+      if (o.kind === 'platform' || dist(u, o) > 22) continue;
+      const k = Math.max(0.1, dist(o, t));
+      const spot = { x: o.x + ((o.x - t.x) / k) * (o.r + 1), z: o.z + ((o.z - t.z) / k) * (o.r + 1) };
+      const dt2 = dist(spot, t);
+      if (dt2 < bd && dist(u, spot) > 1.5) (bd = dt2), (best = spot);
+    }
+    if (best) {
+      moveToward(u, best.x, best.z);
+      return true;
+    }
+  }
+  // Can't see or shoot the target: walk toward where it was last seen.
+  if (!seen || (!p.melee && losBlocked(u, t))) {
+    moveToward(u, tx, tz);
+    return true;
+  }
+  // Climbing to a target on a platform is slow.
+  if (onPlatform(t) && !onPlatform(u) && d < 6) {
+    moveToward(u, t.x, t.z, 0.5);
+    return true;
+  }
+  return false;
 }
 
 function playerStep(u: Unit, dt: number) {
@@ -532,7 +630,12 @@ function playerStep(u: Unit, dt: number) {
   const before = { x: u.x, z: u.z };
 
   // Skills (one every 0.4 s at most).
-  if (t && b.gcd <= 0) {
+  const seen = !!t && canSee(u, t);
+  if (t && seen) {
+    b.seenX = t.x;
+    b.seenZ = t.z;
+  }
+  if (t && b.gcd <= 0 && (seen || p.cls === 'rogue')) {
     const order = [...p.skills].sort(() => W.rand() - 0.5);
     for (const s of order) {
       const def = SKILLS[s.id];
@@ -553,8 +656,6 @@ function playerStep(u: Unit, dt: number) {
   }
   if (!u.alive) return;
 
-  if (process.env.SIMDEBUG2 && p.style === 'vahşi' && W.time > 465 && W.time < 486 && Math.round(W.time * 10) % 5 === 0)
-    console.log('V', W.time.toFixed(1), u.id, t?.kind, 'd', d.toFixed(1), 'flee', b.flee, 'hp', u.hp.toFixed(0), 'thp', t?.hp.toFixed(0), t?.p?.cls, 'ttarget', t?.target === u, 'near', W.players.filter((e) => e.alive && e !== u && dist(e, u) < 50).map((e) => `${e.p!.cls}:${dist(e, u).toFixed(0)}:${e.target === u}`).join(' '), 'chase', b.chaseT.toFixed(1), 'ammo', u.ammo, 'atk', u.atkT.toFixed(2));
   // Dash: close in on a melee target, step away from a melee attacker, or run.
   b.dashT -= dt;
   if (t && b.dashT <= 0 && u.stunT <= 0) {
@@ -572,7 +673,7 @@ function playerStep(u: Unit, dt: number) {
     }
   }
   // Movement.
-  const speedMult = (p.vehicle && W.time - u.lastCombat > 3 && !t ? VEHICLE.speedMult : 1) * (p.whirlT > 0 && false ? 1 : 1);
+  const speedMult = p.vehicle && W.time - u.lastCombat > 3 && !t ? VEHICLE.speedMult : 1;
   if (b.flee && t) {
     moveAway(u, t);
   } else if (b.flee) {
@@ -585,6 +686,8 @@ function playerStep(u: Unit, dt: number) {
       b.flee = false;
       if (b.goal) moveToward(u, b.goal.x, b.goal.z, speedMult);
     }
+  } else if (t && W.obstacles.length && arenaMove(u, t, b)) {
+    // Handled by the arena tactics (cover, high ground, flanking).
   } else if (t) {
     // Melee players still back off and shoot mobs when hurt.
     const wantMelee = p.melee && (t.kind === 'player' || u.hp > u.maxHp * 0.5);
@@ -603,6 +706,8 @@ function playerStep(u: Unit, dt: number) {
 
   // Attacks.
   if (!t || b.flee && d > 4) return;
+  // Invisible: hold fire until close enough to strike from behind.
+  if (u.stealthT > 0 && d > C.melee.range + 0.3) return;
   const haste = u.hasteT > 0 ? u.hasteAmt : 1;
   u.atkT -= dt * haste;
   // Fighter: second sword and blade storm run on their own clocks.
@@ -644,7 +749,20 @@ function playerStep(u: Unit, dt: number) {
     u.chargeT += dt * (moved < 0.05 ? 1 : 0.5);
     if (u.chargeT < C.ranged.charge!) return;
   }
+  // Mage wand heat (reloadT doubles as the overheat lock).
+  const H = C.ranged.heat;
+  if (H) {
+    u.chargeT = Math.max(0, u.chargeT - H.coolPerSec * dt);
+    if (u.reloadT > 0) return;
+  }
   if (u.atkT > 0) return;
+  if (H) {
+    u.chargeT += H.perShot;
+    if (u.chargeT >= 1) {
+      u.chargeT = 0;
+      u.reloadT = H.lock;
+    }
+  }
   if (C.ranged.mag !== undefined) {
     if (u.ammo <= 0) {
       if (!C.ranged.ammoRegen && u.reloadT <= 0) u.reloadT = C.ranged.reload!;
@@ -850,6 +968,7 @@ function resetWorld(seed: number) {
   W.pending = [];
   W.events = [];
   W.onKill = [];
+  W.obstacles = [];
   W.rand = seeded(seed);
   W.nextId = 1;
   brains.clear();
@@ -886,7 +1005,7 @@ export function runMatch(seed: number, opts: { classes?: ClassId[]; styles?: num
   for (const [i, cls] of classes.entries()) {
     const s = { x: (W.rand() * 2 - 1) * (MAP_HALF - 30), z: (W.rand() * 2 - 1) * (MAP_HALF - 30) };
     const u = makePlayer(cls, opts.styles?.[i] ?? Math.floor(W.rand() * 3), s.x, s.z);
-    brains.set(u, { goalCamp: null, dashT: 0, think: W.rand() * 0.5, goal: null, flee: false, gcd: 0, lastX: s.x, lastZ: s.z, chaseT: 0, ignore: new Map() });
+    brains.set(u, { blindT: 0, seenX: 0, seenZ: 0, goalCamp: null, dashT: 0, think: W.rand() * 0.5, goal: null, flee: false, gcd: 0, lastX: s.x, lastZ: s.z, chaseT: 0, ignore: new Map() });
   }
   let alive = W.players.length;
   hooks.levelUp = chooseCard;
@@ -903,7 +1022,6 @@ export function runMatch(seed: number, opts: { classes?: ClassId[]; styles?: num
   const endAt = opts.soloMinutes ?? MATCH.maxMinutes;
   while ((alive > 1 || opts.soloMinutes) && alive > 0 && minutes() < endAt) {
     stepWorld(dt);
-    if (process.env.SIMDEBUG && Math.abs(W.time % 30) < dt / 2) console.log('T', W.time.toFixed(0), W.players.filter((u) => u.alive).map((u) => `${u.p!.cls[0]}${u.p!.level}(${u.x.toFixed(0)},${u.z.toFixed(0)})${u.target ? u.target.kind[0] : '-'}${brains.get(u)!.flee ? 'F' : ''}`).join(' '));
     // Camps and bosses.
     const ring = ringNow();
     for (const c of camps) {
@@ -918,7 +1036,8 @@ export function runMatch(seed: number, opts: { classes?: ClassId[]; styles?: num
       nextSample += 10;
       const m = Math.round(minutes() * 6) / 6;
       if (Math.abs(m - Math.round(m)) < 0.01 && Math.round(m) % 5 === 0) {
-        const lv = (levelByMinute[Math.round(m)] = { rogue: [], mage: [], fighter: [], scout: [] });
+        const lv: Record<ClassId, number[]> = { rogue: [], mage: [], fighter: [], scout: [] };
+        levelByMinute[Math.round(m)] = lv;
         for (const u of W.players) if (u.alive) lv[u.p!.cls].push(u.p!.level);
       }
       const aliveBy = { mantar: 0, sehir: 0, maymun: 0, col: 0, katedral: 0 } as Record<RegionId, number>;
@@ -977,33 +1096,105 @@ export function runMatch(seed: number, opts: { classes?: ClassId[]; styles?: num
 }
 
 // ---- Duel -----------------------------------------------------------------
+/**
+ * Duel arena, 50 m radius (100 m across): a big ruin in the middle, six houses, twelve trees and
+ * four raised platforms (rooftops / rocks) for high ground. Point-symmetric so both sides are equal.
+ * Players start 60 m apart with the middle ruin between them.
+ */
+export const ARENA_RADIUS = 50;
+/** Debug hook called every duel step. */
+export const trace = { fn: null as null | (() => void) };
+export const ARENA_LAYOUT: Obstacle[] = [
+  { x: 0, z: 0, r: 5, kind: 'building' },
+  ...([
+    [-25, 18, 4, 'building'],
+    [-10, -28, 3.5, 'building'],
+    [-35, -8, 3, 'building'],
+    [-15, 5, 0.8, 'tree'],
+    [-5, 15, 0.8, 'tree'],
+    [-30, 25, 0.8, 'tree'],
+    [-20, -15, 0.8, 'tree'],
+    [0, 38, 0.8, 'tree'],
+    [-40, 10, 0.8, 'tree'],
+    [-28, -25, 3, 'platform'],
+    [-20, 32, 3, 'platform'],
+  ] as [number, number, number, Obstacle['kind']][]).flatMap(([x, z, r, kind]) => [
+    { x, z, r, kind },
+    { x: -x, z: -z, r, kind },
+  ]),
+];
+
 /** Two players at the same level with random builds, 35 m apart, no mobs, no storm. */
-export function runDuel(seed: number, a: ClassId, b: ClassId, level: number, styleA?: number, styleB?: number): { winner: 0 | 1 | -1; time: number } {
+/**
+ * `builds`: for each side, the skill picked at level 1, 2, 3, ... (the first one is the playstyle's
+ * starting skill). Without it the cards are random. `arena`: radius of a round arena in meters.
+ */
+export function runDuel(
+  seed: number,
+  a: ClassId,
+  b: ClassId,
+  level: number,
+  styleA?: number,
+  styleB?: number,
+  opts: { builds?: [string[] | null, string[] | null]; arena?: number } = {},
+): { winner: 0 | 1 | -1; time: number } {
   resetWorld(seed);
   camps = [];
   lairs = [];
   circles = [{ x: 0, z: 0, r: 9999 }, ...RING.map(() => ({ x: 0, z: 0, r: 9999 }))];
   hooks.levelUp = chooseCard;
   hooks.death = () => {};
-  const ua = makePlayer(a, styleA ?? Math.floor(W.rand() * 3), -17.5, 0);
-  const ub = makePlayer(b, styleB ?? Math.floor(W.rand() * 3), 17.5, 0);
-  for (const u of [ua, ub]) {
+  const half = opts.arena ? opts.arena * 0.6 : 17.5;
+  if (opts.arena) W.obstacles = ARENA_LAYOUT.map((o) => ({ ...o, x: (o.x * opts.arena!) / ARENA_RADIUS, z: (o.z * opts.arena!) / ARENA_RADIUS }));
+  const ua = makePlayer(a, styleA ?? Math.floor(W.rand() * 3), -half, 0);
+  const ub = makePlayer(b, styleB ?? Math.floor(W.rand() * 3), half, 0);
+  for (const [side, u] of [ua, ub].entries()) {
     // Enough money for tier-3 tokens, like a player who farmed.
     u.p!.currency = 400;
+    const build = opts.builds?.[side];
+    hooks.levelUp = build ? () => {} : chooseCard;
     while (u.p!.level < level) grantXp(u, xpNeeded(u.p!.level), 'mob');
+    if (build) {
+      const tiers = new Map<string, number>();
+      for (const id of build.slice(0, level)) tiers.set(id, (tiers.get(id) ?? 0) + 1);
+      u.p!.skills = [...tiers].map(([id, tier]) => ({ id, tier, cd: 0, charges: SKILLS[id].charges?.(tier) ?? 1 }));
+      u.p!.poisonPerm = (tiers.get('poison') ?? 0) >= 3;
+    }
     u.hp = u.maxHp;
     u.p!.orbs = PASSIVES.mage.orbs(u.p!.level);
     u.p!.spellShield = true;
     u.p!.aim = (AIM.min + AIM.max) / 2;
     u.p!.aggression = 1;
     if (u.p!.cls === 'fighter') u.shield = PASSIVES.fighter.cap;
-    brains.set(u, { goalCamp: null, dashT: 0, think: 0, goal: null, flee: false, gcd: 0, lastX: u.x, lastZ: u.z, chaseT: 0, ignore: new Map() });
+    brains.set(u, { blindT: 0, seenX: 0, seenZ: 0, goalCamp: null, dashT: 0, think: 0, goal: null, flee: false, gcd: 0, lastX: u.x, lastZ: u.z, chaseT: 0, ignore: new Map() });
   }
   ua.target = ub;
   ub.target = ua;
   const dt = MATCH.dt;
   while (ua.alive && ub.alive && W.time < 90) {
     stepWorld(dt);
+    trace.fn?.();
+    if (opts.arena) {
+      const R = opts.arena;
+      for (const u of W.units) {
+        const d = Math.hypot(u.x, u.z);
+        if (d > R) (u.x *= R / d), (u.z *= R / d);
+        // Walls and trunks are solid.
+        for (const o of W.obstacles) {
+          if (o.kind === 'platform') continue;
+          const k = Math.hypot(u.x - o.x, u.z - o.z);
+          const min = o.r + 0.4;
+          if (k < min) {
+            const nx = k > 0.01 ? (u.x - o.x) / k : 1;
+            const nz = k > 0.01 ? (u.z - o.z) / k : 0;
+            u.x = o.x + nx * min;
+            u.z = o.z + nz * min;
+          }
+        }
+      }
+      // High ground: standing on a platform above the enemy.
+      for (const [u, e] of [[ua, ub], [ub, ua]] as const) if (onPlatform(u) && !onPlatform(e)) u.highT = Math.max(u.highT, 0.15);
+    }
     // No running away in a duel arena.
     for (const u of [ua, ub]) {
       brains.get(u)!.flee = false;

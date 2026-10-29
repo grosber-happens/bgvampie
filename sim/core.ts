@@ -144,6 +144,23 @@ export type Unit = {
 
 // ---- World state ----------------------------------------------------------
 export type Pending = { t: number; fn: () => void };
+export type Obstacle = { x: number; z: number; r: number; kind: 'building' | 'tree' | 'platform' };
+
+/** True when a building or tree stands between a and b. */
+export function losBlocked(a: { x: number; z: number }, b: { x: number; z: number }): boolean {
+  for (const o of W.obstacles) {
+    if (o.kind === 'platform') continue;
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len2 = dx * dx + dz * dz || 1e-6;
+    const t = Math.max(0, Math.min(1, ((o.x - a.x) * dx + (o.z - a.z) * dz) / len2));
+    const px = a.x + dx * t - o.x;
+    const pz = a.z + dz * t - o.z;
+    if (px * px + pz * pz < o.r * o.r) return true;
+  }
+  return false;
+}
+export const onPlatform = (u: { x: number; z: number }) => W.obstacles.some((o) => o.kind === 'platform' && Math.hypot(u.x - o.x, u.z - o.z) < o.r);
 
 export const W = {
   time: 0,
@@ -155,6 +172,8 @@ export const W = {
   /** Log of XP by source, per class. */
   events: [] as { t: number; type: string; a?: string; b?: string; v?: number }[],
   duel: false,
+  /** Arena only: buildings and trees block shots and sight; platforms are high ground. */
+  obstacles: [] as Obstacle[],
   onKill: [] as ((victim: Unit, killer: Unit | null) => void)[],
 };
 
@@ -267,6 +286,7 @@ export function makeUnit(kind: Kind, name: string, x: number, z: number, hp: num
 /** Chance that a ranged shot or skill shot from `src` hits `dst` at distance `d`. */
 export function hitChance(src: Unit, dst: Unit, d: number, range: number, acc = 1): number {
   if (dst.stealthT > 0 && d > 4) return 0;
+  if (W.obstacles.length && losBlocked(src, dst)) return 0;
   const m = master(src);
   let aim = m?.p ? m.p.aim : 0.6;
   // Mobs walk straight at you: easy to hit.
@@ -282,6 +302,7 @@ export function canSee(src: Unit, dst: Unit): boolean {
   const d = dist(src, dst);
   if (dst.stealthT > 0 && d > 4) return false;
   if (dst.fogT > 0 && d > 6) return false;
+  if (W.obstacles.length && d > 6 && losBlocked(src, dst)) return false;
   return true;
 }
 
@@ -308,7 +329,7 @@ export function damage(src: Unit | null, dst: Unit, raw: number, type: DmgType):
       if (behind) dmg *= PASSIVES.rogue.backstabMult;
     }
     // Scout high ground: some ranged shots come from above (after Kanca, always).
-    if (src.p.cls === 'scout' && type === 'ranged' && (src.highT > 0 || W.rand() < PASSIVES.scout.highGroundChance))
+    if (src.p.cls === 'scout' && type === 'ranged' && (src.highT > 0 || (!W.obstacles.length && W.rand() < PASSIVES.scout.highGroundChance)))
       dmg *= PASSIVES.scout.highGroundMult;
   }
   if (dst.markT > 0) dmg *= 1 + dst.markAmt;
@@ -336,7 +357,6 @@ export function damage(src: Unit | null, dst: Unit, raw: number, type: DmgType):
     dmg -= a;
   }
   dst.hp -= dmg;
-  if (process.env.DMGLOG && dst.kind === 'player') console.log('  dmg', W.time.toFixed(1), master(src)?.p?.cls ?? src?.kind, src?.name, '->', dst.p!.cls, dst.p!.style, dst.id, type, dmg.toFixed(1), 'hp', dst.hp.toFixed(0), 'd', src ? dist(src, dst).toFixed(1) : '');
   const now = W.time;
   if (type !== 'storm') {
     dst.lastCombat = now;
@@ -357,11 +377,8 @@ export function damage(src: Unit | null, dst: Unit, raw: number, type: DmgType):
   }
   if (dp) dp.dmgTaken += dmg;
   // Mobs and bosses turn on whoever hits them.
-  if ((dst.kind === 'mob' || dst.kind === 'boss') && src && src.alive && (!dst.target || !dst.target.alive)) dst.target = src.kind === 'decoy' ? src : src;
-  if (dst.hp <= 0) {
-    if (process.env.SIMDEBUG && dst.kind === 'player') console.log('KILL', W.time.toFixed(1), dst.p!.cls, 'by', src?.kind, src?.name, type, raw.toFixed(1), dmg.toFixed(1));
-    kill(dst, src);
-  }
+  if ((dst.kind === 'mob' || dst.kind === 'boss') && src && src.alive && (!dst.target || !dst.target.alive)) dst.target = src;
+  if (dst.hp <= 0) kill(dst, src);
   return dmg;
 }
 

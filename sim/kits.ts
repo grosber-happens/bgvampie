@@ -15,6 +15,8 @@ import {
   hostile,
   jump,
   later,
+  losBlocked,
+  onPlatform,
   makeUnit,
   moveAway,
   slow,
@@ -77,7 +79,7 @@ export const decoysOf = (u: Unit) => W.units.filter((x) => x.alive && x.kind ===
 const tierOf = (u: Unit, id: string) => u.p!.skills.find((s) => s.id === id)?.tier ?? 0;
 
 // ---- Rogue ----------------------------------------------------------------
-const R = {
+export const R = {
   invis: { dur: [3, 4.5, 4.5] as [number, number, number] },
   evasion: { dur: [2.5, 4, 5.5] as [number, number, number], immune: 2, dr: 0.5 },
   decoy: { life: 8, insaneLife: 12, hp: 30, max: 3 },
@@ -103,7 +105,7 @@ const ROGUE: SkillDef[] = [
     use: (c) => {
       // Needs 2 s out of combat: used to escape a chase or to sneak up.
       if (W.time - c.u.lastCombat < 2) return false;
-      if (!(c.flee || (c.t && isPlayer(c.t) && c.d > 6))) return false;
+      if (!(c.flee || (c.t && isPlayer(c.t) && (c.d > 6 || losBlocked(c.u, c.t))))) return false;
       c.u.stealthT = by(c.tier, R.invis.dur);
       return true;
     },
@@ -218,7 +220,7 @@ const ROGUE: SkillDef[] = [
 ];
 
 // ---- Mage -----------------------------------------------------------------
-const M = {
+export const M = {
   sonic: { range: 8, push: [4, 6, 6] as [number, number, number], damage: 18, stun: 0.5 },
   bombs: { count: [1, 2, 2] as [number, number, number], damage: 40, radius: 2.6, speed: 10, dust: { slow: 0.4, t: 3 } },
   fog: { dur: 7 },
@@ -374,7 +376,7 @@ const MAGE: SkillDef[] = [
 ];
 
 // ---- Fighter --------------------------------------------------------------
-const F = {
+export const F = {
   second: { dur: [5, 7, 7] as [number, number, number], rate: [0.6, 0.45, 0.45] as [number, number, number], wave: 15 },
   rain: { radius: [3.5, 5, 5] as [number, number, number], damage: [40, 60, 60] as [number, number, number], delay: 0.6, range: 32, spikes: { t: 3, slow: 0.4, dps: 6 } },
   eshield: { dur: [3, 5, 5] as [number, number, number], hp: [80, 80, 140] as [number, number, number], share: 0.7, range: 8 },
@@ -515,7 +517,7 @@ const FIGHTER: SkillDef[] = [
 ];
 
 // ---- Scout ----------------------------------------------------------------
-const S = {
+export const S = {
   shotgun: { blasts: [2, 2, 4] as [number, number, number], pellets: 6, damage: 8, range: 12 },
   hook: { range: [18, 24, 24] as [number, number, number] },
   fast: { shots: [1, 1, 2] as [number, number, number] },
@@ -554,6 +556,16 @@ const SCOUT: SkillDef[] = [
     id: 'hook', cls: 'scout', name: 'Kanca', w: 0.9, cd: (t) => by(t, [10, 7, 7]), charges: (t) => (t >= 3 ? 2 : 1),
     use: (c) => {
       const r = by(c.tier, S.hook.range);
+      // Arena: hook up onto the nearest platform in reach.
+      if (W.obstacles.length) {
+        if (!c.t || onPlatform(c.u) || (c.u.p!.melee && !c.flee)) return false;
+        const plats = W.obstacles.filter((o) => o.kind === 'platform' && dist(o, c.u) <= r).sort((a, b) => dist(a, c.t!) - dist(b, c.t!));
+        const far = plats.find((o) => dist(o, c.t!) > 6) ?? plats[0];
+        if (!far) return false;
+        c.u.x = far.x;
+        c.u.z = far.z;
+        return true;
+      }
       if (c.flee && c.t) {
         const d = Math.max(0.1, c.d);
         jump(c.u, c.u.x + ((c.u.x - c.t.x) / d) * 50, c.u.z + ((c.u.z - c.t.z) / d) * 50, r);
