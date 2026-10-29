@@ -20,6 +20,10 @@ export const VARIANTS: Record<string, { name: string; apply: () => void }> = {
   // ---- Mage buffs (mostly the melee build, which fades late)
   m_arms: { name: 'Nano kollar hasarı 14/20 → 18/26', apply: () => void (M.arms.damage = [18, 26, 26]) },
   m_armor: { name: 'Nano zırh kalkanı 40 → 60', apply: () => void (M.armor.shield = 60) },
+  m_armor2: { name: 'Nano zırh kalkanı 60 → 75, patlama 30/50 → 40/65', apply: () => ((M.armor.shield = 75), (M.armor.damage = [40, 65, 65])) },
+  f_spear: { name: 'Mızrak hasarı 38 → 45', apply: () => void (CLASSES.fighter.ranged.dmg = 45) },
+  f_spear_rate: { name: 'Mızrak hasarı 38 → 42, atış aralığı 0.6 → 0.5 sn', apply: () => ((CLASSES.fighter.ranged.dmg = 42), (CLASSES.fighter.ranged.rate = 0.5)) },
+  f_ammo: { name: 'Mızrak yenilenmesi 2.2 → 1.5 sn, şarjör 3 → 4', apply: () => ((CLASSES.fighter.ranged.ammoRegen = 1.5), (CLASSES.fighter.ranged.mag = 4)) },
   m_hp: { name: 'Mage can 95 → 105 (+7/seviye)', apply: () => ((CLASSES.mage.hp = 105), (CLASSES.mage.hpPerLevel = 7)) },
   m_lvl: { name: 'Mage seviye başı hasar %6 → %8', apply: () => void (CLASSES.mage.dmgPerLevel = 0.08) },
 };
