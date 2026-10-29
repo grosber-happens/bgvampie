@@ -6,6 +6,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { World } from './world';
+import type { Anim } from './characters';
 
 export type ActorBody = {
   root: TransformNode;
@@ -15,7 +16,7 @@ export type ActorBody = {
   baseColor: Color3;
   hpBar?: Mesh;
   /** Animated characters only. */
-  play?: (anim: 'idle' | 'walk' | 'run' | 'jump' | 'dash', speed?: number) => void;
+  play?: (anim: Anim, speed?: number) => void;
   dispose?: () => void;
 };
 

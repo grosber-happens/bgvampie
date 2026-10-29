@@ -163,6 +163,48 @@ def dash(f):
     }), -0.12 * t, 0
 make('dash', list(range(0, 11, 2)), dash, loop=False)
 
+# Class dashes (user, 2026-10-29: every class gets its own dash). "dash" above is the Rogue's low lunge.
+# Mage: a blink. Rises upright, arms flung open, legs together like floating.
+def dash_mage(f):
+    t = min(1, f / 3)
+    return {
+        'Spine': [(X, -8 * t)], 'Spine1': [(X, -4 * t)], 'Neck': [(X, 10 * t)],
+        'LeftArm': [(Y, 70 * t), (X, -20 * t)], 'RightArm': [(Y, -70 * t), (X, -20 * t)],
+        'LeftForeArm': [(Y, 20 * t)], 'RightForeArm': [(Y, -20 * t)],
+        'LeftHand': [(X, -30 * t)], 'RightHand': [(X, -30 * t)],
+        'LeftUpLeg': [(X, 8 * t), (Y, -4 * t)], 'RightUpLeg': [(X, 8 * t), (Y, 4 * t)],
+        'LeftLeg': [(X, 15 * t)], 'RightLeg': [(X, 15 * t)],
+        'LeftFoot': [(X, 35 * t)], 'RightFoot': [(X, 35 * t)],
+    }, 0.12 * t, 0
+make('dash_mage', list(range(0, 11, 2)), dash_mage, loop=False)
+
+# Fighter: a jet-driven shoulder charge. Left shoulder and guard arm lead, sword arm back.
+def dash_fighter(f):
+    t = min(1, f / 3)
+    return {
+        'Spine': [(X, 32 * t), (Z, 30 * t)], 'Spine1': [(X, 8 * t), (Z, 12 * t)], 'Neck': [(Z, -30 * t), (X, -22 * t)],
+        'LeftArm': [(X, -95 * t), (Z, 25 * t)], 'LeftForeArm': [(X, -85 * t)],
+        'RightArm': [(X, 55 * t), (Y, -30 * t)], 'RightForeArm': [(X, -20 * t)],
+        'LeftUpLeg': [(X, -65 * t)], 'RightUpLeg': [(X, 40 * t)],
+        'LeftLeg': [(X, 55 * t)], 'RightLeg': [(X, 20 * t)],
+        'RightFoot': [(X, 25 * t)],
+    }, -0.08 * t, 0
+make('dash_fighter', list(range(0, 11, 2)), dash_fighter, loop=False)
+
+# Scout: a feral pounce. Curls forward, both claws reach out, legs kick back.
+def dash_scout(f):
+    t = min(1, f / 3)
+    return {
+        'Spine': [(X, 35 * t)], 'Spine1': [(X, 15 * t)], 'Spine2': [(X, 8 * t)], 'Neck': [(X, -35 * t)],
+        'LeftArm': [(X, -95 * t), (Y, 10 * t)], 'RightArm': [(X, -95 * t), (Y, -10 * t)],
+        'LeftForeArm': [(X, -10 * t)], 'RightForeArm': [(X, -10 * t)],
+        'LeftHand': [(X, 25 * t)], 'RightHand': [(X, 25 * t)],
+        'LeftUpLeg': [(X, 35 * t)], 'RightUpLeg': [(X, 45 * t)],
+        'LeftLeg': [(X, 70 * t)], 'RightLeg': [(X, 80 * t)],
+        'LeftFoot': [(X, 30 * t)], 'RightFoot': [(X, 30 * t)],
+    }, 0.05 * t, 0
+make('dash_scout', list(range(0, 11, 2)), dash_scout, loop=False)
+
 for a in actions:
     tr = arm.animation_data.nla_tracks.new()
     tr.name = a.name

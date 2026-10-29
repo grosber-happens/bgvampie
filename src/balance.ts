@@ -28,6 +28,46 @@ export const SHADOW_TRAIL = { stillTime: 2.5, decoyLife: 6, cooldown: 8 };
 /** "Out of combat" means no damage dealt or taken for this long (needed for invisibility). */
 export const COMBAT_LOCK = 2;
 
+// ---- Mage (design doc 2.2) ------------------------------------------------
+export const MAGE = {
+  stats: { maxHp: 95, hpPerLevel: 6, damagePerLevel: 0.04, regenDelay: 5, regenPerSec: 5 },
+  /** Wand: a quick laser bolt, no ammo but it heats up. */
+  wand: { rate: 0.28, damage: 17, range: 45, heatPerShot: 0.12, coolPerSec: 0.45, overheatLock: 1.5 },
+  /** Rod: long, slow sweeps that push a little. */
+  rod: { rate: 0.6, damage: 26, range: 3.2, arcDeg: 150, push: 1.2 },
+  /** Passive 1: after this long out of combat, the next hit is blocked. */
+  spellShieldEvery: 8,
+  /** Passive 2: an orb every few seconds, up to a cap that grows with level. */
+  orbEvery: 4,
+  orbCap: (level: number) => (level >= 12 ? 5 : level >= 6 ? 4 : 3),
+};
+
+// ---- Fighter ---------------------------------------------------------------
+export const FIGHTER = {
+  stats: { maxHp: 130, hpPerLevel: 9, damagePerLevel: 0.035, regenDelay: 5, regenPerSec: 6 },
+  sword: { rate: 0.42, damage: 30, range: 2.9, arcDeg: 120 },
+  /** Thrown energy spears: 3 in hand, each comes back after a while. */
+  spear: { rate: 0.6, damage: 34, speed: 48, range: 40, count: 3, regen: 2.2 },
+  /** Passive 1: shield points every few seconds, up to a cap. */
+  shieldEvery: 10,
+  shieldAmount: 20,
+  shieldCap: 40,
+  /** Passive 2: heal a share of damage dealt. */
+  lifesteal: 0.1,
+};
+
+// ---- Scout -----------------------------------------------------------------
+export const SCOUT = {
+  stats: { maxHp: 100, hpPerLevel: 7, damagePerLevel: 0.04, regenDelay: 5, regenPerSec: 5 },
+  claws: { rate: 0.24, damage: 13, range: 2.1, arcDeg: 110 },
+  /** Sniper: damage grows while scoped (right mouse), unscoped shots are weak. */
+  sniper: { rate: 1.1, minDamage: 24, maxDamage: 110, chargeTime: 1.4, range: 90, magazine: 4, reload: 2.2 },
+  /** Passive 1: a cybernetic wolf that hunts what you last hit. */
+  companion: { hp: 70, damage: 12, rate: 0.8, speed: 9.5, range: 18, respawn: 20 },
+  /** Passive 2: hitting someone at least this much lower deals bonus damage. */
+  highGround: { height: 1.5, mult: 1.2 },
+};
+
 // ---- Experience -----------------------------------------------------------
 export const MAX_LEVEL = 12;
 export const MAX_SKILLS = 5;

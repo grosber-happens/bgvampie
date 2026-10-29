@@ -231,6 +231,22 @@ export const sfx = {
     noise(0.6, 300, 0.5, 0.9, 'lowpass');
     tone(0.5, 90, 30, 0.8, 'sine');
   },
+  /** Mage wand: a bright laser zap. */
+  zap() {
+    tone(0.09, 1800, 600, 0.22, 'sawtooth');
+    noise(0.05, 4000, 1.5, 0.1);
+  },
+  /** Fighter spear throw: a whoosh. */
+  throw() {
+    noise(0.18, 900, 1.2, 0.35, 'bandpass');
+    tone(0.12, 300, 160, 0.12, 'triangle');
+  },
+  /** Scout sniper: a heavy boom with a long tail. */
+  sniper(power: number) {
+    noise(0.12, 2000, 0.7, 0.6 + power * 0.4);
+    tone(0.22, 120, 40, 0.6 + power * 0.4, 'triangle');
+    noise(0.5, 500, 0.5, 0.2 + power * 0.15, 'lowpass', 0.03);
+  },
   skill() {
     tone(0.18, 500, 1100, 0.12, 'sine');
   },

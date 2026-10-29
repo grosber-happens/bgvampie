@@ -20,7 +20,7 @@ import {
   ringFx,
   type Unit,
 } from './core';
-import { enemyVisibility } from './rogue';
+import { hiddenByZone, playerVisibility } from './kit';
 import { findOpenSpot } from './world';
 import { addShake, sfx } from './feel';
 
@@ -92,6 +92,17 @@ function spawnPack(rand: () => number, room = MOBS.maxAlive) {
   }
 }
 
+/** Test helper: one zombie at a point. */
+export function spawnDummy(p: Vector3, hp: number) {
+  const body = createCharacterBody(G.scene, G.world, `mob${G.nextId}`, 'zombieA', { height: 1.75, hpBar: true, hpColor: '#e0a33f' });
+  return makeUnit('mob', 'Hedef', body, p, -1, hp, {
+    radius: 0.45,
+    height: 1.75,
+    yaw: 0,
+    ai: { home: p.clone(), target: null, think: 0, attackT: 0, windT: -1, wander: p.clone(), wanderT: 0 },
+  });
+}
+
 export function spawnBoss(rand: () => number) {
   const body = createCharacterBody(G.scene, G.world, `boss${G.nextId}`, 'zombieC', { height: 4.2, tint: '#ff9a7a' });
   const pos = farSpot(rand, 20);
@@ -107,8 +118,10 @@ export function spawnBoss(rand: () => number) {
 /** Can `u` see `t` right now? The player (and its decoys when hidden) may be invisible. */
 function canSee(u: Unit, t: Unit, range: number): boolean {
   const d = flatDist(u.pos, t.pos);
+  if (hiddenByZone(u.pos, t.pos)) return false;
+  if (t.ai?.noTargetT > G.time) return false;
   if (t === G.player) {
-    const vis = enemyVisibility();
+    const vis = playerVisibility();
     // Very close to an enemy you still show a faint outline.
     if (vis === 0) return d < 2.5;
     range *= vis;
@@ -183,7 +196,7 @@ function updateBot(u: Unit, dt: number, rand: () => number) {
     ai.reloadT -= dt;
     if (ai.reloadT <= 0) ai.ammo = BOTS.magazine;
   }
-  if (!inCombat(u) && G.time - u.lastCombat > BOTS.regenDelay) u.hp = Math.min(u.maxHp, u.hp + BOTS.regenPerSec * dt);
+  if (!inCombat(u) && G.time - u.lastCombat > BOTS.regenDelay && !(u.ai!.noHealT > G.time)) u.hp = Math.min(u.maxHp, u.hp + BOTS.regenPerSec * dt);
 
   if (ai.think <= 0) {
     ai.think = 0.3 + rand() * 0.15;

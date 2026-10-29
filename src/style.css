@@ -88,7 +88,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1210; fon
 .card .cost { font-size: 12px; color: #9fe0a0; }
 .card-foot { font-size: 13px; opacity: .85; }
 #card-close { background: none; border: 1px solid rgba(255,255,255,.4); color: inherit; border-radius: 999px; padding: 3px 10px; cursor: pointer; }
-#styles { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
+#styles { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; align-items: center; max-width: 760px; }
+.class-row, .style-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.style.class { min-width: 160px; max-width: 180px; }
+.style.class.on { border-color: #ffd27a; background: rgba(255,170,60,.22); }
+.passives { font-size: 12px; opacity: .8; text-align: center; max-width: 640px; }
 .style { background: rgba(0,0,0,.4); border: 2px solid rgba(255,255,255,.25); color: inherit; border-radius: 12px; padding: 10px 14px; cursor: pointer; min-width: 150px; }
 .style.on { border-color: #d58bff; background: rgba(138,92,255,.3); }
 .style b { display: block; font-size: 15px; }

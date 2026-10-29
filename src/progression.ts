@@ -1,8 +1,8 @@
-import { CURRENCY, MAX_LEVEL, MAX_SKILLS, ROGUE, TOKEN_PRICE, XP_REWARD, XP_TO_NEXT, BOTS } from './balance';
+import { CURRENCY, MAX_LEVEL, MAX_SKILLS, TOKEN_PRICE, XP_REWARD, XP_TO_NEXT, BOTS } from './balance';
 import { G, PS, minutes, type Unit } from './core';
-import { SKILLS, SKILL_IDS, learn, skills, type SkillId, type Tier } from './rogue';
+import { def, kit, learn, skillIds, skills, type Tier } from './kit';
 
-export type Card = { id: SkillId; tier: Tier; isNew: boolean; cost: number; locked: string | null };
+export type Card = { id: string; tier: Tier; isNew: boolean; cost: number; locked: string | null };
 
 export const prog = {
   pending: 0,
@@ -30,8 +30,8 @@ export function grantXp(u: Unit, amount: number) {
     u.xp -= xpNeeded(u.level);
     u.level += 1;
     if (u === G.player) {
-      G.player.maxHp += ROGUE.hpPerLevel;
-      G.player.hp += ROGUE.hpPerLevel;
+      G.player.maxHp += kit.stats.hpPerLevel;
+      G.player.hp += kit.stats.hpPerLevel;
       prog.pending += 1;
       prog.levelTimes.push({ level: u.level, t: G.time });
     } else if (u.kind === 'bot') {
@@ -44,7 +44,7 @@ export function grantXp(u: Unit, amount: number) {
 
 /** XP (and currency for the player) for a kill. Decoy kills give nothing. */
 export function rewardKill(killer: Unit | null, victim: Unit) {
-  if (!killer || victim.kind === 'decoy' || (killer.kind !== 'player' && killer.kind !== 'bot')) return 0;
+  if (!killer || victim.kind === 'decoy' || victim.kind === 'pet' || (killer.kind !== 'player' && killer.kind !== 'bot')) return 0;
   const min = minutes();
   let xp = 0;
   let money = 0;
@@ -78,7 +78,7 @@ export function tier3Open() {
 export function makeOffer(): Card[] {
   const options: Card[] = [];
   if (skills.length < MAX_SKILLS) {
-    for (const id of SKILL_IDS) if (!skills.some((s) => s.id === id)) options.push({ id, tier: 1, isNew: true, cost: 0, locked: null });
+    for (const id of skillIds()) if (!skills.some((s) => s.id === id)) options.push({ id, tier: 1, isNew: true, cost: 0, locked: null });
   }
   for (const s of skills) {
     if (s.tier === 1) options.push({ id: s.id, tier: 2, isNew: false, cost: 0, locked: null });
@@ -114,6 +114,6 @@ export function pickCard(i: number): boolean {
 }
 
 export function cardText(c: Card) {
-  const def = SKILLS[c.id];
-  return { name: def.name, desc: def.desc, tier: def.tiers[c.tier - 1] };
+  const d = def(c.id);
+  return { name: d.name, desc: d.desc, tier: d.tiers[c.tier - 1] };
 }

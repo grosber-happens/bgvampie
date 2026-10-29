@@ -7,12 +7,12 @@ import { clayLook, watercolorFxMaterial } from './look';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { disposeBody, flash, forwardFromYaw, type ActorBody } from './actors';
-import { BACKSTAB, COMBAT_LOCK, ROGUE } from './balance';
+import { BACKSTAB, COMBAT_LOCK } from './balance';
 import type { Input } from './input';
 import type { SkinName } from './characters';
 import { groundHeight, pointHitsObstacle, resolveWalls, type World } from './world';
 
-export type Kind = 'player' | 'bot' | 'mob' | 'boss' | 'decoy';
+export type Kind = 'player' | 'bot' | 'mob' | 'boss' | 'decoy' | 'pet';
 
 /** Anything that has health and can fight: the player, bots, mobs, bosses and decoys. */
 export type Unit = {
@@ -108,6 +108,15 @@ export const G = {
 };
 
 export const minutes = () => G.time / 60;
+
+/** Class rules for damage the player deals and takes (the active class kit fills these in). */
+export const MODS = {
+  damagePerLevel: 0.04,
+  outgoing: (_target: Unit, dmg: number, _src: Unit | null, _opts: HitOpts): { dmg: number; crit: boolean } => ({ dmg, crit: false }),
+  /** Return the damage left after shields; 0 shows BLOK. */
+  incoming: (dmg: number, _src: Unit | null): number => dmg,
+  afterHit: (_target: Unit, _dmg: number, _src: Unit | null, _opts: HitOpts) => {},
+};
 
 // ---- Materials -------------------------------------------------------------
 const mats = new Map<string, StandardMaterial>();
@@ -239,29 +248,25 @@ export type HitOpts = { poison?: boolean; noBackstab?: boolean; isDot?: boolean;
 /** Apply damage with every rule in one place. Returns the damage actually dealt. */
 export function dealDamage(src: Unit | null, target: Unit, amount: number, opts: HitOpts = {}): number {
   if (!target.alive) return 0;
-  // Decoys deal their owner's damage rules but give credit to the owner.
-  const credit = src?.kind === 'decoy' ? src.owner ?? src : src;
+  // Decoys and allies deal their owner's damage rules but give credit to the owner.
+  const credit = src && (src.kind === 'decoy' || src.kind === 'pet') ? src.owner ?? src : src;
   let dmg = amount;
   let style: 'hit' | 'crit' | 'poison' | 'me' | 'block' = opts.isDot ? 'poison' : 'hit';
 
   if (credit === G.player && !opts.isDot) {
-    dmg *= 1 + ROGUE.damagePerLevel * (G.player.level - 1);
-    // Backstab passive: the attacker's position decides (a decoy shooting from behind counts too).
-    if (!opts.noBackstab && src && isBehind(src.pos, target)) {
-      dmg *= BACKSTAB.mult;
-      style = 'crit';
-    }
-    // Attacking breaks invisibility.
-    PS.invisT = 0;
+    dmg *= 1 + MODS.damagePerLevel * (G.player.level - 1);
+    const o = MODS.outgoing(target, dmg, src, opts);
+    dmg = o.dmg;
+    if (o.crit) style = 'crit';
   }
   if (target === G.player) {
     style = 'me';
-    if (PS.evasionImmuneT > 0) {
+    dmg = MODS.incoming(dmg, src);
+    if (dmg <= 0) {
       G.hooks.number(chest(target), 0, 'block');
       target.lastCombat = G.time;
       return 0;
     }
-    if (PS.evasionT > 0) dmg *= 0.5;
   }
 
   target.hp -= dmg;
@@ -274,17 +279,32 @@ export function dealDamage(src: Unit | null, target: Unit, amount: number, opts:
   G.hooks.number(opts.at ?? chest(target), dmg, style);
 
   if (opts.poison && credit) applyPoison(credit, target);
+  if (credit === G.player) MODS.afterHit(target, dmg, src, opts);
   if (target.hp <= 0) killUnit(credit, target);
   return dmg;
 }
 
 export function applyPoison(src: Unit, target: Unit) {
   // Poison does not stack, it only refreshes (approved rule).
-  target.poisonT = 4;
+  applyDot(src, target, PS.poisonDps * (PS.poisonBoostT > 0 ? 2 : 1), 4, PS.poisonSlow);
+}
+
+/** Damage over time (poison, bleed, nano bots). Refreshes instead of stacking. */
+export function applyDot(src: Unit, target: Unit, dps: number, dur: number, slow = 0) {
+  target.poisonDps = target.poisonT > 0 ? Math.max(target.poisonDps, dps) : dps;
+  target.poisonT = Math.max(target.poisonT, dur);
   target.poisonSrc = src;
-  target.poisonDps = PS.poisonDps * (PS.poisonBoostT > 0 ? 2 : 1);
-  target.slowMul = Math.min(target.slowT > 0 ? target.slowMul : 1, 1 - PS.poisonSlow);
-  target.slowT = Math.max(target.slowT, 4);
+  if (slow > 0) slowUnit(target, slow, dur);
+}
+
+/** Slow a unit by a share (0.3 = 30% slower) for a while. The strongest slow wins. */
+export function slowUnit(target: Unit, share: number, dur: number) {
+  target.slowMul = Math.min(target.slowT > 0 ? target.slowMul : 1, 1 - share);
+  target.slowT = Math.max(target.slowT, dur);
+}
+
+export function stun(target: Unit, dur: number) {
+  target.stunT = Math.max(target.stunT, dur);
 }
 
 export function killUnit(killer: Unit | null, victim: Unit) {

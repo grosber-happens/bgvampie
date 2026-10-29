@@ -15,29 +15,35 @@ import { createHippoBody, loadCharacterKits } from './characters';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
-import { attachGun } from './gun';
 import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
-import { DAGGERS, GUN, MAX_LEVEL, ROGUE, TOKEN_PRICE } from './balance';
-import { G, PS, chest, dealDamage, fireBullet, glowMat, hostile, inCombat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
+import { MAX_LEVEL, TOKEN_PRICE } from './balance';
+import { G, MODS, PS, chest, glowMat, inCombat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
 import {
-  PLAYSTYLES,
-  SKILLS,
+  P,
+  allKits,
   blockedReason,
   castSlot,
-  enemyVisibility,
-  hasteMult,
+  def,
+  kit,
   learn,
   maxCharges,
-  resetRogue,
-  setRogueHost,
+  playerVisibility,
+  resetKit,
+  setHost,
+  setKit,
   skills,
-  speedMult,
   targetUnderCrosshair,
-  updateRogue,
-  weaponPoisoned,
-} from './rogue';
-import { boss, botDied, resetDirector, spawnBoss, updateAI } from './ai';
+  updateZones,
+  type ClassId,
+  type Weapon,
+} from './kit';
+import './rogue';
+import './mage';
+import './fighter';
+import './scout';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { boss, botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
 import { killLog, xpLog, cardText, currentOffer, grantXp, pickCard, prog, resetProgression, rewardKill, tier3Open, xpNeeded } from './progression';
 
 // ---- Tuning (movement and camera) -------------------------------------------
@@ -47,9 +53,6 @@ const MOVE = {
   jumpSpeed: 9,
   gravity: 26,
   coyoteTime: 0.1,
-  dashSpeed: 26,
-  dashTime: 0.18,
-  dashCd: 1.0,
 };
 const STEP_DOWN = 0.45;
 const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
@@ -62,8 +65,6 @@ const SKILL_KEYS = [
   { code: 'Digit2', label: '2' },
   { code: 'Digit3', label: '3' },
 ];
-
-type Weapon = 'ranged' | 'melee';
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1e6) + 1;
@@ -110,7 +111,8 @@ const rand = () => {
 // ---- Player -----------------------------------------------------------------
 const playerColors = { body: '#7a1f2b', head: '#e9d6c0', weapon: '#ffd27a' };
 let pBody = createActorBody(scene, world, 'player', playerColors, false, {});
-const player: Unit = makeUnit('player', 'Sen', pBody, new Vector3(), 0, ROGUE.maxHp, { colors: playerColors });
+setKit((params.get('class') as ClassId) || 'rogue');
+const player: Unit = makeUnit('player', 'Sen', pBody, new Vector3(), 0, kit.stats.maxHp, { colors: playerColors });
 G.player = player;
 for (const m of pBody.meshes) m.isPickable = false;
 
@@ -123,33 +125,17 @@ const ctl = {
   dashT: 0,
   dashCd: 0,
   dashDir: new Vector3(),
-  ammo: GUN.magazine,
-  reloadT: 0,
-  side: 1,
   moving: false,
+  aimTime: 0,
 };
 
-let gunMesh: Mesh = pBody.meshes[2];
-let GUN_Z = gunMesh.position.z;
-attachGun(scene, world, pBody.root)
-  .then((gun) => {
-    gunMesh.dispose();
-    gunMesh = gun;
-    gun.parent = pBody.root;
-    GUN_Z = gun.position.z;
-    setWeapon(ctl.weapon);
-  })
-  .catch((e) => console.error('Gun model failed to load', e));
-
-// Twin laser daggers, one in each hand.
-const blades = [1, -1].map((s) => {
-  const b = MeshBuilder.CreateBox('dagger', { width: 0.06, height: 0.06, depth: 0.75 }, scene);
-  b.material = glowMat('#ff5a6e', 0.85);
-  b.parent = pBody.root;
-  b.position.set(0.42 * s, 1.15, 0.75);
-  b.isPickable = false;
-  return b;
-});
+/** The class's two weapons, parented to the player's body (built when the match starts). */
+let weaponNodes: Record<Weapon, TransformNode> | null = null;
+function buildWeapons() {
+  if (weaponNodes) for (const n of Object.values(weaponNodes)) n.dispose();
+  weaponNodes = kit.buildWeapons(pBody.root);
+  setWeapon(ctl.weapon);
+}
 
 /** Swap the placeholder body for the user's hippo once it has loaded. */
 function usePlayerModel() {
@@ -159,9 +145,8 @@ function usePlayerModel() {
     m.isPickable = false;
     m.metadata = { unitId: player.id };
   }
-  gunMesh.parent = body.root;
-  for (const b of blades) b.parent = body.root;
-  for (const m of pBody.meshes) if (m !== gunMesh) m.dispose();
+  if (weaponNodes) for (const n of Object.values(weaponNodes)) n.parent = body.root;
+  for (const m of pBody.meshes) m.dispose();
   pBody.root.dispose(true);
   pBody = body;
   player.body = body;
@@ -169,8 +154,11 @@ function usePlayerModel() {
 
 function setWeapon(w: Weapon) {
   ctl.weapon = w;
-  gunMesh.isVisible = w === 'ranged';
-  for (const b of blades) b.isVisible = w === 'melee';
+  ctl.aimTime = 0;
+  if (weaponNodes) {
+    weaponNodes.ranged.setEnabled(w === 'ranged');
+    weaponNodes.melee.setEnabled(w === 'melee');
+  }
   crosshair.classList.toggle('melee', w === 'melee');
 }
 
@@ -183,9 +171,27 @@ function muzzle(): Vector3 {
   return player.pos.add(rightFromYaw(input.yaw).scale(0.42)).add(forwardFromYaw(input.yaw).scale(0.8)).addInPlaceFromFloats(0, 1.2, 0);
 }
 
-setRogueHost({
+function isMyAllyMesh(m: { metadata?: { unitId?: number } }) {
+  const u = G.units.find((x) => x.id === m.metadata?.unitId);
+  return u?.kind === 'decoy' || u?.kind === 'pet';
+}
+
+/** The world point under the crosshair: the aim ray goes from the camera, bullets fly from the weapon to it. */
+function aimPoint(range: number, worldOnly = false): Vector3 {
+  const dir = aimDirection();
+  const ray = new Ray(camera.position.clone(), dir, range);
+  const pick = scene.pickWithRay(
+    ray,
+    (m) => m.isPickable && m.isVisible && m.metadata?.unitId !== player.id && !isMyAllyMesh(m) && !(worldOnly && m.metadata?.unitId),
+  );
+  return pick?.hit && pick.pickedPoint ? pick.pickedPoint : camera.position.add(dir.scale(range));
+}
+
+setHost({
   aimDir: aimDirection,
   aimOrigin: () => camera.position.add(aimDirection().scale(Vector3.Distance(camera.position, chest(player)))),
+  aimPoint,
+  muzzle,
   weapon: () => ctl.weapon,
   setWeapon,
   teleport: (pos, yaw) => {
@@ -197,67 +203,28 @@ setRogueHost({
     player.yaw = yaw;
   },
   message: (t) => toast(t),
+  isAiming,
+  aimTime: () => ctl.aimTime,
+  launch: (v) => {
+    player.velY = v;
+    ctl.grounded = false;
+    ctl.sinceGrounded = MOVE.coyoteTime;
+  },
+  grounded: () => ctl.grounded,
 });
 
-// ---- Attacks ----------------------------------------------------------------
-function reload() {
-  if (ctl.reloadT > 0 || ctl.ammo >= GUN.magazine) return;
-  ctl.reloadT = GUN.reload / hasteMult();
-  sfx.reload();
-}
-
-function isMyDecoyMesh(m: { metadata?: { unitId?: number } }) {
-  const u = G.units.find((x) => x.id === m.metadata?.unitId);
-  return u?.kind === 'decoy';
-}
-
-function shoot() {
-  if (ctl.reloadT > 0) return;
-  if (ctl.ammo <= 0) {
-    sfx.empty();
-    return reload();
+// Class rules for damage: the kit first (evasion, spell shield), then any shield points.
+MODS.outgoing = (t, d, src, opts) => kit.outgoing?.(t, d, src, opts) ?? { dmg: d, crit: false };
+MODS.incoming = (d, src) => {
+  let dmg = kit.incoming ? kit.incoming(d, src) : d;
+  if (dmg > 0 && P.shield > 0) {
+    const absorbed = Math.min(P.shield, dmg);
+    P.shield -= absorbed;
+    dmg -= absorbed;
   }
-  ctl.fireCd = GUN.fireRate / hasteMult();
-  ctl.ammo -= 1;
-  // Aim ray goes from the camera through the crosshair; the bullet flies from the gun to that point.
-  const dir = aimDirection();
-  const ray = new Ray(camera.position.clone(), dir, GUN.range);
-  const pick = scene.pickWithRay(ray, (m) => m.isPickable && m.isVisible && m.metadata?.unitId !== player.id && !isMyDecoyMesh(m));
-  const target = pick?.hit && pick.pickedPoint ? pick.pickedPoint : camera.position.add(dir.scale(GUN.range));
-  const from = muzzle();
-  const poisoned = weaponPoisoned();
-  fireBullet(player, from, target.subtract(from), GUN.speed, GUN.range, GUN.damage, poisoned ? '#7be36f' : '#ffd27a', poisoned);
-  // Feel: flash, kick the camera up and the gun back, a crack of sound.
-  muzzleFlash(from, poisoned ? '#9cff8a' : '#ffc46a');
-  kick(isAiming() ? 0.012 : 0.022, 0.14, 0.035, 0.1);
-  crosshairKick = 1;
-  sfx.shot();
-  if (ctl.ammo <= 0) reload();
-}
-
-function swing() {
-  ctl.fireCd = DAGGERS.rate / hasteMult();
-  ctl.side *= -1;
-  sfx.swing();
-  kick(0.004, 0, 0.01, 0.04);
-  const fwd = forwardFromYaw(input.yaw);
-  const halfArc = ((DAGGERS.arcDeg / 2) * Math.PI) / 180;
-  for (const u of [...G.units]) {
-    if (!hostile(player, u) || u.team === 0) continue;
-    const to = u.pos.subtract(player.pos);
-    if (Math.abs(to.y) > 1.8) continue;
-    to.y = 0;
-    const dist = to.length() - u.radius;
-    if (dist > DAGGERS.range) continue;
-    const angle = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(to.normalize(), fwd))));
-    if (dist < 0.6 || angle <= halfArc) dealDamage(player, u, DAGGERS.damage, { poison: weaponPoisoned() });
-  }
-  const arc = MeshBuilder.CreateDisc('slash', { radius: DAGGERS.range, arc: DAGGERS.arcDeg / 360, tessellation: 20 }, scene);
-  arc.rotation.x = Math.PI / 2;
-  arc.rotation.z = ctl.side * 0.35;
-  arc.rotation.y = input.yaw - Math.PI / 2 + halfArc;
-  spawnFx(arc, player.pos.add(new Vector3(0, 1.1, 0)), weaponPoisoned() ? '#7be36f' : '#ff5a6e', 0.12, 0, 0.55);
-}
+  return dmg;
+};
+MODS.afterHit = (t, d, src) => kit.afterHit?.(t, d, src);
 
 // ---- Player update -------------------------------------------------------------
 function updatePlayer(dt: number) {
@@ -269,7 +236,7 @@ function updatePlayer(dt: number) {
   const stunned = player.stunT > 0;
 
   if (input.consume('KeyF')) setWeapon(ctl.weapon === 'ranged' ? 'melee' : 'ranged');
-  if (input.consume('KeyR')) reload();
+  if (input.consume('KeyR')) kit.reload?.();
   SKILL_KEYS.forEach((k, i) => {
     if (input.consume(k.code)) {
       castSlot(i);
@@ -283,10 +250,12 @@ function updatePlayer(dt: number) {
   });
 
   ctl.dashCd -= dt;
+  const dash = kit.dash;
   if (!stunned && input.consume('ShiftLeft', 'ShiftRight') && ctl.dashCd <= 0 && (ctl.grounded || !ctl.airDashUsed)) {
     ctl.dashDir = move.lengthSquared() > 0 ? move.clone() : fwd.clone();
-    ctl.dashT = MOVE.dashTime;
-    ctl.dashCd = MOVE.dashCd;
+    ctl.dashT = dash.time;
+    ctl.dashCd = dash.cd;
+    dashFx(true);
     if (!ctl.grounded) ctl.airDashUsed = true;
     player.velY = Math.max(player.velY, 0);
   }
@@ -298,10 +267,11 @@ function updatePlayer(dt: number) {
 
   if (ctl.dashT > 0) {
     ctl.dashT -= dt;
-    player.pos.addInPlace(ctl.dashDir.scale(MOVE.dashSpeed * dt));
+    player.pos.addInPlace(ctl.dashDir.scale(dash.speed * dt));
+    if (ctl.dashT <= 0) dashFx(false);
   } else {
     const slow = player.slowT > 0 ? player.slowMul : 1;
-    const speed = stunned ? 0 : MOVE.speed * speedMult() * slow * (ctl.grounded ? 1 : MOVE.airControl) * (isAiming() ? AIM.moveMult : 1);
+    const speed = stunned ? 0 : MOVE.speed * kit.speedMult() * slow * (ctl.grounded ? 1 : MOVE.airControl) * (isAiming() ? AIM.moveMult : 1);
     player.pos.addInPlace(move.scale(speed * dt));
     player.velY -= MOVE.gravity * dt;
   }
@@ -334,28 +304,36 @@ function updatePlayer(dt: number) {
   }
   player.yaw = input.yaw;
 
-  if (ctl.reloadT > 0) {
-    ctl.reloadT -= dt;
-    if (ctl.reloadT <= 0) ctl.ammo = GUN.magazine;
-  }
+  ctl.aimTime = isAiming() ? ctl.aimTime + dt : 0;
   ctl.fireCd -= dt;
   if (!stunned && input.firing && ctl.fireCd <= 0) {
-    if (ctl.weapon === 'ranged') shoot();
-    else swing();
+    ctl.fireCd = kit.attack(ctl.weapon);
+    if (ctl.weapon === 'ranged') crosshairKick = 1;
   }
   // Health comes back out of combat.
-  if (G.time - player.lastCombat > ROGUE.regenDelay) player.hp = Math.min(player.maxHp, player.hp + ROGUE.regenPerSec * dt);
-  updateRogue(dt, ctl.moving, ctl.grounded);
-  // Player animation (the hippo has idle, walk, run, jump and dash).
+  if (G.time - player.lastCombat > kit.stats.regenDelay && !(player.ai?.noHealT > G.time)) player.hp = Math.min(player.maxHp, player.hp + kit.stats.regenPerSec * dt);
+  kit.update(dt, ctl.moving, ctl.grounded);
+  // Player animation: every class has its own dash.
   if (pBody.play) {
-    if (ctl.dashT > 0) pBody.play('dash', 1.5);
+    if (ctl.dashT > 0) pBody.play(dash.anim, 1.5);
     else if (!ctl.grounded) pBody.play('jump');
     else if (move.lengthSquared() > 0 && !stunned) {
       if (isAiming() || player.slowT > 0) pBody.play('walk', 1.2);
-      else pBody.play('run', speedMult());
+      else pBody.play('run', kit.speedMult());
     } else pBody.play('idle');
   }
 }
+
+/** Dash trail in the class color; the Mage blinks (the body vanishes and pops back). */
+function dashFx(begin: boolean) {
+  const d = kit.dash;
+  ringFx(player.pos, begin ? 0.9 : 0.7, d.color, 0.3);
+  if (d.blink) {
+    spawnFx(MeshBuilder.CreateSphere('blink', { diameter: 1.4, segments: 8 }, scene), chest(player), d.color, 0.3, 2.5, 0.5);
+    blinkHidden = begin;
+  } else if (begin) spawnFx(MeshBuilder.CreateSphere('dash', { diameter: 0.9, segments: 8 }, scene), chest(player), d.color, 0.25, 2, 0.35);
+}
+let blinkHidden = false;
 
 function isAiming() {
   return running && input.aiming && ctl.weapon === 'ranged';
@@ -390,17 +368,17 @@ function updateCamera(dt: number) {
     camera.position.copyFrom(player.pos.add(viewOffset));
     camera.setTarget(player.pos.add(new Vector3(0, 1.1, 0)));
   }
-  // Gun kicks back toward the player after each shot.
-  gunMesh.position.z = GUN_Z - feel.gunKick;
+  // The weapon kicks back toward the player after each shot.
+  if (weaponNodes) weaponNodes.ranged.position.z = -feel.gunKick;
   if (!viewOffset) camera.setTarget(pos.add(dir));
   // Fade the character while aiming, when the camera is close, and while invisible.
-  const vis = enemyVisibility();
+  const vis = playerVisibility();
   let fade = aimBlend > 0.5 || dist < 1.6 ? 0.3 : 1;
   if (vis === 0) fade = Math.min(fade, 0.2);
   else if (vis < 1) fade = Math.min(fade, 0.55);
+  if (blinkHidden) fade = 0;
   for (const m of pBody.meshes) m.visibility = fade;
-  gunMesh.visibility = fade;
-  for (const b of blades) b.visibility = fade;
+  if (weaponNodes) for (const n of Object.values(weaponNodes)) for (const m of n.getChildMeshes()) m.visibility = fade;
 }
 
 // ---- HUD ---------------------------------------------------------------------------
@@ -483,7 +461,7 @@ function renderSlots() {
     const el = document.createElement('div');
     el.className = `slot${s ? '' : ' empty'}`;
     el.innerHTML = s
-      ? `<div class="cd"></div><span class="charges"></span><span class="cdtext"></span><span class="key">${k.label}</span><span class="name">${SKILLS[s.id].name}</span><span class="pips">${[1, 2, 3].map((t) => `<i class="${t <= s.tier ? 'on' : ''}"></i>`).join('')}</span>`
+      ? `<div class="cd"></div><span class="charges"></span><span class="cdtext"></span><span class="key">${k.label}</span><span class="name">${def(s.id).name}</span><span class="pips">${[1, 2, 3].map((t) => `<i class="${t <= s.tier ? 'on' : ''}"></i>`).join('')}</span>`
       : `<span class="key">${k.label}</span><span class="name">boş</span>`;
     slotsEl.appendChild(el);
   });
@@ -493,9 +471,8 @@ function updateSlots() {
   renderSlots();
   skills.forEach((s, i) => {
     const el = slotsEl.children[i] as HTMLElement;
-    const def = SKILLS[s.id];
     const max = maxCharges(s);
-    const frac = s.charges >= max ? 0 : Math.max(0, s.cd / def.cooldown(s.tier));
+    const frac = s.charges >= max ? 0 : Math.max(0, s.cd / def(s.id).cooldown(s.tier));
     (el.querySelector('.cd') as HTMLElement).style.height = s.charges > 0 ? '0' : `${frac * 100}%`;
     (el.querySelector('.cdtext') as HTMLElement).textContent = s.charges < max && s.cd > 0 ? `${Math.ceil(s.cd)}` : '';
     (el.querySelector('.charges') as HTMLElement).textContent = max > 1 ? `${s.charges}` : '';
@@ -514,9 +491,8 @@ function fmtTime(t: number) {
 function updateHud(dt: number) {
   $('hp-fill').style.width = `${(Math.max(0, player.hp) / player.maxHp) * 100}%`;
   $('hp-text').textContent = `${Math.ceil(Math.max(0, player.hp))} / ${player.maxHp}`;
-  $('weapon').textContent =
-    ctl.weapon === 'ranged' ? `Suikast tabancası ${ctl.reloadT > 0 ? 'dolduruluyor…' : `${ctl.ammo}/${GUN.magazine}`} (F)` : 'İkili lazer hançer (F)';
-  $('dash-fill').style.width = `${Math.min(1, 1 - ctl.dashCd / MOVE.dashCd) * 100}%`;
+  $('weapon').textContent = `${kit.weaponText(ctl.weapon)} (F)`;
+  $('dash-fill').style.width = `${Math.min(1, 1 - ctl.dashCd / kit.dash.cd) * 100}%`;
   $('level').textContent = `Sv ${player.level}${player.level >= MAX_LEVEL ? ' (max)' : ''}`;
   $('money').textContent = `Para ${PS.currency}`;
   $('kills').textContent = `${PS.kills} leş`;
@@ -534,14 +510,8 @@ function updateHud(dt: number) {
   $('hurt').style.opacity = `${feel.hurt}`;
   crosshair.classList.toggle('aim', aimBlend > 0.5);
 
-  const buffs: string[] = [];
-  if (PS.invisT > 0) buffs.push(`Görünmez ${PS.invisT.toFixed(1)}`);
-  else if (enemyVisibility() < 1) buffs.push('Yarı silik');
-  if (PS.evasionImmuneT > 0) buffs.push('Hasar almaz');
-  else if (PS.evasionT > 0) buffs.push(`Evasion ${PS.evasionT.toFixed(1)}`);
-  if (PS.poisonBoostT > 0) buffs.push('Zehir x2');
-  else if (weaponPoisoned()) buffs.push('Zehirli silah');
-  if (PS.sprintT > 0) buffs.push('Sprint');
+  const buffs: string[] = kit.buffs();
+  if (P.shield > 0) buffs.push(`Kalkan ${Math.ceil(P.shield)}`);
   if (player.stunT > 0) buffs.push('Sersem!');
   if (inCombat(player)) buffs.push('Savaşta');
   $('buffs').textContent = buffs.join(' · ');
@@ -552,7 +522,7 @@ function updateHud(dt: number) {
   } else $('boss').classList.add('hidden');
 
   const t = targetUnderCrosshair(70, 4, (u) => u !== player);
-  $('target').textContent = t ? (t.kind === 'decoy' ? `Kopyan (${t.name})` : t.kind === 'mob' || t.kind === 'boss' ? t.name : `${t.name} · Sv ${t.level}`) : '';
+  $('target').textContent = t ? (t.kind === 'decoy' ? `Kopyan (${t.name})` : t.kind === 'pet' ? t.name : t.kind === 'mob' || t.kind === 'boss' ? t.name : `${t.name} · Sv ${t.level}`) : '';
 
   toastT -= dt;
   if (toastT <= 0) $('toast').style.opacity = '0';
@@ -615,14 +585,14 @@ window.addEventListener('keydown', (e) => {
 // ---- Kills -------------------------------------------------------------------------
 G.hooks.kill = (killer, victim) => {
   const xp = rewardKill(killer, victim);
-  const credit = killer?.kind === 'decoy' ? killer.owner : killer;
-  if (credit === player && victim !== player && victim.kind !== 'decoy') {
+  const credit = killer?.kind === 'decoy' || killer?.kind === 'pet' ? killer.owner : killer;
+  if (credit === player && victim !== player && victim.kind !== 'decoy' && victim.kind !== 'pet') {
     killMarkerT = 0.35;
     sfx.kill();
   }
   if (victim.kind === 'bot') botDied(victim);
   if (victim === player) return die(killer);
-  if (victim.kind === 'decoy') return;
+  if (victim.kind === 'decoy' || victim.kind === 'pet') return;
   const kName = killer ? (killer === player ? 'Sen' : killer.name) : 'Zehir';
   if (victim.kind !== 'mob' || killer === player) feed(`${kName} ▸ ${victim.name}${killer === player && xp ? `  +${xp} XP` : ''}`);
   if (victim.kind === 'boss') toast(killer === player ? "Zombi Devi'ni sen devirdin!" : `${kName} Zombi Devi'ni devirdi`, 2.5);
@@ -652,16 +622,40 @@ function die(killer: Unit | null) {
 function buildStyles() {
   const box = $('styles');
   box.innerHTML = '';
-  PLAYSTYLES.forEach((s, i) => {
+  // Class first, then the playstyle (each playstyle starts with one skill).
+  const classes = document.createElement('div');
+  classes.className = 'class-row';
+  for (const k of allKits()) {
+    const b = document.createElement('button');
+    b.className = `style class${k.id === kit.id ? ' on' : ''}`;
+    b.innerHTML = `<b>${k.name}</b><span>${k.blurb}</span>`;
+    b.addEventListener('click', () => {
+      if (k.id === kit.id) return;
+      setKit(k.id);
+      styleIndex = 0;
+      if (ready) resetMatch();
+      buildStyles();
+    });
+    classes.appendChild(b);
+  }
+  box.appendChild(classes);
+  const styles = document.createElement('div');
+  styles.className = 'style-row';
+  kit.playstyles.forEach((s, i) => {
     const b = document.createElement('button');
     b.className = `style${i === styleIndex ? ' on' : ''}`;
-    b.innerHTML = `<b>${s.name}</b><span>Başlangıç: ${SKILLS[s.skill].name}</span>`;
+    b.innerHTML = `<b>${s.name}</b><span>Başlangıç: ${kit.skills[s.skill].name}</span>`;
     b.addEventListener('click', () => {
       styleIndex = i;
       buildStyles();
     });
-    box.appendChild(b);
+    styles.appendChild(b);
   });
+  box.appendChild(styles);
+  const pass = document.createElement('div');
+  pass.className = 'passives';
+  pass.textContent = `Pasifler: ${kit.passives.join(' · ')} · Silahlar: ${kit.weaponNames.ranged}, ${kit.weaponNames.melee}`;
+  box.appendChild(pass);
 }
 buildStyles();
 
@@ -671,15 +665,16 @@ function resetMatch() {
   for (const b of G.bullets) b.mesh.dispose();
   G.bullets = [];
   G.time = 0;
-  resetRogue();
+  resetKit();
   resetProgression();
+  MODS.damagePerLevel = kit.stats.damagePerLevel;
   Object.assign(PS, { kills: 0, currency: 0 });
   player.pos.set(0, groundHeight(new Vector3(0, 0.3, 0), player.radius, world.boxes), 0);
   resolveWalls(player.pos, player.radius, player.height, world.boxes);
   player.velY = 0;
   player.level = 1;
   player.xp = 0;
-  player.maxHp = ROGUE.maxHp;
+  player.maxHp = kit.stats.maxHp;
   player.hp = player.maxHp;
   input.yaw = 0;
   input.pitch = -0.12;
@@ -694,12 +689,13 @@ function start() {
   }
   if (!started) {
     started = true;
-    const style = PLAYSTYLES[styleIndex];
+    const style = kit.playstyles[styleIndex];
+    buildWeapons();
     learn(style.skill);
     setWeapon(style.weapon);
     $('styles').classList.add('hidden');
     overlayText.textContent = '';
-    toast(`${style.name}: ${SKILLS[style.skill].name} ile başladın`, 2.5);
+    toast(`${kit.name} · ${style.name}: ${kit.skills[style.skill].name} ile başladın`, 2.5);
   }
   running = true;
   overlay.classList.add('hidden');
@@ -744,6 +740,7 @@ function simStep(dt: number) {
   for (const u of [...G.units]) if (u.alive) tickStatus(u, dt);
   updateBullets(dt);
   updateFx(dt);
+  updateZones(dt);
   updateFeel(dt);
   hitMarkerT -= dt;
 }
@@ -775,6 +772,7 @@ window.addEventListener('resize', () => engine.resize());
 // Debug/test hook: lets automated tests drive the game without pointer lock.
 (window as unknown as { __game: unknown }).__game = {
   input,
+  scene: () => scene,
   start,
   houses: () => world.houses.map((h) => [h.x, h.z, h.scale]),
   teleport: (x: number, z: number) => {
@@ -787,7 +785,41 @@ window.addEventListener('resize', () => engine.resize());
   openCards,
   choose,
   learn,
-  resetSkills: resetRogue,
+  resetSkills: () => resetKit(),
+  setClass: (id: ClassId) => {
+    setKit(id);
+    styleIndex = 0;
+    resetMatch();
+    buildStyles();
+    if (weaponNodes) buildWeapons();
+  },
+  shield: () => ({ ...P }),
+  kitIds: () => Object.keys(kit.skills),
+  /** Remove every other unit and put dummies in front of the player (for skill tests). */
+  dummies: (dists: number[], hp = 400) => {
+    for (const u of [...G.units]) if (u !== player) {
+      u.alive = false;
+      u.body.root.dispose(false, true);
+    }
+    G.units = [player];
+    const f = forwardFromYaw(player.yaw);
+    const r = rightFromYaw(player.yaw);
+    return dists.map((d, i) => {
+      // On the crosshair line (the camera sits over the right shoulder).
+      const u = spawnDummy(player.pos.add(f.scale(d)).add(r.scale(CAMERA.shoulder * 0.9 + (i % 2) * 0.3)), hp);
+      u.stunT = 1e6;
+      return u.id;
+    });
+  },
+  setWeapon,
+  orbs: (n: number) => (P.orbs = n),
+  /** Hold the player in a pose (for screenshots): plays the animation, then freezes it. */
+  pose: (anim: string, at = 0.15) => {
+    if (!weaponNodes) buildWeapons();
+    const a = (anim === 'classdash' ? kit.dash.anim : anim) as Parameters<NonNullable<typeof pBody.play>>[0];
+    pBody.play?.(a, 1);
+    setTimeout(() => pBody.play?.(a, 0.0001), at * 1000);
+  },
   cast: (i: number) => castSlot(i),
   setStyle: (i: number) => (styleIndex = i),
   skills: () => skills.map((s) => ({ ...s })),
@@ -847,7 +879,7 @@ window.addEventListener('resize', () => engine.resize());
     updateCamera(1);
   },
   ghost: () => {
-    PS.evasionImmuneT = 1e9;
+    MODS.incoming = () => 0;
     PS.invisT = 1e9;
   },
   state: () => ({

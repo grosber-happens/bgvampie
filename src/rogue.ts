@@ -1,9 +1,10 @@
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
+import { createActorBody, forwardFromYaw } from './actors';
 import { createCharacterBody, createHippoBody } from './characters';
-import { DAGGERS, GUN, SHADOW_TRAIL } from './balance';
+import { BACKSTAB, DAGGERS, GUN, ROGUE, SHADOW_TRAIL } from './balance';
 import {
   G,
   PS,
@@ -14,6 +15,7 @@ import {
   flatDist,
   hostile,
   inCombat,
+  isBehind,
   lineFx,
   lineOfSight,
   makeUnit,
@@ -24,46 +26,30 @@ import {
   spawnFx,
   type Unit,
 } from './core';
-import { pointHitsObstacle } from './world';
-import { addShake, sfx } from './feel';
+import { addShake, kick, muzzleFlash, sfx } from './feel';
+import { attachGun } from './gun';
+import {
+  aimedShotDir,
+  behind,
+  byTier,
+  host,
+  meleeTarget,
+  ownedTier,
+  puff,
+  refund,
+  registerKit,
+  slash,
+  sweep,
+  targetUnderCrosshair,
+  updateCooldowns,
+  weaponPart,
+  type ClassKit,
+  type OwnedSkill,
+  type SkillDef,
+  type Weapon,
+} from './kit';
 
 export type SkillId = 'invis' | 'evasion' | 'decoy' | 'poison' | 'sprint' | 'kidney' | 'execute' | 'wink' | 'detonate' | 'insane';
-export type Tier = 1 | 2 | 3;
-export type OwnedSkill = { id: SkillId; tier: Tier; cd: number; charges: number };
-
-/** What main.ts gives the Rogue skills: aim, weapon and teleport control. */
-export type RogueHost = {
-  aimDir(): Vector3;
-  aimOrigin(): Vector3;
-  weapon(): 'ranged' | 'melee';
-  setWeapon(w: 'ranged' | 'melee'): void;
-  teleport(pos: Vector3, yaw: number): void;
-  message(text: string): void;
-};
-let host: RogueHost;
-export function setRogueHost(h: RogueHost) {
-  host = h;
-}
-
-type SkillDef = {
-  id: SkillId;
-  name: string;
-  /** What the skill does (shown on the card when it is new). */
-  desc: string;
-  /** Card text for tiers 1, 2 and 3. */
-  tiers: [string, string, string];
-  weapon?: 'melee';
-  cooldown: (t: Tier) => number;
-  charges?: (t: Tier) => number;
-  /** Why the skill cannot be used right now (the slot turns gray), or null. */
-  blocked?: (s: OwnedSkill) => string | null;
-  /** Returns false when nothing happened (no cooldown is spent). */
-  cast: (s: OwnedSkill) => boolean;
-  /** Pressing the key while out of charges. */
-  whenEmpty?: (s: OwnedSkill) => boolean;
-};
-
-const byTier = <T>(t: Tier, a: [T, T, T]) => a[t - 1];
 
 export const NUM = {
   invis: { dur: [3, 4.5, 4.5] as [number, number, number] },
@@ -80,7 +66,6 @@ export const NUM = {
 
 const decoys = () => G.units.filter((u) => u.kind === 'decoy' && u.owner === G.player);
 const noDecoy = () => (decoys().length ? null : 'Kopya yok');
-const ownedTier = (id: SkillId): number => skills.find((s) => s.id === id)?.tier ?? 0;
 
 export const SKILLS: Record<SkillId, SkillDef> = {
   invis: {
@@ -90,6 +75,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     tiers: ['3 sn görünmezlik', 'Süre 4.5 sn', 'Savaş dışında sürekli yarı siliksin. Yetenek tam görünmez yapar'],
     cooldown: () => 14,
     blocked: () => (inCombat(G.player) ? 'Savaştasın' : null),
+    onLearn: (s) => (PS.semiInvis = s.tier === 3),
     cast: (s) => {
       PS.invisT = byTier(s.tier, NUM.invis.dur);
       puff(G.player.pos, '#7a5cff');
@@ -126,6 +112,11 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     desc: 'Mermilerin ve hançerlerin zehirler: hedef yavaşlar ve zamanla hasar alır. Zehir birikmez, süresi yenilenir.',
     tiers: ['6 sn zehirli silah, %30 yavaşlatma, 6 hasar/sn', 'Zehir güçlenir: %40 yavaşlatma, 10 hasar/sn', 'Zehir silahına kalıcı eklenir. Yetenek 5 sn zehir hasarını 2 katına çıkarır'],
     cooldown: () => 12,
+    onLearn: (s) => {
+      PS.poisonSlow = byTier(s.tier, NUM.poison.slow);
+      PS.poisonDps = byTier(s.tier, NUM.poison.dps);
+      PS.poisonPermanent = s.tier === 3;
+    },
     cast: (s) => {
       if (s.tier < 3) PS.poisonCoatT = NUM.poison.coat;
       else PS.poisonBoostT = NUM.poison.boost;
@@ -140,6 +131,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     tiers: ['10 sn bekleme', '+1 stack, bekleme 7 sn', 'Sprint sırasında saldırı, atış ve şarjör değiştirme hızlanır'],
     cooldown: (t) => byTier(t, [10, 7, 7]),
     charges: (t) => byTier(t, [1, 2, 2]),
+    onLearn: (s) => (PS.sprintHaste = s.tier === 3),
     cast: () => {
       PS.sprintT = NUM.sprint.dur;
       return true;
@@ -153,7 +145,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     weapon: 'melee',
     cooldown: (t) => byTier(t, [12, 9, 9]),
     cast: (s) => {
-      if (host.weapon() !== 'melee') host.setWeapon('melee');
       const t = meleeTarget(NUM.kidney.range, 140);
       if (!t) {
         host.message('Menzilde rakip yok');
@@ -184,14 +175,13 @@ export const SKILLS: Record<SkillId, SkillDef> = {
         slash('#ff3b3b');
       } else {
         const hit = rayHitUnit(host.aimOrigin(), host.aimDir(), NUM.execute.range, (u) => hostile(G.player, u) && u.team !== 0);
-        lineFx(muzzlePoint(), hit.point, '#ff3b3b', 0.25);
+        lineFx(host.muzzle(), hit.point, '#ff3b3b', 0.25);
         target = hit.unit;
       }
       if (target) {
         dealDamage(G.player, target, dmgFor(target), { poison: weaponPoisoned() });
         if (s.tier === 3 && !target.alive) {
-          s.cd = 0;
-          s.charges = maxCharges(s);
+          refund(s);
           host.message('Execute yenilendi!');
           return false;
         }
@@ -256,8 +246,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   },
 };
 
-export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
-
 /** Playstyles: each one starts with a skill (design doc 2.2). */
 export const PLAYSTYLES: { id: string; name: string; skill: SkillId; weapon: 'melee' | 'ranged' }[] = [
   { id: 'melee', name: 'Yakın dövüş', skill: 'wink', weapon: 'melee' },
@@ -265,64 +253,15 @@ export const PLAYSTYLES: { id: string; name: string; skill: SkillId; weapon: 'me
   { id: 'deception', name: 'Aldatmaca', skill: 'decoy', weapon: 'ranged' },
 ];
 
-/** The player's skills in slot order (Q, E, 1, 2, 3). */
-export let skills: OwnedSkill[] = [];
-
-export function maxCharges(s: OwnedSkill) {
-  return SKILLS[s.id].charges?.(s.tier) ?? 1;
-}
-
 export function resetRogue() {
-  skills = [];
   Object.assign(PS, {
     evasionT: 0, evasionImmuneT: 0, invisT: 0, semiInvis: false, poisonCoatT: 0, poisonPermanent: false,
     poisonBoostT: 0, poisonSlow: 0.3, poisonDps: 6, sprintT: 0, sprintHaste: false,
   });
   still = 0;
   trailCd = 0;
-}
-
-/** Learn a new skill or raise its tier. Passive effects of tiers are applied here. */
-export function learn(id: SkillId) {
-  let s = skills.find((x) => x.id === id);
-  if (!s) {
-    s = { id, tier: 1, cd: 0, charges: 0 };
-    skills.push(s);
-  } else if (s.tier < 3) s.tier = (s.tier + 1) as Tier;
-  s.charges = maxCharges(s);
-  s.cd = 0;
-  if (id === 'poison') {
-    PS.poisonSlow = byTier(s.tier, NUM.poison.slow);
-    PS.poisonDps = byTier(s.tier, NUM.poison.dps);
-    PS.poisonPermanent = s.tier === 3;
-  }
-  if (id === 'invis') PS.semiInvis = s.tier === 3;
-  if (id === 'sprint') PS.sprintHaste = s.tier === 3;
-}
-
-export function blockedReason(s: OwnedSkill): string | null {
-  return SKILLS[s.id].blocked?.(s) ?? null;
-}
-
-export function castSlot(i: number) {
-  const s = skills[i];
-  if (!s || !G.player.alive) return;
-  const def = SKILLS[s.id];
-  if (G.player.stunT > 0) return;
-  if (s.charges <= 0) {
-    if (!def.whenEmpty?.(s)) host.message(`${def.name} bekleme süresinde`);
-    return;
-  }
-  const reason = blockedReason(s);
-  if (reason) {
-    host.message(`${def.name}: ${reason}`);
-    return;
-  }
-  if (def.cast(s)) {
-    sfx.skill();
-    s.charges -= 1;
-    if (s.cd <= 0) s.cd = def.cooldown(s.tier);
-  }
+  ammo = GUN.magazine;
+  reloadT = 0;
 }
 
 // ---- Per-frame -------------------------------------------------------------
@@ -350,15 +289,10 @@ export function enemyVisibility() {
 }
 
 export function updateRogue(dt: number, moving: boolean, grounded: boolean) {
-  for (const s of skills) {
-    const max = maxCharges(s);
-    if (s.charges < max) {
-      s.cd -= dt;
-      if (s.cd <= 0) {
-        s.charges += 1;
-        s.cd = s.charges < max ? SKILLS[s.id].cooldown(s.tier) : 0;
-      }
-    }
+  updateCooldowns(dt);
+  if (reloadT > 0) {
+    reloadT -= dt;
+    if (reloadT <= 0) ammo = GUN.magazine;
   }
   for (const k of ['evasionT', 'evasionImmuneT', 'invisT', 'poisonCoatT', 'poisonBoostT', 'sprintT'] as const) PS[k] = Math.max(0, PS[k] - dt);
 
@@ -498,70 +432,95 @@ function updateDecoys(dt: number) {
   }
 }
 
-// ---- Targeting helpers -----------------------------------------------------------
-function muzzlePoint() {
-  return G.player.pos.add(rightFromYaw(G.player.yaw).scale(0.42)).add(forwardFromYaw(G.player.yaw).scale(0.6)).addInPlaceFromFloats(0, 1.2, 0);
+// ---- Weapons ---------------------------------------------------------------------
+let ammo: number = GUN.magazine;
+let reloadT = 0;
+
+function reload() {
+  if (reloadT > 0 || ammo >= GUN.magazine) return;
+  reloadT = GUN.reload / hasteMult();
+  sfx.reload();
 }
 
-/** The unit closest to the crosshair, within range and a cone, that the player can see. */
-export function targetUnderCrosshair(range: number, coneDeg: number, filter: (u: Unit) => boolean, needSight = true): Unit | null {
-  const origin = G.camera.position;
-  const aim = host.aimDir();
-  let best: Unit | null = null;
-  let bestAngle = (coneDeg * Math.PI) / 180;
-  for (const u of G.units) {
-    if (!filter(u) || flatDist(u.pos, G.player.pos) > range) continue;
-    const to = chest(u).subtract(origin);
-    const angle = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(to.normalize(), aim))));
-    if (angle < bestAngle && (!needSight || lineOfSight(chest(G.player), chest(u)))) {
-      bestAngle = angle;
-      best = u;
+function shoot(): number {
+  if (reloadT > 0) return 0.05;
+  if (ammo <= 0) {
+    sfx.empty();
+    reload();
+    return 0.2;
+  }
+  ammo -= 1;
+  const { from, dir } = aimedShotDir(GUN.range);
+  const poisoned = weaponPoisoned();
+  fireBullet(G.player, from, dir, GUN.speed, GUN.range, GUN.damage, poisoned ? '#7be36f' : '#ffd27a', poisoned);
+  // Feel: flash, kick the camera up and the gun back, a crack of sound.
+  muzzleFlash(from, poisoned ? '#9cff8a' : '#ffc46a');
+  kick(host.isAiming() ? 0.012 : 0.022, 0.14, 0.035, 0.1);
+  sfx.shot();
+  if (ammo <= 0) reload();
+  return GUN.fireRate / hasteMult();
+}
+
+let side = 1;
+function swing(): number {
+  side *= -1;
+  sweep(DAGGERS.range, DAGGERS.arcDeg, DAGGERS.damage, weaponPoisoned() ? '#7be36f' : '#ff5a6e', { poison: weaponPoisoned(), tilt: side * 0.35 });
+  return DAGGERS.rate / hasteMult();
+}
+
+export const ROGUE_KIT: ClassKit = {
+  id: 'rogue',
+  name: 'Rogue',
+  blurb: 'Arkaya geç, patlat, kaç. Görünmezlik ve kopyalarla kandır.',
+  stats: ROGUE,
+  dash: { anim: 'dash', speed: 26, time: 0.18, cd: 1.0, color: '#b46cff' },
+  weaponNames: { ranged: 'Suikast tabancası', melee: 'İkili lazer hançer' },
+  passives: ['Backstab: arkadan vuruş x1.5', 'Gölge izi: 2.5 sn durunca kopya bırakır'],
+  skills: SKILLS,
+  playstyles: PLAYSTYLES,
+  buildWeapons(root) {
+    const ranged = new TransformNode('rogue-ranged', G.scene);
+    ranged.parent = root;
+    attachGun(G.scene, G.world, ranged).catch((e) => console.error('Gun model failed to load', e));
+    const melee = new TransformNode('rogue-melee', G.scene);
+    melee.parent = root;
+    // Twin laser daggers, one in each hand.
+    for (const s of [1, -1]) weaponPart('dagger', melee, { w: 0.06, h: 0.06, d: 0.75 }, [0.42 * s, 1.15, 0.75], '#ff5a6e');
+    return { ranged, melee };
+  },
+  reset: resetRogue,
+  update: updateRogue,
+  attack: (w: Weapon) => (w === 'ranged' ? shoot() : swing()),
+  reload,
+  weaponText: (w) => (w === 'ranged' ? `Suikast tabancası ${reloadT > 0 ? 'dolduruluyor…' : `${ammo}/${GUN.magazine}`}` : 'İkili lazer hançer'),
+  buffs() {
+    const b: string[] = [];
+    if (PS.invisT > 0) b.push(`Görünmez ${PS.invisT.toFixed(1)}`);
+    else if (enemyVisibility() < 1) b.push('Yarı silik');
+    if (PS.evasionImmuneT > 0) b.push('Hasar almaz');
+    else if (PS.evasionT > 0) b.push(`Evasion ${PS.evasionT.toFixed(1)}`);
+    if (PS.poisonBoostT > 0) b.push('Zehir x2');
+    else if (weaponPoisoned()) b.push('Zehirli silah');
+    if (PS.sprintT > 0) b.push('Sprint');
+    return b;
+  },
+  speedMult,
+  visibility: enemyVisibility,
+  outgoing(target, dmg, src, opts) {
+    let crit = false;
+    // Backstab passive: the attacker's position decides (a decoy shooting from behind counts too).
+    if (!opts.noBackstab && src && src.kind !== 'pet' && isBehind(src.pos, target)) {
+      dmg *= BACKSTAB.mult;
+      crit = true;
     }
-  }
-  return best;
-}
-
-/** Nearest enemy in front of the player within melee reach. */
-export function meleeTarget(range: number, arcDeg: number): Unit | null {
-  const fwd = forwardFromYaw(G.player.yaw);
-  const half = ((arcDeg / 2) * Math.PI) / 180;
-  let best: Unit | null = null;
-  let bd = Infinity;
-  for (const u of G.units) {
-    if (!hostile(G.player, u) || u.team === 0) continue;
-    const to = u.pos.subtract(G.player.pos);
-    if (Math.abs(to.y) > 1.8) continue;
-    to.y = 0;
-    const dist = to.length() - u.radius;
-    if (dist > range) continue;
-    const angle = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(to.normalize(), fwd))));
-    if ((dist < 0.6 || angle <= half) && dist < bd) {
-      bd = dist;
-      best = u;
-    }
-  }
-  return best;
-}
-
-/** A free spot right behind a unit (tries the sides if a wall is there). */
-function behind(t: Unit): Vector3 {
-  const f = forwardFromYaw(t.yaw);
-  const r = rightFromYaw(t.yaw);
-  const dist = t.radius + 0.9;
-  for (const off of [f.scale(-dist), f.scale(-dist).add(r.scale(0.8)), f.scale(-dist).add(r.scale(-0.8)), r.scale(dist), r.scale(-dist)]) {
-    const p = t.pos.add(off);
-    if (!pointHitsObstacle(p.add(new Vector3(0, 1, 0)), G.world.boxes)) return p;
-  }
-  return t.pos.add(f.scale(-dist));
-}
-
-function puff(at: Vector3, color: string) {
-  spawnFx(MeshBuilder.CreateSphere('puff', { diameter: 1, segments: 8 }, G.scene), at.add(new Vector3(0, 1, 0)), color, 0.35, 2.5, 0.45);
-}
-
-function slash(color: string) {
-  const disc = MeshBuilder.CreateDisc('kslash', { radius: 2.2, arc: 0.3, tessellation: 16 }, G.scene);
-  disc.rotation.x = Math.PI / 2;
-  disc.rotation.y = G.player.yaw - Math.PI / 2 + 0.94;
-  spawnFx(disc, G.player.pos.add(new Vector3(0, 1.1, 0)), color, 0.15, 0, 0.7);
-}
+    // Attacking breaks invisibility.
+    PS.invisT = 0;
+    return { dmg, crit };
+  },
+  incoming(dmg) {
+    if (PS.evasionImmuneT > 0) return 0;
+    if (PS.evasionT > 0) dmg *= 0.5;
+    return dmg;
+  },
+};
+registerKit(ROGUE_KIT);

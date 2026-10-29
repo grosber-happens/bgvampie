@@ -23,7 +23,7 @@ import type { World } from './world';
 /** Kenney "Animated Characters: Survivors" (CC0): one rig, several skins, idle/run/jump. */
 export const SKINS = { maleB, femaleA, zombieA, zombieC };
 export type SkinName = keyof typeof SKINS;
-export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'dash';
+export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'dash' | 'dash_mage' | 'dash_fighter' | 'dash_scout';
 
 /**
  * Two rigged kits:
@@ -107,13 +107,13 @@ export function createCharacterBody(scene: Scene, world: World, name: string, sk
   let current: Anim | null = null;
   const play = (wanted: Anim, speed = 1) => {
     // Survivors have no walk or dash: fall back to run.
-    const a: Anim = anims[wanted] ? wanted : wanted === 'walk' || wanted === 'dash' ? 'run' : wanted;
+    const a: Anim = anims[wanted] ? wanted : wanted.startsWith('dash') && anims.dash ? 'dash' : wanted === 'walk' || wanted.startsWith('dash') ? 'run' : wanted;
     const g = anims[a];
     if (!g) return;
     g.speedRatio = speed;
     if (current === a) return;
     if (current) anims[current]?.stop();
-    g.start(a !== 'jump' && a !== 'dash', speed);
+    g.start(a !== 'jump' && !a.startsWith('dash'), speed);
     current = a;
   };
   play('idle');
