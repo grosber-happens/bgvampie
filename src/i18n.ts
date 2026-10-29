@@ -114,8 +114,8 @@ const UI: Dict = {
   city: ['Şehir', 'City'],
   newCity: ['N: yeni şehir', 'N: new city'],
   hint: [
-    'WASD hareket · Space zıpla (havada tekrar: çift zıplama, duvara karşı: duvardan sek) · Shift dash (art arda), basılı: koş · Sol tık ateş · Sağ tık nişan · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab kart · Esc duraklat',
-    'WASD move · Space jump (again in the air: double jump, at a wall: wall kick) · Shift dash (chain it), hold: sprint · Left click fire · Right click aim · F weapon · R reload · Q E 1 2 3 skills · X bandage · I bag · G set skill · Tab cards · Esc pause',
+    'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (havada tekrar: çift zıplama, duvarda Space Space: duvardan sek) · Shift dash (art arda), basılı: koş · Sol tık ateş · Sağ tık nişan · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab kart · Esc duraklat',
+    'WASD move · W W sprint · A/D + Space side dash · Space jump (again in the air: double jump, Space Space at a wall: wall kick) · Shift dash (chain it), hold: sprint · Left click fire · Right click aim · F weapon · R reload · Q E 1 2 3 skills · X bandage · I bag · G set skill · Tab cards · Esc pause',
   ],
   credits: ['Bir Moebius rüyası, Kim Jung Gi çizgisi, Kopinski tozu.', 'A Moebius dream, a Kim Jung Gi line, Kopinski dust.'],
   postcard: ['Ufuk-i Kehribar’dan selamlar', 'Greetings from Ufuk-i Kehribar'],

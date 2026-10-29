@@ -79,6 +79,8 @@ const S4 = {
   sprintDrain: 15,
   /** Holding Shift this long while moving turns into a sprint. */
   sprintHold: 0.22,
+  /** Two W taps within this gap start a sprint that lasts while W is held. */
+  doubleTap: 0.3,
   dashJumpWindow: 0.22,
   dashJumpSpeed: 12,
   doubleJump: 8.6,
@@ -158,6 +160,9 @@ const ctl = {
   dashLock: 0,
   shiftHeld: 0,
   sprinting: false,
+  /** Time since the last W press, and whether a W double tap is sprinting. */
+  sinceW: 9,
+  wSprint: false,
   sinceDash: 9,
   velH: new Vector3(),
   flipT: 0,
@@ -331,8 +336,9 @@ function updatePlayer(dt: number) {
   ctl.sinceDash += dt;
   ctl.shiftHeld = shiftDown ? ctl.shiftHeld + dt : 0;
   const cost = S4.dashCost * gearDashCost();
-  if (!stunned && input.consume('ShiftLeft', 'ShiftRight') && ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0)) {
-    ctl.dashDir = move.lengthSquared() > 0 ? move.clone() : fwd.clone();
+  const canDash = () => !stunned && ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0);
+  const doDash = (dir: Vector3) => {
+    ctl.dashDir = dir;
     ctl.dashT = dash.time;
     ctl.dashLock = S4.dashLock;
     ctl.sp -= cost;
@@ -345,8 +351,16 @@ function updatePlayer(dt: number) {
     dashFx(true);
     if (!ctl.grounded) ctl.airDashes -= 1;
     player.velY = Math.max(player.velY, 0);
+  };
+  if (input.consume('ShiftLeft', 'ShiftRight') && canDash()) doDash(move.lengthSquared() > 0 ? move.clone() : fwd.clone());
+  // W twice quickly: sprint for as long as W stays held.
+  ctl.sinceW += dt;
+  if (input.consume('KeyW')) {
+    if (ctl.sinceW < S4.doubleTap) ctl.wSprint = true;
+    ctl.sinceW = 0;
   }
-  ctl.sprinting = !stunned && shiftDown && ctl.shiftHeld > S4.sprintHold && move.lengthSquared() > 0 && ctl.grounded && ctl.sp > 0 && ctl.dashT <= 0 && !isAiming() && INV.bandT <= 0;
+  if (!input.keys.has('KeyW') || ctl.sp <= 0) ctl.wSprint = false;
+  ctl.sprinting = !stunned && ((shiftDown && ctl.shiftHeld > S4.sprintHold) || ctl.wSprint) && move.lengthSquared() > 0 && ctl.grounded && ctl.sp > 0 && ctl.dashT <= 0 && !isAiming() && INV.bandT <= 0;
   if (ctl.sprinting) {
     ctl.sp = Math.max(0, ctl.sp - S4.sprintDrain * dt);
     ctl.spIdle = 0;
@@ -355,10 +369,14 @@ function updatePlayer(dt: number) {
     if (ctl.spIdle > S4.spDelay) ctl.sp = Math.min(S4.spMax, ctl.sp + S4.spRegen * dt);
   }
 
-  // Jumps: ground jump, dash-jump, wall run jump-off, wall kick, double jump.
+  // Space: with A or D held it is a side dash; otherwise ground jump, dash-jump, wall run jump-off,
+  // wall kick (Space again next to a wall) or double jump.
   if (!stunned && input.consume('Space')) {
     const wn = ctl.grounded ? null : wallNormal();
-    if (ctl.wallRunT > 0) {
+    const side = input.axis('KeyA', 'KeyD');
+    if (side !== 0 && !(wn && ctl.wallKicks > 0) && ctl.wallRunT <= 0) {
+      if (canDash()) doDash(right.scale(side));
+    } else if (ctl.wallRunT > 0) {
       player.velY = WALL_RUN.jumpOff;
       ctl.velH = ctl.wallN.scale(7).add(fwd.scale(4));
       ctl.wallRunT = 0;
