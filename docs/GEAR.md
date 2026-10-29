@@ -142,8 +142,11 @@ The game uses version A (in `src/i18n.ts`). B and C are alternatives with the sa
 | drone | Gökteki Tanık / Witness in the Sky | Uçan Göz / Flying Eye | Bekçi Kuş / Watchbird |
 | trap | Kapı Eşiği / The Doorstep | Kurt Kapanı / Wolf Snare | Paspas Altı / Under the Mat |
 
-## Art (Artlist)
+## Art
 
-- All icons and the title poster were made with Nano Banana 2 at 512 px (60 credits each), after a cheaper z-image Turbo test that came out too generic. About 950 credits were used in total.
+- Item icons are hand-drawn SVG (flat colour, ink outline, hatching) in `tools/art/hand/icons.py`, written by hand rather than generated, after the owner found the Artlist item art too AI-looking. `node tools/art/hand/render.cjs` renders them and `tools/art/cut.py` writes the webp files.
+- Skill emblems and the title poster still come from Artlist (below).
+
+- The skill emblems and the title poster were made with Nano Banana 2 at 512 px (60 credits each), after a cheaper z-image Turbo test that came out too generic. About 950 credits were used in total.
 - Larger outputs (2K) come back only as download links, and the sandbox's network policy blocks the Artlist download hosts. That is why everything is 512 px sheets. To get 2K art, allow `cms-toolkit-artifacts.artlist.io`, `ai-toolkit-generations.imgix.net` and `mcp.artlist.io` in the environment's network settings.
 - The sheets are in `tools/art/sheets/` and the prompts are in `tools/art/prompts.json`. `python3 tools/art/cut.py` cuts them into `public/art/items`, `public/art/skills` and `public/art/ui` and writes `public/art/index.json`. The game shows a painted icon when one exists and falls back to the ink SVG icon when it does not.

@@ -184,12 +184,18 @@ export const SKILL_TEXT: Record<string, SkillText> = {
   trap: { tr: 'Kapı Eşiği', en: 'The Doorstep', desc: 'Hide a trap on the ground. Whoever steps on it is pinned in place.', tiers: ['2 traps at once, 1.5 s', 'Pinned 2.2 s', '3 traps at once; whoever steps in becomes your companion’s target'] },
 };
 
-/** Playstyle, weapon and passive names in English (Turkish ones stay in the class files). */
+/** Weapon and passive names, Turkish and English. The class files keep plain working names; these are the ones players see. */
 export const KIT_EN: Record<string, { blurb?: string; weapons?: [string, string]; passives?: string[]; styles?: string[] }> = {
-  rogue: { weapons: ['Assassin pistol', 'Twin laser daggers'], passives: ['Backstab: hits from behind deal x1.8', 'Shadow Trail: a dash leaves a copy where it starts; standing still 2.5 s fades you for 10 s'], styles: ['Close quarters', 'Long range', 'Deception'] },
-  mage: { weapons: ['Laser wand', 'Long rod'], passives: ['Spell shield: after 10 s out of combat the next hit is blocked', 'Nano orbs: fuel for the (n) skills'], styles: ['Nano master (rod)', 'Laser (wand)', 'Gravity (control)'] },
-  fighter: { weapons: ['Energy spears', 'Laser sword'], passives: ['Shield generator: 20 shield every 10 s', 'Lifesteal: 7% of the damage you deal'], styles: ['Two swords (melee)', 'Spearman (ranged)', 'Fortress (defense)'] },
-  scout: { weapons: ['Sniper rifle', 'Claws'], passives: ['Companion: a wolf that hunts whoever you last hit (comes back 20 s after dying)', 'High ground: +20% damage on enemies below you'], styles: ['Pack (companion)', 'Wild (claws)', 'Marksman'] },
+  rogue: { weapons: ['Wet Street Pistol', 'Moonshard Daggers'], passives: ['A Chill Down the Spine: hits from behind deal x1.8', 'Leaves No Footprints: a dash leaves a copy where it starts; standing still 2.5 s fades you for 10 s'], styles: ['Close quarters', 'Long range', 'Deception'] },
+  mage: { weapons: ['Light Pen', 'Lantern Staff'], passives: ['Premonition: after 10 s out of combat the next hit is blocked', 'Stars in the Pocket: nano orbs, fuel for the (n) skills'], styles: ['Nano master (staff)', 'Laser (pen)', 'Gravity (control)'] },
+  fighter: { weapons: ['Lightning Spears', 'Dawn Blade'], passives: ['An Old Vow: 20 shield every 10 s', 'Blood Debt: 7% of the damage you deal comes back as health'], styles: ['Two swords (melee)', 'Spearman (ranged)', 'Fortress (defense)'] },
+  scout: { weapons: ['Far Eye', 'Cat Nails'], passives: ['Faithful Shadow: a wolf that hunts whoever you last hit (comes back 20 s after dying)', "Bird's-Eye: +20% damage on enemies below you"], styles: ['Pack (companion)', 'Wild (claws)', 'Marksman'] },
+};
+const KIT_TR: Record<string, { weapons: [string, string]; passives: string[] }> = {
+  rogue: { weapons: ['Islak Sokak Tabancası', 'Ay Kırığı Hançerler'], passives: ['Ensedeki Soğukluk: arkadan vuruş x1.8', 'İz Bırakmayan: dash başladığı yerde kopya bırakır; 2.5 sn durunca 10 sn silikleşirsin'] },
+  mage: { weapons: ['Işık Kalemi', 'Fener Asası'], passives: ['Önsezi: savaş dışında 10 sn sonra sıradaki vuruşu engeller', 'Cepteki Yıldızlar: nano küreler, (n) yeteneklerin kaynağı'] },
+  fighter: { weapons: ['Yıldırım Mızrakları', 'Şafak Kılıcı'], passives: ['Eski Bir Yemin: 10 sn\'de bir 20 kalkan', 'Kan Borcu: verdiğin hasarın %7\'si can olarak döner'] },
+  scout: { weapons: ['Uzak Göz', 'Kedi Tırnakları'], passives: ['Sadık Gölge: son vurduğun rakibe saldıran kurt (ölürse 20 sn sonra döner)', 'Kuş Bakışı: alçaktaki rakibe +%20 hasar'] },
 };
 
 type KitLike = { id: string; weaponNames: Record<'ranged' | 'melee', string>; passives: string[]; playstyles: { name: string }[]; skills: Record<string, { name: string; desc: string; tiers: [string, string, string] }> };
@@ -202,9 +208,10 @@ export function applySkillLanguage(kits: KitLike[]) {
     const o = original.get(k);
     const en = KIT_EN[k.id];
     const tr = lang === 'tr';
-    k.weaponNames.ranged = tr || !en?.weapons ? o.weapons.ranged : en.weapons[0];
-    k.weaponNames.melee = tr || !en?.weapons ? o.weapons.melee : en.weapons[1];
-    k.passives.splice(0, k.passives.length, ...(tr || !en?.passives ? o.passives : en.passives));
+    const names = tr ? KIT_TR[k.id] : en;
+    k.weaponNames.ranged = names?.weapons?.[0] ?? o.weapons.ranged;
+    k.weaponNames.melee = names?.weapons?.[1] ?? o.weapons.melee;
+    k.passives.splice(0, k.passives.length, ...(names?.passives ?? o.passives));
     k.playstyles.forEach((s, i) => (s.name = tr || !en?.styles ? o.styles[i] : en.styles[i]));
     for (const [id, s] of Object.entries(k.skills)) {
       if (!original.has(s)) original.set(s, { desc: s.desc, tiers: [...s.tiers] });
@@ -219,16 +226,22 @@ export function applySkillLanguage(kits: KitLike[]) {
 }
 
 /** English for the short HUD lines the class files write in Turkish (weapon line and buffs). */
+/** Working weapon names in the class files' HUD text, and the names players see: [working, TR, EN]. */
+const WEAPON_SHOWN: [string, string, string][] = [
+  ['Suikast tabancası', 'Islak Sokak Tabancası', 'Wet Street Pistol'], ['İkili lazer hançer', 'Ay Kırığı Hançerler', 'Moonshard Daggers'],
+  ['Lazer wand', 'Işık Kalemi', 'Light Pen'], ['Uzun asa', 'Fener Asası', 'Lantern Staff'],
+  ['Enerji mızrakları', 'Yıldırım Mızrakları', 'Lightning Spears'], ['Çift lazer kılıcı', 'Çifte Şafak', 'Double Dawn'], ['Lazer kılıcı', 'Şafak Kılıcı', 'Dawn Blade'],
+  ['Sniper tüfeği', 'Uzak Göz', 'Far Eye'], ['Pençeler', 'Kedi Tırnakları', 'Cat Nails'], ['Büyü kalkanı', 'Önsezi', 'Premonition'],
+];
 const HUD_EN: [string, string][] = [
-  ['Suikast tabancası', 'Assassin pistol'], ['İkili lazer hançer', 'Twin laser daggers'], ['dolduruluyor…', 'reloading…'],
-  ['Lazer wand', 'Laser wand'], ['soğuyor…', 'cooling…'], ['ısı %', 'heat '], ['Uzun asa', 'Long rod'],
-  ['Enerji mızrakları', 'Energy spears'], ['Çift lazer kılıcı', 'Twin laser swords'], ['Lazer kılıcı', 'Laser sword'],
-  ['şarj %', 'charge '], ['Pençeler', 'Claws'], ['Küre', 'Orbs'], ['Büyü kalkanı', 'Spell shield'], ['Hasar almaz', 'Immune'],
+  ['dolduruluyor…', 'reloading…'], ['soğuyor…', 'cooling…'], ['ısı %', 'heat '],
+  ['şarj %', 'charge '], ['Küre', 'Orbs'], ['Hasar almaz', 'Immune'],
   ['Kasırga', 'Whirl'], ['Sisin içinde', 'In the fog'], ['Sürü hızı', 'Pack haste'], ['Yarı silik', 'Half faded'], ['Zehir x2', 'Poison x2'],
   ['Zehirli silah', 'Poisoned weapon'], ['Aşırı güç', 'Overpower'], ['Dolu atış', 'Charged shot'], ['Enerji kalkanı', 'Energy shield'],
   ['Görünmez', 'Invisible'], ['Kurt', 'Wolf'], ['Nano kollar', 'Nano arms'], ['Nano zırh', 'Nano armor'], ['Silik', 'Faded'], ['Sürü', 'Pack'], ['Çift kılıç', 'Two swords'],
 ];
 export function hud(text: string): string {
+  for (const [w, tr, en] of WEAPON_SHOWN) text = text.split(w).join(lang === 'tr' ? tr : en);
   if (lang === 'tr') return text;
   for (const [a, b] of HUD_EN) text = text.split(a).join(b);
   return text;

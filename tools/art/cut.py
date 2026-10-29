@@ -23,6 +23,8 @@ SKILL_SHEETS = {
 }
 
 index = []
+# Items drawn by hand in tools/art/hand win over the Artlist sheets.
+HAND = {f.stem for f in (ROOT / 'tools/art/hand/svg').glob('*.svg')}
 
 def grid(img, cols, rows):
     w, h = img.size
@@ -34,10 +36,13 @@ def grid(img, cols, rows):
 for sheet, ids in ITEM_SHEETS.items():
     img = Image.open(SHEETS / f'{sheet}.jpg').convert('RGB')
     for (x, y, cw, ch), id_ in zip(grid(img, 3, 3), ids):
+        index.append(f'items/{id_}')
+        if id_ in HAND:
+            Image.open(ROOT / f'tools/art/hand/png/{id_}.png').convert('RGB').save(OUT / 'items' / f'{id_}.webp', quality=90)
+            continue
         pad = cw * 0.06  # trim the paper gutter between tiles
         tile = img.crop((round(x + pad), round(y + pad), round(x + cw - pad), round(y + ch - pad))).resize((SIZE, SIZE), Image.LANCZOS)
         tile.save(OUT / 'items' / f'{id_}.webp', quality=88)
-        index.append(f'items/{id_}')
 
 for cls, ids in SKILL_SHEETS.items():
     img = Image.open(SHEETS / f'skills-{cls}.jpg').convert('RGB')
