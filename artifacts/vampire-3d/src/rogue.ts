@@ -1,0 +1,560 @@
+import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { createActorBody, forwardFromYaw, recolor, rightFromYaw } from './actors';
+import { DAGGERS, GUN, SHADOW_TRAIL } from './balance';
+import {
+  G,
+  PS,
+  chest,
+  dealDamage,
+  faceTowards,
+  fireBullet,
+  flatDist,
+  hostile,
+  inCombat,
+  lineFx,
+  lineOfSight,
+  makeUnit,
+  moveUnit,
+  rayHitUnit,
+  removeUnit,
+  ringFx,
+  spawnFx,
+  type Unit,
+} from './core';
+import { pointHitsObstacle } from './world';
+
+export type SkillId = 'invis' | 'evasion' | 'decoy' | 'poison' | 'sprint' | 'kidney' | 'execute' | 'wink' | 'detonate' | 'insane';
+export type Tier = 1 | 2 | 3;
+export type OwnedSkill = { id: SkillId; tier: Tier; cd: number; charges: number };
+
+/** What main.ts gives the Rogue skills: aim, weapon and teleport control. */
+export type RogueHost = {
+  aimDir(): Vector3;
+  aimOrigin(): Vector3;
+  weapon(): 'ranged' | 'melee';
+  setWeapon(w: 'ranged' | 'melee'): void;
+  teleport(pos: Vector3, yaw: number): void;
+  message(text: string): void;
+};
+let host: RogueHost;
+export function setRogueHost(h: RogueHost) {
+  host = h;
+}
+
+type SkillDef = {
+  id: SkillId;
+  name: string;
+  /** What the skill does (shown on the card when it is new). */
+  desc: string;
+  /** Card text for tiers 1, 2 and 3. */
+  tiers: [string, string, string];
+  weapon?: 'melee';
+  cooldown: (t: Tier) => number;
+  charges?: (t: Tier) => number;
+  /** Why the skill cannot be used right now (the slot turns gray), or null. */
+  blocked?: (s: OwnedSkill) => string | null;
+  /** Returns false when nothing happened (no cooldown is spent). */
+  cast: (s: OwnedSkill) => boolean;
+  /** Pressing the key while out of charges. */
+  whenEmpty?: (s: OwnedSkill) => boolean;
+};
+
+const byTier = <T>(t: Tier, a: [T, T, T]) => a[t - 1];
+
+export const NUM = {
+  invis: { dur: [3, 4.5, 4.5] as [number, number, number] },
+  evasion: { dur: [2.5, 4, 5.5] as [number, number, number], immune: 2 },
+  decoy: { life: 8, insaneLife: 12, hp: 30, max: 3 },
+  poison: { slow: [0.3, 0.4, 0.4] as [number, number, number], dps: [6, 10, 10] as [number, number, number], coat: 6, boost: 5 },
+  sprint: { dur: 4, mult: 1.45, haste: 1.35 },
+  kidney: { stun: [0.55, 0.55, 1] as [number, number, number], range: 2.8, damage: 10 },
+  execute: { damage: [70, 95, 95] as [number, number, number], missing: 0.4, bossCap: 150, range: 55 },
+  wink: { range: [12, 16, 20] as [number, number, number], stun: 0.25 },
+  detonate: { radius: [3.5, 4.5, 4.5] as [number, number, number], damage: 55 },
+  insane: { share: 0.3, fireFor: 2, rate: 0.4, range: 16 },
+};
+
+const decoys = () => G.units.filter((u) => u.kind === 'decoy' && u.owner === G.player);
+const noDecoy = () => (decoys().length ? null : 'Kopya yok');
+const ownedTier = (id: SkillId): number => skills.find((s) => s.id === id)?.tier ?? 0;
+
+export const SKILLS: Record<SkillId, SkillDef> = {
+  invis: {
+    id: 'invis',
+    name: 'Görünmezlik',
+    desc: 'Görünmez olursun. Saldırınca bozulur, rakibe çok yaklaşınca silik görünürsün. Önce 2 sn hasar almamış ve vermemiş olmalısın.',
+    tiers: ['3 sn görünmezlik', 'Süre 4.5 sn', 'Savaş dışında sürekli yarı siliksin. Yetenek tam görünmez yapar'],
+    cooldown: () => 14,
+    blocked: () => (inCombat(G.player) ? 'Savaştasın' : null),
+    cast: (s) => {
+      PS.invisT = byTier(s.tier, NUM.invis.dur);
+      puff(G.player.pos, '#7a5cff');
+      return true;
+    },
+  },
+  evasion: {
+    id: 'evasion',
+    name: 'Evasion',
+    desc: 'Bir süre aldığın hasar yarıya iner.',
+    tiers: ['2.5 sn hasar azaltma', 'Süre 4 sn', 'Süre 5.5 sn ve ilk 2 sn hiç hasar almazsın'],
+    cooldown: () => 12,
+    cast: (s) => {
+      PS.evasionT = byTier(s.tier, NUM.evasion.dur);
+      if (s.tier === 3) PS.evasionImmuneT = NUM.evasion.immune;
+      return true;
+    },
+  },
+  decoy: {
+    id: 'decoy',
+    name: 'Kopya',
+    desc: 'Önüne koşan sahte bir kopya bırakır. Bekleme süresindeyken tekrar basınca en yakın kopyanla yer değiştirirsin.',
+    tiers: ['1 stack, 9 sn bekleme', 'Bekleme 6 sn', 'Kopya, maçtaki başka bir oyuncunun ismi ve görünüşüyle çıkar'],
+    cooldown: (t) => byTier(t, [9, 6, 6]),
+    cast: (s) => {
+      spawnDecoy(G.player.pos, G.player.yaw, 'run', s.tier === 3);
+      return true;
+    },
+    whenEmpty: () => swapWithDecoy(),
+  },
+  poison: {
+    id: 'poison',
+    name: 'Poison',
+    desc: 'Mermilerin ve hançerlerin zehirler: hedef yavaşlar ve zamanla hasar alır. Zehir birikmez, süresi yenilenir.',
+    tiers: ['6 sn zehirli silah, %30 yavaşlatma, 6 hasar/sn', 'Zehir güçlenir: %40 yavaşlatma, 10 hasar/sn', 'Zehir silahına kalıcı eklenir. Yetenek 5 sn zehir hasarını 2 katına çıkarır'],
+    cooldown: () => 12,
+    cast: (s) => {
+      if (s.tier < 3) PS.poisonCoatT = NUM.poison.coat;
+      else PS.poisonBoostT = NUM.poison.boost;
+      puff(G.player.pos, '#5fd35a');
+      return true;
+    },
+  },
+  sprint: {
+    id: 'sprint',
+    name: 'Sprint',
+    desc: '4 sn boyunca %45 daha hızlı koşarsın.',
+    tiers: ['10 sn bekleme', '+1 stack, bekleme 7 sn', 'Sprint sırasında saldırı, atış ve şarjör değiştirme hızlanır'],
+    cooldown: (t) => byTier(t, [10, 7, 7]),
+    charges: (t) => byTier(t, [1, 2, 2]),
+    cast: () => {
+      PS.sprintT = NUM.sprint.dur;
+      return true;
+    },
+  },
+  kidney: {
+    id: 'kidney',
+    name: 'Kidney shot',
+    desc: 'Sadece yakın silahla: önündeki rakibi kısa bir süre hareketsiz bırakır.',
+    tiers: ['0.55 sn sersemletme, 12 sn bekleme', 'Bekleme 9 sn', 'Sersemletme 1 sn olur'],
+    weapon: 'melee',
+    cooldown: (t) => byTier(t, [12, 9, 9]),
+    cast: (s) => {
+      if (host.weapon() !== 'melee') host.setWeapon('melee');
+      const t = meleeTarget(NUM.kidney.range, 140);
+      if (!t) {
+        host.message('Menzilde rakip yok');
+        return false;
+      }
+      t.stunT = Math.max(t.stunT, byTier(s.tier, NUM.kidney.stun));
+      dealDamage(G.player, t, NUM.kidney.damage, { poison: weaponPoisoned() });
+      slash('#ffe14a');
+      return true;
+    },
+  },
+  execute: {
+    id: 'execute',
+    name: 'Execute',
+    desc: 'Büyük hasarlı bir vuruş ya da atış. Rakibin eksik canı arttıkça daha çok vurur. İki silahla da çalışır.',
+    tiers: ['70 hasar + eksik canın %40\'ı', 'Hasar 95', 'Rakip ölürse bekleme süresi sıfırlanır'],
+    cooldown: () => 10,
+    cast: (s) => {
+      const base = byTier(s.tier, NUM.execute.damage);
+      const dmgFor = (u: Unit) => base + Math.min(u.kind === 'boss' ? NUM.execute.bossCap : Infinity, (u.maxHp - u.hp) * NUM.execute.missing);
+      let target: Unit | null;
+      if (host.weapon() === 'melee') {
+        target = meleeTarget(DAGGERS.range + 0.5, 120);
+        if (!target) {
+          host.message('Menzilde rakip yok');
+          return false;
+        }
+        slash('#ff3b3b');
+      } else {
+        const hit = rayHitUnit(host.aimOrigin(), host.aimDir(), NUM.execute.range, (u) => hostile(G.player, u) && u.team !== 0);
+        lineFx(muzzlePoint(), hit.point, '#ff3b3b', 0.25);
+        target = hit.unit;
+      }
+      if (target) {
+        dealDamage(G.player, target, dmgFor(target), { poison: weaponPoisoned() });
+        if (s.tier === 3 && !target.alive) {
+          s.cd = 0;
+          s.charges = maxCharges(s);
+          host.message('Execute yenilendi!');
+          return false;
+        }
+      }
+      return true;
+    },
+  },
+  wink: {
+    id: 'wink',
+    name: 'Wink',
+    desc: 'Nişangâhtaki rakibin arkasına ışınlanırsın (Backstab için ideal).',
+    tiers: ['12 m menzil, 9 sn bekleme', '16 m menzil, 7 sn bekleme', '20 m, 6 sn ve ışınlanınca rakip 0.25 sn sersemler'],
+    cooldown: (t) => byTier(t, [9, 7, 6]),
+    cast: (s) => {
+      const t = targetUnderCrosshair(byTier(s.tier, NUM.wink.range), 20, (u) => hostile(G.player, u) && u.team !== 0);
+      if (!t) {
+        host.message('Menzilde rakip yok');
+        return false;
+      }
+      const dest = behind(t);
+      puff(G.player.pos, '#b46cff');
+      host.teleport(dest, Math.atan2(t.pos.x - dest.x, t.pos.z - dest.z));
+      puff(dest, '#b46cff');
+      if (s.tier === 3) t.stunT = Math.max(t.stunT, NUM.wink.stun);
+      return true;
+    },
+  },
+  detonate: {
+    id: 'detonate',
+    name: 'Detonate',
+    desc: 'Nişangâhtaki kopyanı patlatır (nişangâhta kopya yoksa en yakındakini).',
+    tiers: ['3.5 m patlama, 11 sn bekleme', '4.5 m patlama, 8 sn bekleme', 'Tüm kopyalar birden patlar'],
+    cooldown: (t) => byTier(t, [11, 8, 8]),
+    blocked: noDecoy,
+    cast: (s) => {
+      const list = decoys();
+      if (!list.length) return false;
+      const radius = byTier(s.tier, NUM.detonate.radius);
+      if (s.tier === 3) {
+        for (const d of list) explode(d, radius);
+      } else {
+        const aimed = targetUnderCrosshair(60, 12, (u) => list.includes(u), false);
+        const pick = aimed ?? list.reduce((a, b) => (flatDist(a.pos, G.player.pos) < flatDist(b.pos, G.player.pos) ? a : b));
+        explode(pick, radius);
+      }
+      return true;
+    },
+  },
+  insane: {
+    id: 'insane',
+    name: 'Insane',
+    desc: 'Tüm kopyaların en yakın rakibe koşar ve menzile girince ateş eder (%30 hasar). Ateş eden kopya 2 sn sonra kaybolur.',
+    tiers: ['Kopyalar saldırır, 12 sn bekleme', 'Kopyalar daha uzun yaşar (8 → 12 sn)', 'Kopya, taklit ettiği sınıfın rastgele bir yeteneğini kullanır'],
+    cooldown: () => 12,
+    blocked: noDecoy,
+    cast: () => {
+      const list = decoys();
+      if (!list.length) return false;
+      for (const d of list) d.ai!.mode = 'insane';
+      return true;
+    },
+  },
+};
+
+export const SKILL_IDS = Object.keys(SKILLS) as SkillId[];
+
+/** Playstyles: each one starts with a skill (design doc 2.2). */
+export const PLAYSTYLES: { id: string; name: string; skill: SkillId; weapon: 'melee' | 'ranged' }[] = [
+  { id: 'melee', name: 'Yakın dövüş', skill: 'wink', weapon: 'melee' },
+  { id: 'ranged', name: 'Uzak dövüş', skill: 'execute', weapon: 'ranged' },
+  { id: 'deception', name: 'Aldatmaca', skill: 'decoy', weapon: 'ranged' },
+];
+
+/** The player's skills in slot order (Q, E, 1, 2, 3). */
+export let skills: OwnedSkill[] = [];
+
+export function maxCharges(s: OwnedSkill) {
+  return SKILLS[s.id].charges?.(s.tier) ?? 1;
+}
+
+export function resetRogue() {
+  skills = [];
+  Object.assign(PS, {
+    evasionT: 0, evasionImmuneT: 0, invisT: 0, semiInvis: false, poisonCoatT: 0, poisonPermanent: false,
+    poisonBoostT: 0, poisonSlow: 0.3, poisonDps: 6, sprintT: 0, sprintHaste: false,
+  });
+  still = 0;
+  trailCd = 0;
+}
+
+/** Learn a new skill or raise its tier. Passive effects of tiers are applied here. */
+export function learn(id: SkillId) {
+  let s = skills.find((x) => x.id === id);
+  if (!s) {
+    s = { id, tier: 1, cd: 0, charges: 0 };
+    skills.push(s);
+  } else if (s.tier < 3) s.tier = (s.tier + 1) as Tier;
+  s.charges = maxCharges(s);
+  s.cd = 0;
+  if (id === 'poison') {
+    PS.poisonSlow = byTier(s.tier, NUM.poison.slow);
+    PS.poisonDps = byTier(s.tier, NUM.poison.dps);
+    PS.poisonPermanent = s.tier === 3;
+  }
+  if (id === 'invis') PS.semiInvis = s.tier === 3;
+  if (id === 'sprint') PS.sprintHaste = s.tier === 3;
+}
+
+export function blockedReason(s: OwnedSkill): string | null {
+  return SKILLS[s.id].blocked?.(s) ?? null;
+}
+
+export function castSlot(i: number) {
+  const s = skills[i];
+  if (!s || !G.player.alive) return;
+  const def = SKILLS[s.id];
+  if (G.player.stunT > 0) return;
+  if (s.charges <= 0) {
+    if (!def.whenEmpty?.(s)) host.message(`${def.name} bekleme süresinde`);
+    return;
+  }
+  const reason = blockedReason(s);
+  if (reason) {
+    host.message(`${def.name}: ${reason}`);
+    return;
+  }
+  if (def.cast(s)) {
+    s.charges -= 1;
+    if (s.cd <= 0) s.cd = def.cooldown(s.tier);
+  }
+}
+
+// ---- Per-frame -------------------------------------------------------------
+let still = 0;
+let trailCd = 0;
+
+export function weaponPoisoned() {
+  return PS.poisonPermanent || PS.poisonCoatT > 0;
+}
+
+/** Faster attacks while Sprint tier 3 is active. */
+export function hasteMult() {
+  return PS.sprintHaste && PS.sprintT > 0 ? NUM.sprint.haste : 1;
+}
+
+export function speedMult() {
+  return PS.sprintT > 0 ? NUM.sprint.mult : 1;
+}
+
+/** How visible the player is to enemies: 0 hidden, 0.5 faint, 1 normal. */
+export function enemyVisibility() {
+  if (PS.invisT > 0) return 0;
+  if (PS.semiInvis && !inCombat(G.player)) return 0.5;
+  return 1;
+}
+
+export function updateRogue(dt: number, moving: boolean, grounded: boolean) {
+  for (const s of skills) {
+    const max = maxCharges(s);
+    if (s.charges < max) {
+      s.cd -= dt;
+      if (s.cd <= 0) {
+        s.charges += 1;
+        s.cd = s.charges < max ? SKILLS[s.id].cooldown(s.tier) : 0;
+      }
+    }
+  }
+  for (const k of ['evasionT', 'evasionImmuneT', 'invisT', 'poisonCoatT', 'poisonBoostT', 'sprintT'] as const) PS[k] = Math.max(0, PS[k] - dt);
+
+  // Passive 2 (Gölge izi): standing still leaves a decoy behind.
+  trailCd -= dt;
+  if (moving || !grounded) still = 0;
+  else still += dt;
+  if (still >= SHADOW_TRAIL.stillTime && trailCd <= 0) {
+    spawnDecoy(G.player.pos, G.player.yaw, 'idle', false, SHADOW_TRAIL.decoyLife);
+    trailCd = SHADOW_TRAIL.cooldown;
+    still = 0;
+  }
+  updateDecoys(dt);
+}
+
+// ---- Decoys ----------------------------------------------------------------
+const PURPLE = new Color3(0.35, 0.1, 0.55);
+
+export function spawnDecoy(at: Vector3, yaw: number, mode: 'run' | 'idle', disguise: boolean, life?: number) {
+  const list = decoys();
+  // At most 3 decoys on the map (approved); the oldest goes first.
+  if (list.length >= NUM.decoy.max) removeUnit(list[0]);
+  let colors = G.player.colors!;
+  let name = G.player.name;
+  if (disguise) {
+    const bots = G.units.filter((u) => u.kind === 'bot');
+    const b = bots[Math.floor(Math.random() * bots.length)];
+    if (b?.colors) {
+      colors = b.colors;
+      name = b.name;
+    }
+  }
+  const body = createActorBody(G.scene, G.world, `decoy${G.nextId}`, colors, false, {});
+  const lifeT = life ?? (ownedTier('insane') >= 2 ? NUM.decoy.insaneLife : NUM.decoy.life);
+  const d = makeUnit('decoy', name, body, at, 0, NUM.decoy.hp, {
+    owner: G.player,
+    lifeT,
+    tint: PURPLE,
+    colors,
+    yaw,
+    level: G.player.level,
+    ai: { mode, runT: mode === 'run' ? 1.6 : 0, dir: forwardFromYaw(yaw), fireT: 0, firing: -1, trick: null },
+  });
+  if (disguise) recolor(body, colors);
+  puff(at, '#b46cff');
+  return d;
+}
+
+function swapWithDecoy(): boolean {
+  const list = decoys();
+  if (!list.length) return false;
+  const d = list.reduce((a, b) => (flatDist(a.pos, G.player.pos) < flatDist(b.pos, G.player.pos) ? a : b));
+  const mine = G.player.pos.clone();
+  const myYaw = G.player.yaw;
+  puff(mine, '#b46cff');
+  host.teleport(d.pos.clone(), G.player.yaw);
+  d.pos.copyFrom(mine);
+  d.yaw = myYaw;
+  puff(G.player.pos, '#b46cff');
+  return true;
+}
+
+function explode(d: Unit, radius: number) {
+  ringFx(d.pos, radius, '#ff7a3b', 0.35);
+  spawnFx(MeshBuilder.CreateSphere('boom', { diameter: radius * 1.2, segments: 12 }, G.scene), chest(d), '#ffb14a', 0.3, 1.5, 0.5);
+  for (const u of [...G.units]) {
+    if (!hostile(G.player, u) || u.team === 0) continue;
+    if (flatDist(u.pos, d.pos) <= radius + u.radius && Math.abs(u.pos.y - d.pos.y) < 3) dealDamage(d, u, NUM.detonate.damage, { noBackstab: true });
+  }
+  removeUnit(d);
+}
+
+function nearestEnemyOf(p: Vector3, range: number) {
+  let best: Unit | null = null;
+  let bd = range;
+  for (const u of G.units) {
+    if (u.team === 0 || !u.alive) continue;
+    const d = flatDist(u.pos, p);
+    if (d < bd) {
+      bd = d;
+      best = u;
+    }
+  }
+  return best;
+}
+
+function updateDecoys(dt: number) {
+  for (const d of decoys()) {
+    const ai = d.ai!;
+    d.lifeT! -= dt;
+    if (d.lifeT! <= 0) {
+      puff(d.pos, '#b46cff');
+      removeUnit(d);
+      continue;
+    }
+    if (ai.mode === 'run' && ai.runT > 0) {
+      ai.runT -= dt;
+      moveUnit(d, ai.dir, 8.5, dt);
+    } else if (ai.mode === 'insane') {
+      const t = nearestEnemyOf(d.pos, 40);
+      if (!t) {
+        moveUnit(d, Vector3.Zero(), 0, dt);
+        continue;
+      }
+      faceTowards(d, t.pos, dt);
+      const dist = flatDist(d.pos, t.pos);
+      const see = dist < NUM.insane.range && lineOfSight(chest(d), chest(t));
+      if (ai.firing < 0 && see) {
+        ai.firing = NUM.insane.fireFor;
+        // Tier 3: the decoy uses a random skill of the class it copies (all bots are Rogues for now).
+        if (ownedTier('insane') === 3) ai.trick = ['wink', 'kidney', 'poison'][Math.floor(Math.random() * 3)];
+        if (ai.trick === 'wink') {
+          d.pos.copyFrom(behind(t));
+          puff(d.pos, '#b46cff');
+        }
+        if (ai.trick === 'kidney') t.stunT = Math.max(t.stunT, 0.5);
+      }
+      if (ai.firing >= 0) {
+        ai.firing -= dt;
+        ai.fireT -= dt;
+        if (ai.fireT <= 0 && see) {
+          ai.fireT = NUM.insane.rate;
+          const from = chest(d).add(forwardFromYaw(d.yaw).scale(0.6));
+          fireBullet(d, from, chest(t).subtract(from), GUN.speed, 40, GUN.damage * NUM.insane.share, '#d58bff', ai.trick === 'poison');
+        }
+        if (ai.firing < 0) {
+          puff(d.pos, '#b46cff');
+          removeUnit(d);
+          continue;
+        }
+      } else moveUnit(d, t.pos.subtract(d.pos), 9, dt);
+    } else moveUnit(d, Vector3.Zero(), 0, dt);
+  }
+}
+
+// ---- Targeting helpers -----------------------------------------------------------
+function muzzlePoint() {
+  return G.player.pos.add(rightFromYaw(G.player.yaw).scale(0.42)).add(forwardFromYaw(G.player.yaw).scale(0.6)).addInPlaceFromFloats(0, 1.2, 0);
+}
+
+/** The unit closest to the crosshair, within range and a cone, that the player can see. */
+export function targetUnderCrosshair(range: number, coneDeg: number, filter: (u: Unit) => boolean, needSight = true): Unit | null {
+  const origin = G.camera.position;
+  const aim = host.aimDir();
+  let best: Unit | null = null;
+  let bestAngle = (coneDeg * Math.PI) / 180;
+  for (const u of G.units) {
+    if (!filter(u) || flatDist(u.pos, G.player.pos) > range) continue;
+    const to = chest(u).subtract(origin);
+    const angle = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(to.normalize(), aim))));
+    if (angle < bestAngle && (!needSight || lineOfSight(chest(G.player), chest(u)))) {
+      bestAngle = angle;
+      best = u;
+    }
+  }
+  return best;
+}
+
+/** Nearest enemy in front of the player within melee reach. */
+export function meleeTarget(range: number, arcDeg: number): Unit | null {
+  const fwd = forwardFromYaw(G.player.yaw);
+  const half = ((arcDeg / 2) * Math.PI) / 180;
+  let best: Unit | null = null;
+  let bd = Infinity;
+  for (const u of G.units) {
+    if (!hostile(G.player, u) || u.team === 0) continue;
+    const to = u.pos.subtract(G.player.pos);
+    if (Math.abs(to.y) > 1.8) continue;
+    to.y = 0;
+    const dist = to.length() - u.radius;
+    if (dist > range) continue;
+    const angle = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(to.normalize(), fwd))));
+    if ((dist < 0.6 || angle <= half) && dist < bd) {
+      bd = dist;
+      best = u;
+    }
+  }
+  return best;
+}
+
+/** A free spot right behind a unit (tries the sides if a wall is there). */
+function behind(t: Unit): Vector3 {
+  const f = forwardFromYaw(t.yaw);
+  const r = rightFromYaw(t.yaw);
+  const dist = t.radius + 0.9;
+  for (const off of [f.scale(-dist), f.scale(-dist).add(r.scale(0.8)), f.scale(-dist).add(r.scale(-0.8)), r.scale(dist), r.scale(-dist)]) {
+    const p = t.pos.add(off);
+    if (!pointHitsObstacle(p.add(new Vector3(0, 1, 0)), G.world.boxes)) return p;
+  }
+  return t.pos.add(f.scale(-dist));
+}
+
+function puff(at: Vector3, color: string) {
+  spawnFx(MeshBuilder.CreateSphere('puff', { diameter: 1, segments: 8 }, G.scene), at.add(new Vector3(0, 1, 0)), color, 0.35, 2.5, 0.45);
+}
+
+function slash(color: string) {
+  const disc = MeshBuilder.CreateDisc('kslash', { radius: 2.2, arc: 0.3, tessellation: 16 }, G.scene);
+  disc.rotation.x = Math.PI / 2;
+  disc.rotation.y = G.player.yaw - Math.PI / 2 + 0.94;
+  spawnFx(disc, G.player.pos.add(new Vector3(0, 1.1, 0)), color, 0.15, 0, 0.7);
+}

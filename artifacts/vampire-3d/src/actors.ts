@@ -76,8 +76,9 @@ export function createActorBody(
 }
 
 /** Brief white flash when an actor takes damage. */
-export function flash(body: ActorBody, t: number) {
-  body.bodyMat.emissiveColor = t > 0 ? new Color3(0.9, 0.9, 0.9).scale(t) : Color3.Black();
+export function flash(body: ActorBody, t: number, tint?: Color3) {
+  const base = tint ?? Color3.Black();
+  body.bodyMat.emissiveColor = t > 0 ? Color3.Lerp(base, new Color3(0.9, 0.9, 0.9), t) : base;
 }
 
 export function disposeBody(body: ActorBody) {
@@ -90,4 +91,50 @@ export function forwardFromYaw(yaw: number): Vector3 {
 
 export function rightFromYaw(yaw: number): Vector3 {
   return new Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+}
+
+/** Four-legged scrap hound mob: low body, head in front, glowing eyes. */
+export function createMobBody(scene: Scene, world: World, name: string, hex: string, metadata: Record<string, unknown>): ActorBody {
+  const root = new TransformNode(name, scene);
+  const bodyMat = material(scene, `${name}-body`, hex);
+  const eyeMat = material(scene, `${name}-eye`, '#ffcf4a');
+  eyeMat.emissiveColor = Color3.FromHexString('#ffcf4a');
+  const body = MeshBuilder.CreateBox(`${name}-torso`, { width: 0.7, height: 0.55, depth: 1.2 }, scene);
+  body.position.y = 0.65;
+  body.material = bodyMat;
+  const head = MeshBuilder.CreateBox(`${name}-head`, { width: 0.5, height: 0.42, depth: 0.5 }, scene);
+  head.position.set(0, 0.85, 0.75);
+  head.material = bodyMat;
+  const eyes = MeshBuilder.CreateBox(`${name}-eyes`, { width: 0.38, height: 0.07, depth: 0.05 }, scene);
+  eyes.position.set(0, 0.92, 1.01);
+  eyes.material = eyeMat;
+  const meshes = [body, head, eyes];
+  for (const [i, [x, z]] of [[-0.25, 0.4], [0.25, 0.4], [-0.25, -0.4], [0.25, -0.4]].entries()) {
+    const leg = MeshBuilder.CreateBox(`${name}-leg${i}`, { width: 0.14, height: 0.4, depth: 0.14 }, scene);
+    leg.position.set(x, 0.2, z);
+    leg.material = bodyMat;
+    meshes.push(leg);
+  }
+  for (const m of meshes) {
+    m.parent = root;
+    m.metadata = metadata;
+    world.shadows.addShadowCaster(m);
+  }
+  const hpBar = MeshBuilder.CreatePlane(`${name}-hp`, { width: 0.9, height: 0.09 }, scene);
+  hpBar.parent = root;
+  hpBar.position.y = 1.45;
+  hpBar.billboardMode = Mesh.BILLBOARDMODE_ALL;
+  hpBar.isPickable = false;
+  const hpMat = new StandardMaterial(`${name}-hpmat`, scene);
+  hpMat.emissiveColor = Color3.FromHexString('#e0a33f');
+  hpMat.disableLighting = true;
+  hpBar.material = hpMat;
+  return { root, meshes, bodyMat, baseColor: bodyMat.diffuseColor.clone(), hpBar };
+}
+
+/** Recolor an actor's cloak and head (used when a decoy disguises as another player). */
+export function recolor(body: ActorBody, colors: { body: string; head: string }) {
+  body.bodyMat.diffuseColor = Color3.FromHexString(colors.body);
+  const head = body.meshes[1]?.material as StandardMaterial | null;
+  if (head) head.diffuseColor = Color3.FromHexString(colors.head);
 }

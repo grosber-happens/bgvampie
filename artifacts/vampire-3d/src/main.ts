@@ -1,12 +1,10 @@
-import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Engine } from '@babylonjs/core/Engines/engine';
+import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Ray } from '@babylonjs/core/Culling/ray';
 import { Scene } from '@babylonjs/core/scene';
-import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 // Side-effect imports: register shadow and picking support on the scene.
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Culling/ray';
@@ -14,16 +12,34 @@ import './style.css';
 import { Input } from './input';
 import { placeHouses } from './houses';
 import { attachGun } from './gun';
-import { buildWorld, ceilingHeight, findOpenSpot, groundHeight, pointHitsObstacle, resolveWalls, type World } from './world';
-import { createActorBody, disposeBody, flash, forwardFromYaw, rightFromYaw, type ActorBody } from './actors';
+import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
+import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
+import { DAGGERS, GUN, MAX_LEVEL, ROGUE, TOKEN_PRICE } from './balance';
+import { G, PS, chest, dealDamage, fireBullet, glowMat, hostile, inCombat, makeUnit, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
+import {
+  PLAYSTYLES,
+  SKILLS,
+  blockedReason,
+  castSlot,
+  enemyVisibility,
+  hasteMult,
+  learn,
+  maxCharges,
+  resetRogue,
+  setRogueHost,
+  skills,
+  speedMult,
+  targetUnderCrosshair,
+  updateRogue,
+  weaponPoisoned,
+} from './rogue';
+import { boss, botDied, resetDirector, spawnBoss, updateAI } from './ai';
+import { killLog, xpLog, cardText, currentOffer, grantXp, pickCard, prog, resetProgression, rewardKill, tier3Open, xpNeeded } from './progression';
 
-// ---- Tuning ---------------------------------------------------------------
-const PLAYER = {
-  maxHp: 100,
+// ---- Tuning (movement and camera) -------------------------------------------
+const MOVE = {
   speed: 8.5,
   airControl: 0.85,
-  radius: 0.45,
-  height: 1.85,
   jumpSpeed: 9,
   gravity: 26,
   coyoteTime: 0.1,
@@ -31,9 +47,6 @@ const PLAYER = {
   dashTime: 0.18,
   dashCd: 1.0,
 };
-const RANGED = { fireRate: 0.14, damage: 20, speed: 80, range: 120 };
-const MELEE = { rate: 0.45, damage: 30, range: 2.6, arcDeg: 110 };
-const DUMMY = { count: 8, maxHp: 120, radius: 0.5, regenDelay: 3, respawn: 2 };
 const STEP_DOWN = 0.45;
 const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
 // Right-click aim: closer over-the-shoulder view with zoom and slower movement.
@@ -47,128 +60,90 @@ const SKILL_KEYS = [
 ];
 
 type Weapon = 'ranged' | 'melee';
-type Bullet = { mesh: Mesh; vel: Vector3; life: number; damage: number };
-type Dummy = { id: number; body: ActorBody; pos: Vector3; hp: number; sinceHit: number; flashT: number };
 
-// City seed: ?seed=123 in the URL rebuilds the same city, otherwise a new random one.
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1e6) + 1;
+const DEBUG = params.has('debug');
 
-const canvas = document.getElementById('game') as HTMLCanvasElement;
-const overlay = document.getElementById('overlay')!;
-const overlayText = document.getElementById('overlay-text')!;
-const playBtn = document.getElementById('play') as HTMLButtonElement;
-const hpFill = document.getElementById('hp-fill')!;
-const hpText = document.getElementById('hp-text')!;
-const weaponEl = document.getElementById('weapon')!;
-const dashEl = document.getElementById('dash-fill')!;
-const seedEl = document.getElementById('seed')!;
-const slotsEl = document.getElementById('slots')!;
-const crosshair = document.getElementById('crosshair')!;
+const $ = (id: string) => document.getElementById(id)!;
+const canvas = $('game') as HTMLCanvasElement;
+const overlay = $('overlay');
+const overlayText = $('overlay-text');
+const playBtn = $('play') as HTMLButtonElement;
+const crosshair = $('crosshair');
+const slotsEl = $('slots');
+const cardsEl = $('cards');
 
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
-// The user paused the house model swap; flip this to show their house model again.
-const USE_HOUSE_MODEL = true;
-const world: World = buildWorld(scene, seed, { houseModel: USE_HOUSE_MODEL });
+const world = buildWorld(scene, seed, { houseModel: true });
 const input = new Input(canvas);
-if (USE_HOUSE_MODEL) placeHouses(scene, world).catch((e) => console.error('House model failed to load', e));
-seedEl.textContent = `Şehir #${seed} · N: yeni şehir`;
+placeHouses(scene, world).catch((e) => console.error('House model failed to load', e));
+$('seed').textContent = `Şehir #${seed} · N: yeni şehir${DEBUG ? ' · L seviye · B boss · K para' : ''}`;
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
 camera.inputs.clear();
-camera.fov = 0.95;
+camera.fov = CAMERA.fov;
 camera.minZ = 0.1;
 
-const bulletMat = new StandardMaterial('bullet', scene);
-bulletMat.emissiveColor = Color3.FromHexString('#ffd27a');
-bulletMat.disableLighting = true;
+Object.assign(G, { scene, world, camera, input });
 
-const slashMat = new StandardMaterial('slash', scene);
-slashMat.emissiveColor = Color3.FromHexString('#ff5a6e');
-slashMat.disableLighting = true;
-slashMat.alpha = 0.6;
-slashMat.backFaceCulling = false;
+// A tiny seeded random for spawns so a seed replays the same opening.
+let rs = seed;
+const rand = () => {
+  rs = (rs * 16807) % 2147483647;
+  return (rs - 1) / 2147483646;
+};
 
-// Skill slot placeholders: the class skills plug in here later.
-const slotEls = SKILL_KEYS.map((k) => {
-  const el = document.createElement('div');
-  el.className = 'slot';
-  el.innerHTML = `<span class="key">${k.label}</span><span class="name">boş</span>`;
-  slotsEl.appendChild(el);
-  return el;
-});
+// ---- Player -----------------------------------------------------------------
+const playerColors = { body: '#7a1f2b', head: '#e9d6c0', weapon: '#ffd27a' };
+const pBody = createActorBody(scene, world, 'player', playerColors, false, {});
+const player: Unit = makeUnit('player', 'Sen', pBody, new Vector3(), 0, ROGUE.maxHp, { colors: playerColors });
+G.player = player;
+for (const m of pBody.meshes) m.isPickable = false;
 
-// ---- State ----------------------------------------------------------------
-const player = {
-  body: createActorBody(scene, world, 'player', { body: '#7a1f2b', head: '#e9d6c0', weapon: '#ffd27a' }, false, { player: true }),
-  pos: new Vector3(),
-  velY: 0,
+const ctl = {
   grounded: true,
   sinceGrounded: 0,
   airDashUsed: false,
-  hp: PLAYER.maxHp,
   weapon: 'ranged' as Weapon,
   fireCd: 0,
   dashT: 0,
   dashCd: 0,
   dashDir: new Vector3(),
+  ammo: GUN.magazine,
+  reloadT: 0,
+  side: 1,
+  moving: false,
 };
-for (const m of player.body.meshes) m.isPickable = false;
-attachGun(scene, world, player.body.root)
+
+let gunMesh: Mesh = pBody.meshes[2];
+attachGun(scene, world, pBody.root)
   .then((gun) => {
     gunMesh.dispose();
     gunMesh = gun;
-    player.body.meshes[2] = gun;
-    setWeapon(player.weapon);
+    pBody.meshes[2] = gun;
+    setWeapon(ctl.weapon);
   })
   .catch((e) => console.error('Gun model failed to load', e));
-// Placeholder gun box until the gun model loads (then it is swapped in at the same slot).
-let gunMesh = player.body.meshes[2];
-// Melee weapon: a long glowing blade held on the right side.
-const blade = MeshBuilder.CreateBox('blade', { width: 0.08, height: 0.08, depth: 1.4 }, scene);
-blade.material = slashMat;
-blade.parent = player.body.root;
-blade.position.set(0.45, 1.15, 0.7);
-blade.isPickable = false;
 
-let dummies: Dummy[] = [];
-let bullets: Bullet[] = [];
-let respawnQueue: number[] = [];
-let slashes: { mesh: Mesh; t: number }[] = [];
-let nextId = 1;
-let running = false;
-let hitMarkerT = 0;
-let rand = Math.random;
-let aimBlend = 0; // 0 = normal view, 1 = fully aimed
+// Twin laser daggers, one in each hand.
+const blades = [1, -1].map((s) => {
+  const b = MeshBuilder.CreateBox('dagger', { width: 0.06, height: 0.06, depth: 0.75 }, scene);
+  b.material = glowMat('#ff5a6e', 0.85);
+  b.parent = pBody.root;
+  b.position.set(0.45 * s, 1.1, 0.45);
+  b.isPickable = false;
+  return b;
+});
 
-function spawnDummy() {
-  const id = nextId++;
-  const body = createActorBody(scene, world, `dummy${id}`, { body: '#4b3f6b', head: '#c9c2d8', weapon: '#b46cff' }, true, { dummyId: id });
-  const pos = findOpenSpot(world.boxes, rand);
-  body.root.position.copyFrom(pos);
-  body.root.rotation.y = rand() * Math.PI * 2;
-  dummies.push({ id, body, pos, hp: DUMMY.maxHp, sinceHit: 99, flashT: 0 });
+function setWeapon(w: Weapon) {
+  ctl.weapon = w;
+  gunMesh.isVisible = w === 'ranged';
+  for (const b of blades) b.isVisible = w === 'melee';
+  crosshair.classList.toggle('melee', w === 'melee');
 }
 
-function resetMatch() {
-  for (const d of dummies) disposeBody(d.body);
-  for (const b of bullets) b.mesh.dispose();
-  dummies = [];
-  bullets = [];
-  respawnQueue = [];
-  // Player starts in the open plaza at the center of the city.
-  player.pos.set(0, groundHeight(new Vector3(0, 0.3, 0), PLAYER.radius, world.boxes), 0);
-  resolveWalls(player.pos, PLAYER.radius, PLAYER.height, world.boxes);
-  player.velY = 0;
-  player.hp = PLAYER.maxHp;
-  player.dashCd = 0;
-  input.yaw = 0;
-  input.pitch = -0.12;
-  for (let i = 0; i < DUMMY.count; i++) spawnDummy();
-}
-
-// ---- Helpers --------------------------------------------------------------
 function aimDirection(): Vector3 {
   const cp = Math.cos(input.pitch);
   return new Vector3(Math.sin(input.yaw) * cp, Math.sin(input.pitch), Math.cos(input.yaw) * cp);
@@ -178,200 +153,166 @@ function muzzle(): Vector3 {
   return player.pos.add(rightFromYaw(input.yaw).scale(0.42)).add(forwardFromYaw(input.yaw).scale(0.8)).addInPlaceFromFloats(0, 1.2, 0);
 }
 
-function damageDummy(d: Dummy, dmg: number) {
-  d.hp -= dmg;
-  d.flashT = 1;
-  d.sinceHit = 0;
-  hitMarkerT = 0.12;
-  if (d.hp <= 0) {
-    disposeBody(d.body);
-    dummies = dummies.filter((x) => x !== d);
-    respawnQueue.push(DUMMY.respawn);
-  }
+setRogueHost({
+  aimDir: aimDirection,
+  aimOrigin: () => camera.position.add(aimDirection().scale(Vector3.Distance(camera.position, chest(player)))),
+  weapon: () => ctl.weapon,
+  setWeapon,
+  teleport: (pos, yaw) => {
+    player.pos.copyFrom(pos);
+    player.pos.y = groundHeight(new Vector3(pos.x, pos.y + 0.3, pos.z), player.radius, world.boxes);
+    resolveWalls(player.pos, player.radius, player.height, world.boxes);
+    player.velY = 0;
+    input.yaw = yaw;
+    player.yaw = yaw;
+  },
+  message: (t) => toast(t),
+});
+
+// ---- Attacks ----------------------------------------------------------------
+function reload() {
+  if (ctl.reloadT > 0 || ctl.ammo >= GUN.magazine) return;
+  ctl.reloadT = GUN.reload / hasteMult();
 }
 
-function setWeapon(w: Weapon) {
-  player.weapon = w;
-  gunMesh.isVisible = w === 'ranged';
-  blade.isVisible = w === 'melee';
-  crosshair.classList.toggle('melee', w === 'melee');
+function isMyDecoyMesh(m: { metadata?: { unitId?: number } }) {
+  const u = G.units.find((x) => x.id === m.metadata?.unitId);
+  return u?.kind === 'decoy';
 }
 
 function shoot() {
-  player.fireCd = RANGED.fireRate;
+  if (ctl.reloadT > 0) return;
+  if (ctl.ammo <= 0) return reload();
+  ctl.fireCd = GUN.fireRate / hasteMult();
+  ctl.ammo -= 1;
   // Aim ray goes from the camera through the crosshair; the bullet flies from the gun to that point.
   const dir = aimDirection();
-  const ray = new Ray(camera.position.clone(), dir, RANGED.range);
-  const pick = scene.pickWithRay(ray, (m) => m.isPickable);
-  const target = pick?.hit && pick.pickedPoint ? pick.pickedPoint : camera.position.add(dir.scale(RANGED.range));
+  const ray = new Ray(camera.position.clone(), dir, GUN.range);
+  const pick = scene.pickWithRay(ray, (m) => m.isPickable && m.isVisible && m.metadata?.unitId !== player.id && !isMyDecoyMesh(m));
+  const target = pick?.hit && pick.pickedPoint ? pick.pickedPoint : camera.position.add(dir.scale(GUN.range));
   const from = muzzle();
-  const vel = target.subtract(from).normalize().scale(RANGED.speed);
-  const mesh = MeshBuilder.CreateSphere('bullet', { diameter: 0.16, segments: 6 }, scene);
-  mesh.isPickable = false;
-  mesh.material = bulletMat;
-  mesh.position.copyFrom(from);
-  bullets.push({ mesh, vel, life: RANGED.range / RANGED.speed, damage: RANGED.damage });
+  const poisoned = weaponPoisoned();
+  fireBullet(player, from, target.subtract(from), GUN.speed, GUN.range, GUN.damage, poisoned ? '#7be36f' : '#ffd27a', poisoned);
+  if (ctl.ammo <= 0) reload();
 }
 
 function swing() {
-  player.fireCd = MELEE.rate;
+  ctl.fireCd = DAGGERS.rate / hasteMult();
+  ctl.side *= -1;
   const fwd = forwardFromYaw(input.yaw);
-  const halfArc = ((MELEE.arcDeg / 2) * Math.PI) / 180;
-  for (const d of [...dummies]) {
-    const to = d.pos.subtract(player.pos);
-    const dy = to.y;
+  const halfArc = ((DAGGERS.arcDeg / 2) * Math.PI) / 180;
+  for (const u of [...G.units]) {
+    if (!hostile(player, u) || u.team === 0) continue;
+    const to = u.pos.subtract(player.pos);
+    if (Math.abs(to.y) > 1.8) continue;
     to.y = 0;
-    const dist = to.length();
-    if (dist > MELEE.range + DUMMY.radius || Math.abs(dy) > 1.6) continue;
+    const dist = to.length() - u.radius;
+    if (dist > DAGGERS.range) continue;
     const angle = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(to.normalize(), fwd))));
-    if (dist < 0.8 || angle <= halfArc) damageDummy(d, MELEE.damage);
+    if (dist < 0.6 || angle <= halfArc) dealDamage(player, u, DAGGERS.damage, { poison: weaponPoisoned() });
   }
-  // Short arc flash in front of the player.
-  const arc = MeshBuilder.CreateDisc('slash', { radius: MELEE.range, arc: MELEE.arcDeg / 360, tessellation: 24 }, scene);
-  arc.material = slashMat;
-  arc.isPickable = false;
+  const arc = MeshBuilder.CreateDisc('slash', { radius: DAGGERS.range, arc: DAGGERS.arcDeg / 360, tessellation: 20 }, scene);
   arc.rotation.x = Math.PI / 2;
+  arc.rotation.z = ctl.side * 0.35;
   arc.rotation.y = input.yaw - Math.PI / 2 + halfArc;
-  arc.position.copyFrom(player.pos).addInPlaceFromFloats(0, 1.1, 0);
-  slashes.push({ mesh: arc, t: 0.12 });
+  spawnFx(arc, player.pos.add(new Vector3(0, 1.1, 0)), weaponPoisoned() ? '#7be36f' : '#ff5a6e', 0.12, 0, 0.55);
 }
 
-// ---- Update ---------------------------------------------------------------
+// ---- Player update -------------------------------------------------------------
 function updatePlayer(dt: number) {
   const fwd = forwardFromYaw(input.yaw);
   const right = rightFromYaw(input.yaw);
   const move = fwd.scale(input.axis('KeyS', 'KeyW')).add(right.scale(input.axis('KeyA', 'KeyD')));
   if (move.lengthSquared() > 0) move.normalize();
+  ctl.moving = move.lengthSquared() > 0 || ctl.dashT > 0;
+  const stunned = player.stunT > 0;
 
-  // Weapon switch and skill slots.
-  if (input.consume('KeyF')) setWeapon(player.weapon === 'ranged' ? 'melee' : 'ranged');
+  if (input.consume('KeyF')) setWeapon(ctl.weapon === 'ranged' ? 'melee' : 'ranged');
+  if (input.consume('KeyR')) reload();
   SKILL_KEYS.forEach((k, i) => {
     if (input.consume(k.code)) {
-      slotEls[i].classList.remove('pulse');
-      void slotEls[i].offsetWidth; // restart the CSS animation
-      slotEls[i].classList.add('pulse');
+      castSlot(i);
+      const el = slotsEl.children[i] as HTMLElement | undefined;
+      if (el) {
+        el.classList.remove('pulse');
+        void el.offsetWidth; // restart the CSS animation
+        el.classList.add('pulse');
+      }
     }
   });
 
-  // Dash: works on the ground and once in the air; no gravity while dashing.
-  player.dashCd -= dt;
-  if (input.consume('ShiftLeft', 'ShiftRight') && player.dashCd <= 0 && (player.grounded || !player.airDashUsed)) {
-    player.dashDir = move.lengthSquared() > 0 ? move.clone() : fwd.clone();
-    player.dashT = PLAYER.dashTime;
-    player.dashCd = PLAYER.dashCd;
-    if (!player.grounded) player.airDashUsed = true;
+  ctl.dashCd -= dt;
+  if (!stunned && input.consume('ShiftLeft', 'ShiftRight') && ctl.dashCd <= 0 && (ctl.grounded || !ctl.airDashUsed)) {
+    ctl.dashDir = move.lengthSquared() > 0 ? move.clone() : fwd.clone();
+    ctl.dashT = MOVE.dashTime;
+    ctl.dashCd = MOVE.dashCd;
+    if (!ctl.grounded) ctl.airDashUsed = true;
     player.velY = Math.max(player.velY, 0);
   }
-
-  // Jump with a short grace period after walking off a ledge.
-  if (input.consume('Space') && (player.grounded || player.sinceGrounded < PLAYER.coyoteTime) && player.dashT <= 0) {
-    player.velY = PLAYER.jumpSpeed;
-    player.grounded = false;
-    player.sinceGrounded = PLAYER.coyoteTime;
+  if (!stunned && input.consume('Space') && (ctl.grounded || ctl.sinceGrounded < MOVE.coyoteTime) && ctl.dashT <= 0) {
+    player.velY = MOVE.jumpSpeed;
+    ctl.grounded = false;
+    ctl.sinceGrounded = MOVE.coyoteTime;
   }
 
-  if (player.dashT > 0) {
-    player.dashT -= dt;
-    player.pos.addInPlace(player.dashDir.scale(PLAYER.dashSpeed * dt));
+  if (ctl.dashT > 0) {
+    ctl.dashT -= dt;
+    player.pos.addInPlace(ctl.dashDir.scale(MOVE.dashSpeed * dt));
   } else {
-    const speed = PLAYER.speed * (player.grounded ? 1 : PLAYER.airControl) * (isAiming() ? AIM.moveMult : 1);
+    const slow = player.slowT > 0 ? player.slowMul : 1;
+    const speed = stunned ? 0 : MOVE.speed * speedMult() * slow * (ctl.grounded ? 1 : MOVE.airControl) * (isAiming() ? AIM.moveMult : 1);
     player.pos.addInPlace(move.scale(speed * dt));
-    player.velY -= PLAYER.gravity * dt;
+    player.velY -= MOVE.gravity * dt;
   }
-  resolveWalls(player.pos, PLAYER.radius, PLAYER.height, world.boxes);
+  resolveWalls(player.pos, player.radius, player.height, world.boxes);
 
   // Vertical movement: land on roofs, crates and walls, bump into overhangs.
   const nextY = player.pos.y + player.velY * dt;
   if (player.velY > 0) {
-    const ceil = ceilingHeight(player.pos, PLAYER.radius, PLAYER.height, world.boxes);
-    if (nextY + PLAYER.height > ceil) {
-      player.pos.y = ceil - PLAYER.height;
+    const ceil = ceilingHeight(player.pos, player.radius, player.height, world.boxes);
+    if (nextY + player.height > ceil) {
+      player.pos.y = ceil - player.height;
       player.velY = 0;
     } else player.pos.y = nextY;
   } else {
-    player.pos.y = Math.max(nextY, player.pos.y - 3); // cap fall step
+    player.pos.y = Math.max(nextY, player.pos.y - 3);
   }
-  const floor = groundHeight(new Vector3(player.pos.x, Math.max(player.pos.y, nextY), player.pos.z), PLAYER.radius, world.boxes);
+  const floor = groundHeight(new Vector3(player.pos.x, Math.max(player.pos.y, nextY), player.pos.z), player.radius, world.boxes);
   if (player.pos.y <= floor && player.velY <= 0) {
     player.pos.y = floor;
     player.velY = 0;
-    player.grounded = true;
-    player.sinceGrounded = 0;
-    player.airDashUsed = false;
+    ctl.grounded = true;
+    ctl.sinceGrounded = 0;
+    ctl.airDashUsed = false;
   } else if (player.pos.y > floor + 0.02 || player.velY > 0) {
-    if (player.grounded && player.velY <= 0 && player.pos.y - floor < STEP_DOWN) {
-      // Walking down a small step: stick to the floor instead of floating.
-      player.pos.y = floor;
-    } else {
-      player.grounded = false;
-      player.sinceGrounded += dt;
+    if (ctl.grounded && player.velY <= 0 && player.pos.y - floor < STEP_DOWN) player.pos.y = floor;
+    else {
+      ctl.grounded = false;
+      ctl.sinceGrounded += dt;
     }
   }
+  player.yaw = input.yaw;
 
-  // Character always faces where the camera aims (shooter style).
-  player.body.root.position.copyFrom(player.pos);
-  player.body.root.rotation.y = input.yaw;
-
-  player.fireCd -= dt;
-  if (input.firing && player.fireCd <= 0) {
-    if (player.weapon === 'ranged') shoot();
+  if (ctl.reloadT > 0) {
+    ctl.reloadT -= dt;
+    if (ctl.reloadT <= 0) ctl.ammo = GUN.magazine;
+  }
+  ctl.fireCd -= dt;
+  if (!stunned && input.firing && ctl.fireCd <= 0) {
+    if (ctl.weapon === 'ranged') shoot();
     else swing();
   }
-}
-
-function updateDummies(dt: number) {
-  for (const d of dummies) {
-    d.sinceHit += dt;
-    if (d.sinceHit > DUMMY.regenDelay) d.hp = Math.min(DUMMY.maxHp, d.hp + 60 * dt);
-    if (d.body.hpBar) d.body.hpBar.scaling.x = Math.max(0, d.hp / DUMMY.maxHp);
-    d.flashT = Math.max(0, d.flashT - dt * 6);
-    flash(d.body, d.flashT);
-  }
-  respawnQueue = respawnQueue.map((t) => t - dt);
-  while (respawnQueue.length && respawnQueue[0] <= 0) {
-    respawnQueue.shift();
-    spawnDummy();
-  }
-  slashes = slashes.filter((s) => {
-    s.t -= dt;
-    if (s.t <= 0) s.mesh.dispose();
-    return s.t > 0;
-  });
-}
-
-function updateBullets(dt: number) {
-  const alive: Bullet[] = [];
-  for (const b of bullets) {
-    const step = b.vel.scale(dt);
-    const substeps = Math.max(1, Math.ceil(step.length() / 0.4));
-    const inc = step.scale(1 / substeps);
-    let done = false;
-    for (let i = 0; i < substeps && !done; i++) {
-      b.mesh.position.addInPlace(inc);
-      const p = b.mesh.position;
-      if (pointHitsObstacle(p, world.boxes)) {
-        done = true;
-        break;
-      }
-      for (const d of dummies) {
-        if (p.y > d.pos.y && p.y < d.pos.y + 2 && Math.hypot(p.x - d.pos.x, p.z - d.pos.z) < 0.55) {
-          damageDummy(d, b.damage);
-          done = true;
-          break;
-        }
-      }
-    }
-    b.life -= dt;
-    if (done || b.life <= 0) b.mesh.dispose();
-    else alive.push(b);
-  }
-  bullets = alive;
+  // Health comes back out of combat.
+  if (G.time - player.lastCombat > ROGUE.regenDelay) player.hp = Math.min(player.maxHp, player.hp + ROGUE.regenPerSec * dt);
+  updateRogue(dt, ctl.moving, ctl.grounded);
 }
 
 function isAiming() {
-  return running && input.aiming && player.weapon === 'ranged';
+  return running && input.aiming && ctl.weapon === 'ranged';
 }
 
+// ---- Camera ----------------------------------------------------------------------
+let aimBlend = 0;
 function updateCamera(dt: number) {
   aimBlend += ((isAiming() ? 1 : 0) - aimBlend) * Math.min(1, AIM.blendSpeed * dt);
   const lerp = (a: number, b: number) => a + (b - a) * aimBlend;
@@ -379,7 +320,6 @@ function updateCamera(dt: number) {
   const dir = aimDirection();
   const head = player.pos.add(new Vector3(0, CAMERA.height, 0));
   const pivot = head.add(rightFromYaw(input.yaw).scale(lerp(CAMERA.shoulder, AIM.shoulder)));
-  // Pull the camera in if a wall is between it and the player.
   const maxDist = lerp(CAMERA.distance, AIM.distance);
   let dist = maxDist;
   for (let d = 0.5; d <= maxDist; d += 0.25) {
@@ -392,64 +332,340 @@ function updateCamera(dt: number) {
   pos.y = Math.max(0.4, pos.y);
   camera.position.copyFrom(pos);
   camera.setTarget(pos.add(dir));
-  // Fade the character while aiming or when the camera is pushed close, so it does not block the view.
-  const fade = aimBlend > 0.5 || dist < 1.6 ? 0.3 : 1;
-  for (const m of player.body.meshes) m.visibility = fade;
-  blade.visibility = fade;
+  // Fade the character while aiming, when the camera is close, and while invisible.
+  const vis = enemyVisibility();
+  let fade = aimBlend > 0.5 || dist < 1.6 ? 0.3 : 1;
+  if (vis === 0) fade = Math.min(fade, 0.2);
+  else if (vis < 1) fade = Math.min(fade, 0.55);
+  for (const m of pBody.meshes) m.visibility = fade;
+  for (const b of blades) b.visibility = fade;
 }
 
-function updateHud() {
-  hpFill.style.width = `${(player.hp / PLAYER.maxHp) * 100}%`;
-  hpText.textContent = `${Math.ceil(player.hp)} / ${PLAYER.maxHp}`;
-  weaponEl.textContent = player.weapon === 'ranged' ? 'Silah: Uzak (F)' : 'Silah: Yakın (F)';
-  dashEl.style.width = `${Math.min(1, 1 - player.dashCd / PLAYER.dashCd) * 100}%`;
+// ---- HUD ---------------------------------------------------------------------------
+let hitMarkerT = 0;
+let toastT = 0;
+G.hooks.hitMarker = () => (hitMarkerT = 0.12);
+
+function toast(text: string, time = 1.6) {
+  $('toast').textContent = text;
+  $('toast').style.opacity = '1';
+  toastT = time;
+}
+
+function feed(text: string) {
+  const el = document.createElement('div');
+  el.textContent = text;
+  $('feed').prepend(el);
+  setTimeout(() => el.remove(), 6000);
+  while ($('feed').children.length > 6) $('feed').lastElementChild?.remove();
+}
+
+// Floating damage numbers.
+type Num = { el: HTMLDivElement; pos: Vector3; t: number };
+let nums: Num[] = [];
+G.hooks.number = (pos, amount, style) => {
+  if (style === 'hit' && amount < 0.5) return;
+  const el = document.createElement('div');
+  el.className = `num ${style}`;
+  el.textContent = style === 'block' ? 'BLOK' : style === 'crit' ? `${Math.round(amount)} SIRT!` : `${Math.round(amount)}`;
+  $('numbers').appendChild(el);
+  nums.push({ el, pos: pos.add(new Vector3((Math.random() - 0.5) * 0.4, 0.3, 0)), t: 0.9 });
+};
+
+function updateNumbers(dt: number) {
+  const w = engine.getRenderWidth();
+  const h = engine.getRenderHeight();
+  const scale = canvas.clientWidth / w;
+  const vp = camera.viewport.toGlobal(w, h);
+  const tm = scene.getTransformMatrix();
+  const aim = aimDirection();
+  nums = nums.filter((n) => {
+    n.t -= dt;
+    n.pos.y += dt * 1.2;
+    const p = Vector3.Project(n.pos, Matrix.Identity(), tm, vp);
+    const behind = Vector3.Dot(n.pos.subtract(camera.position), aim) < 0;
+    n.el.style.left = `${p.x * scale}px`;
+    n.el.style.top = `${p.y * scale}px`;
+    n.el.style.opacity = behind ? '0' : `${Math.min(1, n.t * 2)}`;
+    if (n.t <= 0) n.el.remove();
+    return n.t > 0;
+  });
+}
+
+let slotKey = '';
+function renderSlots() {
+  const key = skills.map((s) => `${s.id}${s.tier}`).join(',');
+  if (key === slotKey && slotsEl.children.length) return;
+  slotKey = key;
+  slotsEl.innerHTML = '';
+  SKILL_KEYS.forEach((k, i) => {
+    const s = skills[i];
+    const el = document.createElement('div');
+    el.className = `slot${s ? '' : ' empty'}`;
+    el.innerHTML = s
+      ? `<div class="cd"></div><span class="charges"></span><span class="cdtext"></span><span class="key">${k.label}</span><span class="name">${SKILLS[s.id].name}</span><span class="pips">${[1, 2, 3].map((t) => `<i class="${t <= s.tier ? 'on' : ''}"></i>`).join('')}</span>`
+      : `<span class="key">${k.label}</span><span class="name">boş</span>`;
+    slotsEl.appendChild(el);
+  });
+}
+
+function updateSlots() {
+  renderSlots();
+  skills.forEach((s, i) => {
+    const el = slotsEl.children[i] as HTMLElement;
+    const def = SKILLS[s.id];
+    const max = maxCharges(s);
+    const frac = s.charges >= max ? 0 : Math.max(0, s.cd / def.cooldown(s.tier));
+    (el.querySelector('.cd') as HTMLElement).style.height = s.charges > 0 ? '0' : `${frac * 100}%`;
+    (el.querySelector('.cdtext') as HTMLElement).textContent = s.charges < max && s.cd > 0 ? `${Math.ceil(s.cd)}` : '';
+    (el.querySelector('.charges') as HTMLElement).textContent = max > 1 ? `${s.charges}` : '';
+    // Kopya stays lit during its cooldown when a swap is possible.
+    const swapReady = s.id === 'decoy' && G.units.some((u) => u.kind === 'decoy');
+    el.classList.toggle('blocked', !!blockedReason(s) || (s.charges <= 0 && !swapReady));
+  });
+}
+
+function fmtTime(t: number) {
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function updateHud(dt: number) {
+  $('hp-fill').style.width = `${(Math.max(0, player.hp) / player.maxHp) * 100}%`;
+  $('hp-text').textContent = `${Math.ceil(Math.max(0, player.hp))} / ${player.maxHp}`;
+  $('weapon').textContent =
+    ctl.weapon === 'ranged' ? `Suikast tabancası ${ctl.reloadT > 0 ? 'dolduruluyor…' : `${ctl.ammo}/${GUN.magazine}`} (F)` : 'İkili lazer hançer (F)';
+  $('dash-fill').style.width = `${Math.min(1, 1 - ctl.dashCd / MOVE.dashCd) * 100}%`;
+  $('level').textContent = `Sv ${player.level}${player.level >= MAX_LEVEL ? ' (max)' : ''}`;
+  $('money').textContent = `Para ${PS.currency}`;
+  $('kills').textContent = `${PS.kills} leş`;
+  const need = xpNeeded(player.level);
+  $('xp-fill').style.width = need ? `${(player.xp / need) * 100}%` : '100%';
+  $('xp-text').textContent = need ? `${Math.floor(player.xp)} / ${need} XP` : 'Maksimum seviye';
+  $('timer').textContent = fmtTime(G.time);
+  $('pick-hint').classList.toggle('hidden', prog.pending <= 0);
+  $('pick-hint').innerHTML = `Seviye atladın! ${prog.pending > 1 ? `${prog.pending} kart` : 'Kart'} seçmek için <b>Tab</b>`;
   crosshair.classList.toggle('hit', hitMarkerT > 0);
   crosshair.classList.toggle('aim', aimBlend > 0.5);
+
+  const buffs: string[] = [];
+  if (PS.invisT > 0) buffs.push(`Görünmez ${PS.invisT.toFixed(1)}`);
+  else if (enemyVisibility() < 1) buffs.push('Yarı silik');
+  if (PS.evasionImmuneT > 0) buffs.push('Hasar almaz');
+  else if (PS.evasionT > 0) buffs.push(`Evasion ${PS.evasionT.toFixed(1)}`);
+  if (PS.poisonBoostT > 0) buffs.push('Zehir x2');
+  else if (weaponPoisoned()) buffs.push('Zehirli silah');
+  if (PS.sprintT > 0) buffs.push('Sprint');
+  if (player.stunT > 0) buffs.push('Sersem!');
+  if (inCombat(player)) buffs.push('Savaşta');
+  $('buffs').textContent = buffs.join(' · ');
+
+  if (boss?.alive) {
+    $('boss').classList.remove('hidden');
+    $('boss-fill').style.width = `${(boss.hp / boss.maxHp) * 100}%`;
+  } else $('boss').classList.add('hidden');
+
+  const t = targetUnderCrosshair(70, 4, (u) => u !== player);
+  $('target').textContent = t ? (t.kind === 'decoy' ? `Kopyan (${t.name})` : t.kind === 'mob' || t.kind === 'boss' ? t.name : `${t.name} · Sv ${t.level}`) : '';
+
+  toastT -= dt;
+  if (toastT <= 0) $('toast').style.opacity = '0';
+  updateSlots();
+  updateNumbers(dt);
 }
 
-// ---- Loop -----------------------------------------------------------------
-resetMatch();
-setWeapon('ranged');
-updateCamera(1);
+// ---- Cards -------------------------------------------------------------------------
+let cardsOpen = false;
 
-engine.runRenderLoop(() => {
-  const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
-  if (running) {
-    if (input.consume('KeyN')) {
-      location.search = '';
-      return;
-    }
-    updatePlayer(dt);
-    updateDummies(dt);
-    updateBullets(dt);
-    hitMarkerT -= dt;
-  }
-  input.endFrame();
-  updateCamera(dt);
-  updateHud();
-  scene.render();
+function openCards() {
+  const offer = currentOffer();
+  if (!offer) return;
+  cardsOpen = true;
+  cardsEl.classList.remove('hidden');
+  if (document.pointerLockElement) document.exitPointerLock();
+  const row = $('card-row');
+  row.innerHTML = '';
+  offer.forEach((c, i) => {
+    const txt = cardText(c);
+    const el = document.createElement('div');
+    el.className = `card${c.locked ? ' locked' : ''}`;
+    el.innerHTML = `
+      <div class="tag ${c.isNew ? 'new' : ''}">${c.isNew ? 'Yeni yetenek' : `Seviye ${c.tier}`}</div>
+      <h3>${txt.name}</h3>
+      ${c.isNew ? `<div class="desc">${txt.desc}</div>` : ''}
+      <div class="tier">Seviye ${c.tier}: ${txt.tier}</div>
+      ${c.cost ? `<div class="cost">Token: ${c.cost} para${c.locked ? ` (sende ${PS.currency})` : ''}</div>` : ''}
+      <div class="key">${c.locked ? c.locked : `Seç: ${i + 1} ya da tıkla`}</div>`;
+    el.addEventListener('click', () => choose(i));
+    row.appendChild(el);
+  });
+  if (!offer.length) row.innerHTML = '<p>Tüm yeteneklerin en üst seviyede.</p>';
+  $('tier-rule').textContent = tier3Open()
+    ? `3. seviye açık (token ${TOKEN_PRICE} para)`
+    : `3. seviye için en az 3 yetenek 2. seviyede olmalı (şu an ${skills.filter((s) => s.tier >= 2).length})`;
+}
+
+function closeCards() {
+  if (!cardsOpen) return;
+  cardsOpen = false;
+  cardsEl.classList.add('hidden');
+  input.lock();
+}
+
+function choose(i: number) {
+  if (!pickCard(i)) return;
+  if (prog.pending > 0) openCards();
+  else closeCards();
+}
+
+$('card-close').addEventListener('click', closeCards);
+window.addEventListener('keydown', (e) => {
+  if (!cardsOpen) return;
+  if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3') choose(Number(e.code.slice(5)) - 1);
+  else if (e.code === 'Tab') closeCards();
+  input.consume(e.code);
 });
 
-window.addEventListener('resize', () => engine.resize());
+// ---- Kills -------------------------------------------------------------------------
+G.hooks.kill = (killer, victim) => {
+  const xp = rewardKill(killer, victim);
+  if (victim.kind === 'bot') botDied(victim);
+  if (victim === player) return die(killer);
+  if (victim.kind === 'decoy') return;
+  const kName = killer ? (killer === player ? 'Sen' : killer.name) : 'Zehir';
+  if (victim.kind !== 'mob' || killer === player) feed(`${kName} ▸ ${victim.name}${killer === player && xp ? `  +${xp} XP` : ''}`);
+  if (victim.kind === 'boss') toast(killer === player ? "Hurda Devi'ni sen devirdin!" : `${kName} Hurda Devi'ni devirdi`, 2.5);
+};
+
+// ---- Match ---------------------------------------------------------------------------
+let running = false;
+let started = false;
+let dead = false;
+let styleIndex = 0;
+
+function levelLog() {
+  const lines = prog.levelTimes.map((l) => `Sv ${l.level}: ${fmtTime(l.t)}`);
+  return lines.length ? `Seviye zamanları\n${lines.join('\n')}` : '';
+}
+
+function die(killer: Unit | null) {
+  dead = true;
+  running = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+  overlayText.textContent = `Öldün${killer && killer !== player ? ` (${killer.name})` : ''}. Süre ${fmtTime(G.time)}, seviye ${player.level}, ${PS.kills} leş.`;
+  playBtn.textContent = 'Tekrar oyna';
+  $('summary').textContent = levelLog();
+  overlay.classList.remove('hidden');
+}
+
+function buildStyles() {
+  const box = $('styles');
+  box.innerHTML = '';
+  PLAYSTYLES.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = `style${i === styleIndex ? ' on' : ''}`;
+    b.innerHTML = `<b>${s.name}</b><span>Başlangıç: ${SKILLS[s.skill].name}</span>`;
+    b.addEventListener('click', () => {
+      styleIndex = i;
+      buildStyles();
+    });
+    box.appendChild(b);
+  });
+}
+buildStyles();
+
+function resetMatch() {
+  for (const u of [...G.units]) if (u !== player) u.body.root.dispose(false, true);
+  G.units = [player];
+  for (const b of G.bullets) b.mesh.dispose();
+  G.bullets = [];
+  G.time = 0;
+  resetRogue();
+  resetProgression();
+  Object.assign(PS, { kills: 0, currency: 0 });
+  player.pos.set(0, groundHeight(new Vector3(0, 0.3, 0), player.radius, world.boxes), 0);
+  resolveWalls(player.pos, player.radius, player.height, world.boxes);
+  player.velY = 0;
+  player.level = 1;
+  player.xp = 0;
+  player.maxHp = ROGUE.maxHp;
+  player.hp = player.maxHp;
+  input.yaw = 0;
+  input.pitch = -0.12;
+  resetDirector(rand);
+}
 
 function start() {
+  if (dead) {
+    location.reload();
+    return;
+  }
+  if (!started) {
+    started = true;
+    const style = PLAYSTYLES[styleIndex];
+    learn(style.skill);
+    setWeapon(style.weapon);
+    $('styles').classList.add('hidden');
+    overlayText.textContent = '';
+    toast(`${style.name}: ${SKILLS[style.skill].name} ile başladın`, 2.5);
+  }
   running = true;
   overlay.classList.add('hidden');
 }
+
 playBtn.addEventListener('click', () => {
   start();
   input.lock();
 });
 
-// Pause when the pointer is released (Esc).
 document.addEventListener('pointerlockchange', () => {
-  if (!input.locked && running) {
+  if (!input.locked && running && !cardsOpen && !dead) {
     running = false;
     overlayText.textContent = 'Duraklatıldı.';
     playBtn.textContent = 'Devam et';
+    $('summary').textContent = levelLog();
     overlay.classList.remove('hidden');
   }
 });
+
+resetMatch();
+setWeapon('ranged');
+updateCamera(1);
+
+function simStep(dt: number) {
+  G.time += dt;
+  updatePlayer(dt);
+  updateAI(dt, rand, (t) => toast(t, 3));
+  for (const u of [...G.units]) if (u.alive) tickStatus(u, dt);
+  updateBullets(dt);
+  updateFx(dt);
+  hitMarkerT -= dt;
+}
+
+engine.runRenderLoop(() => {
+  const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
+  if (running && !cardsOpen && input.consume('Tab') && prog.pending > 0) openCards();
+  const live = running && !cardsOpen;
+  if (live) {
+    if (input.consume('KeyN')) {
+      location.search = '';
+      return;
+    }
+    if (DEBUG) {
+      if (input.consume('KeyL')) grantXp(player, xpNeeded(player.level) - player.xp);
+      if (input.consume('KeyB')) spawnBoss(rand);
+      if (input.consume('KeyK')) PS.currency += 100;
+    }
+    simStep(dt);
+  }
+  input.endFrame();
+  updateCamera(dt);
+  updateHud(live ? dt : 0);
+  scene.render();
+});
+
+window.addEventListener('resize', () => engine.resize());
 
 // Debug/test hook: lets automated tests drive the game without pointer lock.
 (window as unknown as { __game: unknown }).__game = {
@@ -460,11 +676,53 @@ document.addEventListener('pointerlockchange', () => {
     player.pos.set(x, 3, z);
     player.velY = 0;
   },
+  levelUp: () => grantXp(player, xpNeeded(player.level) - player.xp),
+  spawnBoss: () => spawnBoss(rand),
+  money: (n: number) => (PS.currency += n),
+  openCards,
+  choose,
+  learn,
+  resetSkills: resetRogue,
+  cast: (i: number) => castSlot(i),
+  setStyle: (i: number) => (styleIndex = i),
+  skills: () => skills.map((s) => ({ ...s })),
+  offer: () => currentOffer(),
+  timeWarp: (sec: number) => (G.time += sec),
+  /** Run the game for `sec` seconds without drawing (for tests and balance checks). */
+  sim: (sec: number, step = 1 / 30) => {
+    for (let t = 0; t < sec && !dead; t += step) {
+      simStep(step);
+      input.endFrame();
+    }
+  },
+  cam: () => camera.position.asArray(),
+  logs: () => ({ xpLog, killLog }),
+  freeze: (sec: number) => {
+    for (const u of G.units) if (u !== player) u.stunT = sec;
+  },
+  setPlayerYaw: (yaw: number, pitch: number) => {
+    input.yaw = yaw;
+    input.pitch = pitch;
+    updateCamera(1);
+  },
+  ghost: () => {
+    PS.evasionImmuneT = 1e9;
+    PS.invisT = 1e9;
+  },
   state: () => ({
     hp: player.hp,
     pos: player.pos.asArray(),
-    grounded: player.grounded,
-    weapon: player.weapon,
-    dummies: dummies.map((d) => ({ pos: d.pos.asArray(), hp: d.hp })),
+    yaw: player.yaw,
+    grounded: ctl.grounded,
+    weapon: ctl.weapon,
+    level: player.level,
+    xp: player.xp,
+    pending: prog.pending,
+    currency: PS.currency,
+    kills: PS.kills,
+    time: G.time,
+    invis: PS.invisT,
+    alive: player.alive,
+    units: G.units.map((u) => ({ id: u.id, kind: u.kind, name: u.name, hp: Math.round(u.hp), level: u.level, pos: u.pos.asArray().map((v) => +v.toFixed(1)), stun: u.stunT, poison: u.poisonT })),
   }),
 };

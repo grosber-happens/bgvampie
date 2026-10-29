@@ -9,21 +9,42 @@
     <canvas id="game"></canvas>
     <div id="hud">
       <div id="crosshair"></div>
+      <div id="numbers"></div>
+      <div id="top">
+        <div id="timer">00:00</div>
+        <div id="boss" class="hidden"><div class="boss-name">Hurda Devi</div><div class="bar"><div id="boss-fill"></div></div></div>
+        <div id="target"></div>
+      </div>
+      <div id="toast"></div>
+      <div id="feed"></div>
       <div id="stats">
+        <div id="level-line"><span id="level">Sv 1</span><span id="money">Para 0</span><span id="kills">0 leş</span></div>
         <div class="bar"><div id="hp-fill"></div></div>
         <div id="hp-text">100 / 100</div>
         <div id="weapon">Silah: Uzak (F)</div>
+        <div id="buffs"></div>
         <div class="bar small"><div id="dash-fill"></div></div>
         <div class="label">Dash (Shift)</div>
       </div>
-      <div id="slots"></div>
+      <div id="bottom">
+        <div id="pick-hint" class="hidden">Seviye atladın! Kart seçmek için <b>Tab</b></div>
+        <div id="xp"><div id="xp-fill"></div><span id="xp-text"></span></div>
+        <div id="slots"></div>
+      </div>
       <div id="seed"></div>
-      <div id="hint">WASD hareket · Space zıpla · Shift dash · Sol tık ateş · Sağ tık nişan · F silah değiştir · Q E 1 2 3 yetenekler · Esc duraklat</div>
+      <div id="hint">WASD hareket · Space zıpla · Shift dash · Sol tık ateş · Sağ tık nişan · F silah · R şarjör · Q E 1 2 3 yetenek · Tab kart · Esc duraklat</div>
+    </div>
+    <div id="cards" class="hidden">
+      <h2>Seviye atladın: bir kart seç</h2>
+      <div id="card-row"></div>
+      <p class="card-foot"><span id="tier-rule"></span> · 1 2 3 ile de seçebilirsin · <button id="card-close">Sonra seç (Tab)</button></p>
     </div>
     <div id="overlay">
       <h1>Vampire Battleground 3D</h1>
-      <p id="overlay-text">Hareket test alanı: binaların üstüne zıpla, dash at, iki silahı dene.</p>
+      <p id="overlay-text">Rogue olarak başla. Oyun tarzını seç, başlangıç yeteneğin ona göre gelir.</p>
+      <div id="styles"></div>
       <button id="play">Oyna</button>
+      <pre id="summary"></pre>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
