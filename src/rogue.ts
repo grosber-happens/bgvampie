@@ -47,6 +47,7 @@ import {
   type OwnedSkill,
   type SkillDef,
   type Weapon,
+  enemiesNear,
 } from './kit';
 
 export type SkillId = 'invis' | 'evasion' | 'decoy' | 'poison' | 'sprint' | 'kidney' | 'execute' | 'wink' | 'detonate' | 'insane';
@@ -260,6 +261,8 @@ export function resetRogue() {
   });
   still = 0;
   trailCd = 0;
+  fadeT = 0;
+  watchedT = 0;
   ammo = GUN.magazine;
   reloadT = 0;
 }
@@ -267,6 +270,14 @@ export function resetRogue() {
 // ---- Per-frame -------------------------------------------------------------
 let still = 0;
 let trailCd = 0;
+/** Gölge izi faint time left, and how long a close enemy has been watching. */
+let fadeT = 0;
+let watchedT = 0;
+
+function breakFade() {
+  fadeT = 0;
+  watchedT = 0;
+}
 
 export function weaponPoisoned() {
   return PS.poisonPermanent || PS.poisonCoatT > 0;
@@ -285,6 +296,7 @@ export function speedMult() {
 export function enemyVisibility() {
   if (PS.invisT > 0) return 0;
   if (PS.semiInvis && !inCombat(G.player)) return 0.5;
+  if (fadeT > 0) return SHADOW_TRAIL.fadeVis;
   return 1;
 }
 
@@ -304,6 +316,16 @@ export function updateRogue(dt: number, moving: boolean, grounded: boolean) {
     spawnDecoy(G.player.pos, G.player.yaw, 'idle', false, SHADOW_TRAIL.decoyLife);
     trailCd = SHADOW_TRAIL.cooldown;
     still = 0;
+    fadeT = SHADOW_TRAIL.fadeTime;
+    watchedT = 0;
+  }
+  if (fadeT > 0) {
+    fadeT -= dt;
+    // A close enemy that keeps you in sight sees through it.
+    const me = chest(G.player);
+    const watched = enemiesNear(G.player.pos, SHADOW_TRAIL.breakRange).some((u) => lineOfSight(chest(u), me));
+    watchedT = watched ? watchedT + dt : Math.max(0, watchedT - dt);
+    if (watchedT >= SHADOW_TRAIL.breakTime) breakFade();
   }
   updateDecoys(dt);
 }
@@ -475,7 +497,7 @@ export const ROGUE_KIT: ClassKit = {
   stats: ROGUE,
   dash: { anim: 'dash', speed: 26, time: 0.18, cd: 1.0, color: '#b46cff' },
   weaponNames: { ranged: 'Suikast tabancası', melee: 'İkili lazer hançer' },
-  passives: ['Backstab: arkadan vuruş x1.5', 'Gölge izi: 2.5 sn durunca kopya bırakır'],
+  passives: ['Backstab: arkadan vuruş x1.5', 'Gölge izi: 2.5 sn durunca kopya bırakır ve 10 sn silikleşirsin'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
   buildWeapons(root) {
@@ -496,6 +518,7 @@ export const ROGUE_KIT: ClassKit = {
   buffs() {
     const b: string[] = [];
     if (PS.invisT > 0) b.push(`Görünmez ${PS.invisT.toFixed(1)}`);
+    else if (fadeT > 0 && !PS.semiInvis) b.push(`Silik ${fadeT.toFixed(1)}`);
     else if (enemyVisibility() < 1) b.push('Yarı silik');
     if (PS.evasionImmuneT > 0) b.push('Hasar almaz');
     else if (PS.evasionT > 0) b.push(`Evasion ${PS.evasionT.toFixed(1)}`);
@@ -513,12 +536,16 @@ export const ROGUE_KIT: ClassKit = {
       dmg *= BACKSTAB.mult;
       crit = true;
     }
-    // Attacking breaks invisibility.
-    PS.invisT = 0;
+    // Attacking breaks invisibility and the Gölge izi fade (decoys and pets don't).
+    if (!src || src === G.player) {
+      PS.invisT = 0;
+      breakFade();
+    }
     return { dmg, crit };
   },
   incoming(dmg) {
     if (PS.evasionImmuneT > 0) return 0;
+    if (dmg > 0) breakFade();
     if (PS.evasionT > 0) dmg *= 0.5;
     return dmg;
   },

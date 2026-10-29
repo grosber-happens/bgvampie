@@ -22,8 +22,12 @@ export const DAGGERS = { rate: 0.32, damage: 20, range: 2.3, arcDeg: 100 };
 
 /** Backstab passive: hitting from behind (more than 120° from where the target faces). */
 export const BACKSTAB = { angleDeg: 120, mult: 1.5 };
-/** Passive 2 (Gölge izi): stand still this long and a decoy appears. */
-export const SHADOW_TRAIL = { stillTime: 2.5, decoyLife: 6, cooldown: 8 };
+/**
+ * Passive 2 (Gölge izi): stand still this long and a decoy appears, and you turn faint.
+ * Faint = enemies see you at `fadeVis` of their normal range, for `fadeTime` seconds.
+ * It breaks when you attack, take damage, or an enemy stays within `breakRange` m (in sight) for `breakTime` s.
+ */
+export const SHADOW_TRAIL = { stillTime: 2.5, decoyLife: 6, cooldown: 8, fadeTime: 10, fadeVis: 0.5, breakRange: 12, breakTime: 1.5 };
 
 /** "Out of combat" means no damage dealt or taken for this long (needed for invisibility). */
 export const COMBAT_LOCK = 2;
