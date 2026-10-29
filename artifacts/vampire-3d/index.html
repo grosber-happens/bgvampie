@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vampire Battleground 3D</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="hud">
+      <div id="crosshair"></div>
+      <div id="stats">
+        <div class="bar"><div id="hp-fill"></div></div>
+        <div id="hp-text">100 / 100</div>
+        <div id="kills">Öldürme: 0</div>
+      </div>
+      <div id="hint">WASD hareket · Fare nişan · Sol tık ateş · Shift koş · Space dash · Esc duraklat</div>
+    </div>
+    <div id="overlay">
+      <h1>Vampire Battleground 3D</h1>
+      <p id="overlay-text">Test alanı: TPS kamera, hareket, nişan ve ateş.</p>
+      <button id="play">Oyna</button>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+:root { --ink: #2b1d14; --paper: #f3e3c4; --blood: #c0392b; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1210; font-family: system-ui, sans-serif; }
+#game { width: 100vw; height: 100vh; display: block; outline: none; }
+#hud { position: fixed; inset: 0; pointer-events: none; color: var(--paper); }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border: 2px solid rgba(255,255,255,.9); border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+#crosshair::after { content: ''; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; background: #fff; border-radius: 50%; }
+#crosshair.hit { border-color: var(--blood); }
+#stats { position: absolute; left: 20px; bottom: 20px; width: 260px; text-shadow: 0 1px 2px #000; }
+.bar { height: 14px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.4); border-radius: 7px; overflow: hidden; }
+#hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #8e1b12, #e0533f); transition: width .1s; }
+#hp-text, #kills { margin-top: 6px; font-weight: 600; }
+#hint { position: absolute; right: 20px; bottom: 20px; font-size: 13px; opacity: .8; text-shadow: 0 1px 2px #000; }
+#overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(20,12,10,.72); color: var(--paper); text-align: center; padding: 16px; }
+#overlay.hidden { display: none; }
+#overlay h1 { margin: 0 0 8px; font-size: clamp(28px, 6vw, 52px); letter-spacing: .04em; }
+#overlay p { margin: 0 0 20px; opacity: .85; }
+#play { font-size: 18px; padding: 12px 36px; border: 0; border-radius: 999px; background: var(--blood); color: #fff; cursor: pointer; font-weight: 700; }
