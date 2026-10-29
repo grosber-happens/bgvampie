@@ -7,6 +7,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import houseColliders from './assets/house-colliders.json';
 
 /** Every solid thing in the city is an axis-aligned box: center x/z, half sizes, bottom and top height. */
 export type Box = { x: number; z: number; hw: number; hd: number; y0: number; y1: number };
@@ -175,7 +176,17 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
             const h = HOUSE.height * scale;
             const rotY = Math.floor(rand() * 4) * (Math.PI / 2);
             if (opts.houseModel) {
-              boxes.push({ x: lx, z: lz, hw, hd: hw, y0: 0.25, y1: 0.25 + h });
+              // Colliders follow the house shape (voxelized offline by tools/voxelize.py),
+              // so the porch, the outside stairs and the roof can be walked on.
+              const q = Math.round(rotY / (Math.PI / 2)) % 4;
+              const cos = Math.round(Math.cos(rotY));
+              const sin = Math.round(Math.sin(rotY));
+              for (const [bx, bz, bhw, bhd, by0, by1] of houseColliders as number[][]) {
+                const rx = bx * cos + bz * sin;
+                const rz = -bx * sin + bz * cos;
+                const [w2, d2] = q % 2 ? [bhd, bhw] : [bhw, bhd];
+                boxes.push({ x: lx + rx * scale, z: lz + rz * scale, hw: w2 * scale, hd: d2 * scale, y0: 0.25 + by0 * scale, y1: 0.25 + by1 * scale });
+              }
               houses.push({ x: lx, z: lz, y: 0.25, scale, rotY });
             } else {
               // Plain block in the same spot while the house model is switched off.
@@ -238,6 +249,43 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
   return { boxes, houses, props, shadows, seed };
 }
 
+// ---- Broadphase: boxes bucketed into a coarse grid so lookups only check nearby boxes.
+const CELL = 4;
+const grids = new WeakMap<Box[], { n: number; cells: Map<number, Box[]> }>();
+const key = (ix: number, iz: number) => (ix + 512) * 2048 + (iz + 512);
+
+function gridOf(boxes: Box[]) {
+  let g = grids.get(boxes);
+  if (!g || g.n !== boxes.length) {
+    const cells = new Map<number, Box[]>();
+    for (const b of boxes) {
+      for (let ix = Math.floor((b.x - b.hw) / CELL); ix <= Math.floor((b.x + b.hw) / CELL); ix++) {
+        for (let iz = Math.floor((b.z - b.hd) / CELL); iz <= Math.floor((b.z + b.hd) / CELL); iz++) {
+          const k = key(ix, iz);
+          let list = cells.get(k);
+          if (!list) cells.set(k, (list = []));
+          list.push(b);
+        }
+      }
+    }
+    g = { n: boxes.length, cells };
+    grids.set(boxes, g);
+  }
+  return g.cells;
+}
+
+const EMPTY: Box[] = [];
+/** Boxes whose footprint may touch the square around (x, z) with half size r. */
+function near(boxes: Box[], x: number, z: number, r: number): Box[] {
+  const cells = gridOf(boxes);
+  const x0 = Math.floor((x - r) / CELL), x1 = Math.floor((x + r) / CELL);
+  const z0 = Math.floor((z - r) / CELL), z1 = Math.floor((z + r) / CELL);
+  if (x0 === x1 && z0 === z1) return cells.get(key(x0, z0)) ?? EMPTY;
+  const out = new Set<Box>();
+  for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) for (const b of cells.get(key(ix, iz)) ?? EMPTY) out.add(b);
+  return [...out];
+}
+
 function overlapsFootprint(b: Box, x: number, z: number, r: number) {
   const cx = Math.max(b.x - b.hw, Math.min(x, b.x + b.hw));
   const cz = Math.max(b.z - b.hd, Math.min(z, b.z + b.hd));
@@ -247,7 +295,7 @@ function overlapsFootprint(b: Box, x: number, z: number, r: number) {
 /** Height of the highest surface under an actor that it can stand on from its current feet height. */
 export function groundHeight(pos: Vector3, radius: number, boxes: Box[]): number {
   let g = 0;
-  for (const b of boxes) {
+  for (const b of near(boxes, pos.x, pos.z, radius)) {
     if (b.y1 > g && b.y1 <= pos.y + STEP_HEIGHT && overlapsFootprint(b, pos.x, pos.z, radius * 0.7)) g = b.y1;
   }
   return g;
@@ -256,7 +304,7 @@ export function groundHeight(pos: Vector3, radius: number, boxes: Box[]): number
 /** Lowest ceiling above the actor's head (for jumping into overhangs), or Infinity. */
 export function ceilingHeight(pos: Vector3, radius: number, height: number, boxes: Box[]): number {
   let c = Infinity;
-  for (const b of boxes) {
+  for (const b of near(boxes, pos.x, pos.z, radius)) {
     if (b.y0 >= pos.y + height - 0.05 && b.y0 < c && overlapsFootprint(b, pos.x, pos.z, radius * 0.7)) c = b.y0;
   }
   return c;
@@ -264,7 +312,7 @@ export function ceilingHeight(pos: Vector3, radius: number, height: number, boxe
 
 /** Push an actor (a vertical capsule standing at pos) out of walls and keep it inside the city. */
 export function resolveWalls(pos: Vector3, radius: number, height: number, boxes: Box[]) {
-  for (const b of boxes) {
+  for (const b of near(boxes, pos.x, pos.z, radius)) {
     // Only boxes that overlap the body vertically and are too tall to step onto.
     if (b.y1 <= pos.y + STEP_HEIGHT || b.y0 >= pos.y + height) continue;
     const cx = Math.max(b.x - b.hw, Math.min(pos.x, b.x + b.hw));
@@ -291,7 +339,7 @@ export function resolveWalls(pos: Vector3, radius: number, height: number, boxes
 /** True if a point is inside a solid box or below the ground (stops bullets and the camera). */
 export function pointHitsObstacle(p: Vector3, boxes: Box[]): boolean {
   if (p.y < 0) return true;
-  for (const b of boxes) {
+  for (const b of near(boxes, p.x, p.z, 0)) {
     if (p.y > b.y0 && p.y < b.y1 && Math.abs(p.x - b.x) < b.hw && Math.abs(p.z - b.z) < b.hd) return true;
   }
   return false;
@@ -301,7 +349,7 @@ export function pointHitsObstacle(p: Vector3, boxes: Box[]): boolean {
 export function findOpenSpot(boxes: Box[], rand: () => number, radius = 0.6): Vector3 {
   for (let i = 0; i < 200; i++) {
     const p = new Vector3((rand() * 2 - 1) * (CITY_HALF - 5), 0, (rand() * 2 - 1) * (CITY_HALF - 5));
-    if (boxes.every((b) => b.y1 <= 0.3 || !overlapsFootprint(b, p.x, p.z, radius + 0.3))) {
+    if (near(boxes, p.x, p.z, radius + 0.3).every((b) => b.y1 <= 0.3 || !overlapsFootprint(b, p.x, p.z, radius + 0.3))) {
       p.y = groundHeight(p, radius, boxes);
       return p;
     }

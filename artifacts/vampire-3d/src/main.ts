@@ -762,6 +762,16 @@ window.addEventListener('resize', () => engine.resize());
   },
   cam: () => camera.position.asArray(),
   logs: () => ({ xpLog, killLog }),
+  showColliders: (x: number, z: number, r: number) => {
+    const m = glowMat('#00ffaa', 0.35);
+    for (const b of world.boxes) {
+      if (Math.abs(b.x - x) > r || Math.abs(b.z - z) > r || b.y1 - b.y0 < 0.05) continue;
+      const box = MeshBuilder.CreateBox('col', { width: b.hw * 2, depth: b.hd * 2, height: b.y1 - b.y0 }, scene);
+      box.position.set(b.x, (b.y0 + b.y1) / 2, b.z);
+      box.material = m;
+      box.isPickable = false;
+    }
+  },
   debugMeshes: (prefix: string) =>
     scene.meshes
       .filter((m) => m.name.startsWith(prefix))
