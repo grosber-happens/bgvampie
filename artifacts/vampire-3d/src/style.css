@@ -18,3 +18,19 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1210; fon
 #overlay h1 { margin: 0 0 8px; font-size: clamp(28px, 6vw, 52px); letter-spacing: .04em; }
 #overlay p { margin: 0 0 20px; opacity: .85; }
 #play { font-size: 18px; padding: 12px 36px; border: 0; border-radius: 999px; background: var(--blood); color: #fff; cursor: pointer; font-weight: 700; }
+#crosshair.melee { width: 30px; height: 30px; margin: -15px 0 0 -15px; border-style: dashed; }
+#crosshair.aim { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
+.bar.small { height: 6px; margin-top: 10px; }
+#dash-fill { height: 100%; width: 100%; background: #7fd6ff; }
+#weapon { margin-top: 6px; font-weight: 600; }
+.label { font-size: 12px; opacity: .8; margin-top: 3px; }
+#slots { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 8px; }
+.slot { width: 54px; height: 54px; border-radius: 10px; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.35);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; }
+.slot .key { font-weight: 700; font-size: 15px; }
+.slot .name { opacity: .6; }
+.slot.pulse { animation: pulse .3s ease-out; }
+@keyframes pulse { from { background: rgba(255,90,110,.7); } to { background: rgba(0,0,0,.5); } }
+#seed { position: absolute; right: 20px; top: 16px; font-size: 12px; opacity: .75; text-shadow: 0 1px 2px #000; }
+#hint { left: 20px; right: auto; top: 16px; bottom: auto; max-width: 60vw; text-align: left; }
+@media (max-width: 900px) { #slots { bottom: 110px; } #hint { display: none; } }
