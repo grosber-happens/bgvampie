@@ -25,6 +25,10 @@ export type OwnedSkill = { id: string; tier: number; cd: number; charges: number
 
 export type PlayerState = {
   cls: ClassId;
+  /** The user's playstyle for this build (duels only), see PLANS in match.ts. */
+  plan?: string;
+  /** Fighter spears lying on the ground since the last recall. */
+  spearsOut: number;
   style: string;
   level: number;
   xp: number;
@@ -100,6 +104,8 @@ export type Unit = {
   stealthT: number;
   /** Faded (Gölge izi): hard to spot and hit from range. */
   fadeT: number;
+  /** Hits taken (copies die after 2 hits). */
+  hitsTaken: number;
   /** Where the unit is looking (unit vector, 0,0 = unknown). */
   faceX: number;
   faceZ: number;
@@ -167,6 +173,20 @@ export function losBlocked(a: { x: number; z: number }, b: { x: number; z: numbe
   }
   return false;
 }
+/** An obstacle (wall, tree, box) right behind `t` as seen from `from`: a spear would pin `t` to it. */
+export function wallBehind(from: { x: number; z: number }, t: { x: number; z: number }, reach = 3): boolean {
+  const d = Math.max(0.01, Math.hypot(t.x - from.x, t.z - from.z));
+  const dx = (t.x - from.x) / d;
+  const dz = (t.z - from.z) / d;
+  return W.obstacles.some((o) => {
+    const ox = o.x - t.x;
+    const oz = o.z - t.z;
+    const along = ox * dx + oz * dz;
+    const side = Math.abs(ox * dz - oz * dx);
+    return along > 0 && along - o.r < reach && side < o.r + 0.5;
+  });
+}
+
 export const onPlatform = (u: { x: number; z: number }) => W.obstacles.some((o) => o.kind === 'platform' && Math.hypot(u.x - o.x, u.z - o.z) < o.r);
 
 export const W = {
@@ -242,6 +262,7 @@ export function makeUnit(kind: Kind, name: string, x: number, z: number, hp: num
     immuneT: 0,
     stealthT: 0,
     fadeT: 0,
+    hitsTaken: 0,
     faceX: 0,
     faceZ: 0,
     fogT: 0,
@@ -382,6 +403,8 @@ export function damage(src: Unit | null, dst: Unit, raw: number, type: DmgType):
   if (dmg > 0 && type !== 'storm') dst.fadeT = 0;
   if (owner) owner.fadeT = 0;
   dst.hp -= dmg;
+  // Copies die to two hits, whatever the damage.
+  if (dst.kind === 'decoy' && dmg > 0 && ++dst.hitsTaken >= 2) dst.hp = Math.min(dst.hp, 0);
   const now = W.time;
   if (type !== 'storm') {
     dst.lastCombat = now;

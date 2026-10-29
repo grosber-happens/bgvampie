@@ -1,18 +1,23 @@
-/** The user's 8 builds (2026-10-29). Writes results/user-builds.json for fade-test.ts. */
+/**
+ * The user's 8 builds and playstyles (2026-10-29).
+ * Plans: assassin = sneak invisible to the target's back; clones = copies round the target, swap, Insane then Detonate;
+ * brawler = Mage in close with arms and armor on cooldown, fog on the way in; ambush = Fighter closes from cover and charges;
+ * spear = Fighter throws a lot, recalls 4+ spears, pins to walls with Delici mızrak; high = Scout on high ground, claws
+ * anyone who gets close; ground = Scout stays on the ground, pack and shotgun when someone comes close. Writes results/user-builds.json for fade-test.ts. */
 import { writeFileSync } from 'node:fs';
 import { CLASSES, type ClassId } from './config.ts';
 import { SKILLS, STYLES } from './kits.ts';
 
-type Spec = { name: string; cls: ClassId; style: string; skills: string[]; t3: string[] };
+type Spec = { name: string; cls: ClassId; style: string; skills: string[]; t3: string[]; plan?: string };
 const SPECS: Spec[] = [
-  { name: 'Rogue-yakın', cls: 'rogue', style: 'yakın', skills: ['wink', 'invis', 'execute', 'kidney', 'detonate'], t3: ['invis', 'kidney'] },
-  { name: 'Rogue-kopya', cls: 'rogue', style: 'aldatmaca', skills: ['decoy', 'detonate', 'insane', 'invis', 'wink'], t3: ['decoy', 'detonate'] },
-  { name: 'Mage-yakın', cls: 'mage', style: 'nano', skills: ['arms', 'sonic', 'fog', 'armor', 'blink'], t3: ['arms', 'armor'] },
+  { name: 'Rogue-yakın', cls: 'rogue', style: 'yakın', skills: ['wink', 'invis', 'execute', 'kidney', 'detonate'], t3: ['invis', 'kidney'], plan: 'assassin' },
+  { name: 'Rogue-kopya', cls: 'rogue', style: 'aldatmaca', skills: ['decoy', 'detonate', 'insane', 'invis', 'wink'], t3: ['decoy', 'detonate'], plan: 'clones' },
+  { name: 'Mage-yakın', cls: 'mage', style: 'nano', skills: ['arms', 'sonic', 'fog', 'armor', 'blink'], t3: ['arms', 'armor'], plan: 'brawler' },
   { name: 'Mage-uzak', cls: 'mage', style: 'lazer', skills: ['blink', 'sunray', 'nanobots', 'gravity', 'mines'], t3: ['nanobots', 'mines'] },
-  { name: 'Fighter-yakın', cls: 'fighter', style: 'çift kılıç', skills: ['second', 'eshield', 'overpower', 'whirl', 'charge'], t3: ['second', 'eshield'] },
-  { name: 'Fighter-uzak', cls: 'fighter', style: 'mızrakçı', skills: ['leap', 'recall', 'rain', 'chain', 'pierce'], t3: ['recall', 'chain'] },
-  { name: 'Scout-pençe', cls: 'scout', style: 'nişancı', skills: ['rend', 'drone', 'smoke', 'fast', 'hook'], t3: ['fast', 'rend'] },
-  { name: 'Scout-pet', cls: 'scout', style: 'nişancı', skills: ['shotgun', 'fast', 'pack', 'hunt', 'trap'], t3: ['pack', 'shotgun'] },
+  { name: 'Fighter-yakın', cls: 'fighter', style: 'çift kılıç', skills: ['second', 'eshield', 'overpower', 'whirl', 'charge'], t3: ['second', 'eshield'], plan: 'ambush' },
+  { name: 'Fighter-uzak', cls: 'fighter', style: 'mızrakçı', skills: ['leap', 'recall', 'rain', 'chain', 'pierce'], t3: ['recall', 'chain'], plan: 'spear' },
+  { name: 'Scout-pençe', cls: 'scout', style: 'nişancı', skills: ['rend', 'drone', 'smoke', 'fast', 'hook'], t3: ['fast', 'rend'], plan: 'high' },
+  { name: 'Scout-pet', cls: 'scout', style: 'nişancı', skills: ['shotgun', 'fast', 'pack', 'hunt', 'trap'], t3: ['pack', 'shotgun'], plan: 'ground' },
 ];
 
 /** 12 level-up picks: style skill first, then the tier-3 skills, then the rest in the user's order. Ends at 3,3,2,2,2. */
@@ -39,6 +44,6 @@ const builds = SPECS.map((s) => {
   const p = picks(s);
   const label = `${CLASSES[s.cls].name} ${s.style}: ${s.skills.map((k) => `${SKILLS[k].name}${s.t3.includes(k) ? ' (3)' : ''}`).join(', ')}`;
   console.log(s.name.padEnd(14), p.map((k) => SKILLS[k].name).join(' > '));
-  return { name: s.name, label, picks: p };
+  return { name: s.name, label, picks: p, plan: s.plan };
 });
 writeFileSync(new URL('./results/user-builds.json', import.meta.url), JSON.stringify({ builds }, null, 1));

@@ -16,7 +16,7 @@ const data = JSON.parse(readFileSync(new URL(`./results/${FILE.split('/').pop()}
 const builds = data.builds.map((b: any) => {
   const cls = CLASS_IDS.find((c) => b.label.toLowerCase().startsWith(c)) as ClassId;
   const sid = b.label.split(':')[0].split(' ').slice(1).join(' ');
-  return { name: b.name, cls, style: STYLES[cls].findIndex((s) => s.id === sid), picks: b.picks };
+  return { name: b.name, cls, style: STYLES[cls].findIndex((s) => s.id === sid), picks: b.picks, plan: b.plan as string | undefined };
 });
 const nums = process.argv.slice(2).filter((a) => /^\d+$/.test(a)).map(Number);
 const REPEATS: number = isMainThread ? (nums[0] ?? 200) : workerData.repeats;
@@ -33,7 +33,7 @@ if (!isMainThread) {
       for (let k = 0; k < REPEATS; k++) {
         const flip = k % 2 === 1;
         const [A, B] = flip ? [builds[j], builds[i]] : [builds[i], builds[j]];
-        const r = runDuel(900000 + id++ * 13, A.cls, B.cls, LEVELS[li], A.style, B.style, { builds: [A.picks, B.picks], arena: ARENA });
+        const r = runDuel(900000 + id++ * 13, A.cls, B.cls, LEVELS[li], A.style, B.style, { builds: [A.picks, B.picks], plans: [A.plan, B.plan], arena: ARENA });
         const iWon = r.winner === -1 ? 0.5 : (r.winner === 0) !== flip ? 1 : 0;
         wins[i][j] += iWon;
         wins[j][i] += 1 - iWon;
@@ -50,7 +50,7 @@ if (!isMainThread) {
   const n = builds.length;
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const games = (n - 1) * REPEATS;
-  console.log(`Rogue kuralları: ${process.env.ROGUE2 !== '0' ? 'YENİ (silik görüntü, dash kopyası, arkaya geçince backstab)' : process.env.FADE === '1' ? 'eski + silik görüntü' : 'eski'} · ${REPEATS} tekrar · ${ARENA} m arena`);
+  console.log(`Rogue kuralları: ${process.env.ROGUE2 !== '0' ? 'YENİ (silik görüntü, dash kopyası, arkaya geçince backstab)' : process.env.FADE === '1' ? 'eski + silik görüntü' : 'eski'} · karşı hamle ${process.env.KNOW === '0' ? 'kapalı' : 'açık'} · ${REPEATS} tekrar · ${ARENA} m arena`);
   console.log(`${'Build'.padEnd(11)}${LEVELS.map((l) => `L${l}`.padEnd(7)).join('')}Toplam`);
   const tot = builds.map((_: any, i: number) => all.reduce((s, w) => s + w[i].reduce((a, b) => a + b, 0), 0));
   for (const i of builds.map((_: any, i: number) => i).sort((a: number, b: number) => tot[b] - tot[a]))

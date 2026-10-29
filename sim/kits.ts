@@ -6,6 +6,8 @@
 import { CLASSES, PASSIVES, type ClassId } from './config.ts';
 import {
   W,
+  wallBehind,
+  isBehind,
   aoe,
   damage,
   dist,
@@ -82,7 +84,7 @@ const tierOf = (u: Unit, id: string) => u.p!.skills.find((s) => s.id === id)?.ti
 export const R = {
   invis: { dur: [3, 4.5, 4.5] as [number, number, number] },
   evasion: { dur: [2.5, 4, 5.5] as [number, number, number], immune: 2, dr: 0.5 },
-  decoy: { life: 8, insaneLife: 12, hp: 30, max: 3 },
+  decoy: { life: 8, insaneLife: 12, hp: 999, max: 3 }, // copies die to 2 hits (core.ts damage)
   poison: { slow: [0.3, 0.4, 0.4] as [number, number, number], dps: [6, 10, 10] as [number, number, number], coat: 6, boost: 5 },
   sprint: { dur: 4, mult: 1.45, haste: 1.35 },
   kidney: { stun: [0.55, 0.55, 1] as [number, number, number], range: 2.8, damage: 10 },
@@ -124,6 +126,25 @@ const ROGUE: SkillDef[] = [
     id: 'decoy', cls: 'rogue', name: 'Kopya yerleştirme', w: 1, cd: (t) => by(t, [9, 6, 6]),
     use: (c) => {
       if (!c.t || c.d > 30) return false;
+      if (c.u.p!.plan === 'clones') {
+        const ds = decoysOf(c.u);
+        // Swap with a copy standing behind the target (strike from behind), or when hurt.
+        const back = ds.find((d) => isPlayer(c.t) && isBehind(d, c.t!) && dist(d, c.t!) < 4);
+        const swap = back ?? (c.u.hp < c.u.maxHp * 0.5 ? ds[0] : undefined);
+        if (swap) {
+          [c.u.x, swap.x] = [swap.x, c.u.x];
+          [c.u.z, swap.z] = [swap.z, c.u.z];
+          if (back) c.u.backstabT = 1;
+          return true;
+        }
+        // Otherwise drop a new copy round the target.
+        const k = makeDecoy(c.u, R.decoy.life);
+        const a = W.rand() * Math.PI * 2;
+        const r = 3 + W.rand() * 2;
+        k.x = c.t.x + Math.cos(a) * r;
+        k.z = c.t.z + Math.sin(a) * r;
+        return true;
+      }
       makeDecoy(c.u, R.decoy.life);
       return true;
     },
@@ -193,6 +214,8 @@ const ROGUE: SkillDef[] = [
       const r = by(c.tier, R.detonate.radius);
       const near = ds.filter((d) => W.units.some((e) => hostile(c.u, e) && e.kind !== 'decoy' && dist(d, e) <= r));
       if (!near.length) return false;
+      // Clone plan: let Insane copies shoot first, blow them up as they expire.
+      if (c.u.p!.plan === 'clones' && tierOf(c.u, 'insane') > 0 && !ds.some((d) => d.dmg > 0 && d.life < 1.5) && ds.length < 3) return false;
       for (const d of c.tier >= 3 ? ds : [near[0]]) {
         aoe(c.u, d.x, d.z, r, R.detonate.damage, 'aoe', undefined, 0.8);
         d.alive = false;
@@ -205,6 +228,7 @@ const ROGUE: SkillDef[] = [
     use: (c) => {
       const ds = decoysOf(c.u);
       if (!c.t || !ds.length) return false;
+      if (c.u.p!.plan === 'clones' && ds.length < 2) return false;
       const gun = CLASSES.rogue.ranged;
       const share = R.insane.share;
       for (const d of ds) {
@@ -264,7 +288,8 @@ const MAGE: SkillDef[] = [
   {
     id: 'fog', cls: 'mage', name: 'Sis', w: 0.6, cd: () => 20,
     use: (c) => {
-      if (!(c.flee || (c.t && isPlayer(c.t) && c.d > 10 && c.u.hp < c.u.maxHp * 0.6))) return false;
+      const approach = c.u.p!.plan === 'brawler' && c.t && isPlayer(c.t) && c.d > 6 && c.d < 25;
+      if (!(c.flee || approach || (c.t && isPlayer(c.t) && c.d > 10 && c.u.hp < c.u.maxHp * 0.6))) return false;
       c.u.fogT = M.fog.dur * 0.7;
       if (c.tier >= 3) c.u.p!.orbT += 4;
       return true;
@@ -321,7 +346,8 @@ const MAGE: SkillDef[] = [
   {
     id: 'armor', cls: 'mage', name: 'Nano zırh', w: 1, orb: true, cd: () => 14,
     use: (c) => {
-      if (!c.t || W.time - c.u.lastCombat > 1 || c.u.hp > c.u.maxHp * 0.8) return false;
+      const brawl = c.u.p!.plan === 'brawler' && c.t && c.d < 5;
+      if (!c.t || (!brawl && (W.time - c.u.lastCombat > 1 || c.u.hp > c.u.maxHp * 0.8))) return false;
       c.u.shield = Math.max(c.u.shield, M.armor.shield);
       c.u.shieldT = M.armor.dur;
       const u = c.u;
@@ -381,12 +407,12 @@ export const F = {
   rain: { radius: [3.5, 5, 5] as [number, number, number], damage: [40, 60, 60] as [number, number, number], delay: 0.6, range: 32, spikes: { t: 3, slow: 0.4, dps: 6 } },
   eshield: { dur: [3, 5, 5] as [number, number, number], hp: [80, 80, 140] as [number, number, number], share: 0.7, range: 8 },
   chain: { range: [16, 20, 20] as [number, number, number], damage: 15, slow: 0.5 },
-  pierce: { damage: [60, 80, 80] as [number, number, number], range: 40, pin: 0.25 },
+  pierce: { damage: [60, 80, 80] as [number, number, number], range: 40, pin: 0.25, wallPin: 1.5 },
   charge: { dist: [9, 12, 12] as [number, number, number], damage: 25, stun: 0.6 },
   leap: { dist: [10, 13, 13] as [number, number, number], damage: [35, 55, 55] as [number, number, number], radius: 4, lift: 0.6 },
   whirl: { dur: [2.5, 3.5, 3.5] as [number, number, number], damage: [12, 18, 18] as [number, number, number], every: 0.3, radius: 3 },
   overpower: { dur: [5, 7, 7] as [number, number, number], dmg: 0.3, lifesteal: [0.1, 0.2, 0.2] as [number, number, number] },
-  recall: { damage: [25, 40, 40] as [number, number, number], slow: 0.4 },
+  recall: { damage: [25, 40, 40] as [number, number, number], slow: 0.4, perSpear: 12, maxSpears: 8 },
 };
 
 const FIGHTER: SkillDef[] = [
@@ -435,7 +461,7 @@ const FIGHTER: SkillDef[] = [
   {
     id: 'chain', cls: 'fighter', name: 'Zincirli mızrak', w: 1, cd: (t) => by(t, [10, 7, 7]),
     use: (c) => {
-      if (!c.t || c.d < 5 || c.t.kind === 'boss' || !c.u.p!.melee) return false;
+      if (!c.t || c.d < 5 || c.t.kind === 'boss' || (!c.u.p!.melee && c.u.p!.plan !== 'spear')) return false;
       return shot(c, by(c.tier, F.chain.range), 0.9, (t) => {
         damage(c.u, t, F.chain.damage, 'skill');
         jump(t, c.u.x, c.u.z, 99, 1.5);
@@ -449,7 +475,8 @@ const FIGHTER: SkillDef[] = [
       !!c.t && c.d > 4 &&
       shot(c, F.pierce.range, 0.9, (t) => {
         damage(c.u, t, by(c.tier, F.pierce.damage), 'skill');
-        if (W.rand() < 0.3) stun(t, F.pierce.pin);
+        // Pins the target to a wall, tree or box right behind it; in the open (BR map) a small chance.
+        if (W.obstacles.length ? wallBehind(c.u, t) : W.rand() < 0.3) stun(t, W.obstacles.length ? F.pierce.wallPin : F.pierce.pin);
         // It goes through: one more enemy behind sometimes.
         const behind = W.units.find((e) => e !== t && hostile(c.u, e) && e.kind !== 'decoy' && dist(e, t) < 3);
         if (behind) damage(c.u, behind, by(c.tier, F.pierce.damage), 'skill');
@@ -508,8 +535,14 @@ const FIGHTER: SkillDef[] = [
     id: 'recall', cls: 'fighter', name: 'Mızrak geri çağırma', w: 0.9, cd: (t) => by(t, [10, 7, 7]),
     use: (c) =>
       !!c.t && c.d < 25 &&
+      // Spear plan: collect spears first.
+      (c.u.p!.plan !== 'spear' || c.u.p!.spearsOut >= 4 || c.u.hp < c.u.maxHp * 0.35) &&
       shot(c, 25, 0.9, (t) => {
         damage(c.u, t, by(c.tier, F.recall.damage), 'skill');
+        // Spears on the ground fly back through the target: about half of them hit.
+        const p = c.u.p!;
+        for (let i = 0; i < Math.min(p.spearsOut, F.recall.maxSpears); i++) if (W.rand() < 0.5) damage(c.u, t, F.recall.perSpear, 'skill');
+        p.spearsOut = 0;
         if (c.tier >= 3) slow(t, F.recall.slow, 2);
         c.u.ammo = CLASSES.fighter.ranged.mag!;
       }),
@@ -611,6 +644,7 @@ const SCOUT: SkillDef[] = [
     id: 'pack', cls: 'scout', name: 'Sürü çağrısı', w: 1.1, cd: () => 25,
     use: (c) => {
       if (!c.t) return false;
+      if (c.u.p!.plan === 'ground' && c.d > 12) return false;
       const mine = W.units.filter((x) => x.alive && x.owner === c.u && x.name === 'Sürü');
       for (const m of mine) m.hp = m.maxHp;
       for (let i = mine.length; i < by(c.tier, S.pack.count); i++) spawnBeast(c.u, 'Sürü');

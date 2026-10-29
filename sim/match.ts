@@ -44,6 +44,7 @@ import {
   jump,
   losBlocked,
   isBehind,
+  wallBehind,
   makeUnit,
   onPlatform,
   minutes,
@@ -217,6 +218,7 @@ function makePlayer(cls: ClassId, styleIndex: number, x: number, z: number): Uni
     xp: 0,
     xpBy: { mob: 0, player: 0, boss: 0 },
     skills: [{ id: style.skill, tier: 1, cd: 0, charges: SKILLS[style.skill].charges?.(1) ?? 1 }],
+    spearsOut: 0,
     currency: 0,
     aim: AIM.min + W.rand() * (AIM.max - AIM.min),
     aggression: 0.3 + W.rand() * 0.6,
@@ -317,7 +319,9 @@ function threat(u: Unit): number {
 
 const SIGHT_SNIPER = 70;
 
-type Brain = { blindT: number; seenX: number; seenZ: number; goalCamp: Camp | null; dashT: number; think: number; goal: { x: number; z: number } | null; flee: boolean; gcd: number; lastX: number; lastZ: number; chaseT: number; ignore: Map<Unit, number> };
+/** Players know the other builds' plans (KNOW=0 turns the counters off). */
+const KNOW = process.env.KNOW !== '0';
+type Brain = { scanT?: number; blindT: number; seenX: number; seenZ: number; goalCamp: Camp | null; dashT: number; think: number; goal: { x: number; z: number } | null; flee: boolean; gcd: number; lastX: number; lastZ: number; chaseT: number; ignore: Map<Unit, number> };
 const brains = new Map<Unit, Brain>();
 
 function think(u: Unit) {
@@ -380,7 +384,11 @@ function think(u: Unit) {
   // Decoys: some attacks go to a Rogue's copies instead.
   if (t && t.kind === 'player') {
     const ds = decoysOf(t);
-    if (ds.length && W.rand() < (ds.length / (ds.length + 1)) * 0.6) t = pick(ds);
+    if (KNOW && t.p?.plan === 'clones' && ds.length) {
+      // Knows copies die to two hits: clears the closest one first.
+      const near = ds.filter((x) => dist(u, x) < 20).sort((a, c) => dist(u, a) - dist(u, c))[0];
+      if (near && W.rand() < 0.7) t = near;
+    } else if (ds.length && W.rand() < (ds.length / (ds.length + 1)) * 0.6) t = pick(ds);
   }
   // Bosses.
   if (!b.flee && !t && !outside) {
@@ -518,8 +526,14 @@ function arenaMove(u: Unit, t: Unit, b: Brain): boolean {
       return true;
     }
   }
+  // Knows the spear Fighter pins people to walls: step off a wall in its line of fire.
+  if (KNOW && t.p?.plan === 'spear' && u.stealthT <= 0 && seen && wallBehind(t, u, 3)) {
+    const k = Math.max(0.1, d);
+    moveToward(u, u.x - (t.z - u.z) / k * 4, u.z + (t.x - u.x) / k * 4);
+    return true;
+  }
   // Ranged Scout: get on a platform and stay there.
-  if (p.cls === 'scout' && !p.melee) {
+  if (p.cls === 'scout' && !p.melee && p.plan !== 'ground') {
     const plat = nearestOf(u, 'platform');
     const blind = !seen || losBlocked(u, t);
     b.blindT = blind ? b.blindT + DT() : 0;
@@ -533,7 +547,7 @@ function arenaMove(u: Unit, t: Unit, b: Brain): boolean {
     }
   }
   // Melee closing in on a shooter in the open: hop from cover to cover toward them.
-  if (p.melee && seen && d > 12 && t.p && !t.p.melee && u.stealthT <= 0) {
+  if (p.melee && seen && d > (p.plan === 'ambush' ? 10 : 12) && t.p && (!t.p.melee || p.plan === 'ambush') && u.stealthT <= 0) {
     let best: { x: number; z: number } | null = null;
     let bd = d - 4;
     for (const o of W.obstacles) {
@@ -692,7 +706,7 @@ function playerStep(u: Unit, dt: number) {
     } else if (p.melee && d > C.melee.range + 1 && d < 15) {
       jump(u, t.x, t.z, D.dist, C.melee.range * 0.7);
       b.dashT = D.cd;
-    } else if (!p.melee && t.kind === 'player' && t.p!.melee && d < 4) {
+    } else if (!p.melee && t.kind === 'player' && t.p!.melee && d < 4 && p.plan !== 'high' && p.plan !== 'ground') {
       jump(u, u.x + (u.x - t.x) * 10, u.z + (u.z - t.z) * 10, D.dist);
       b.dashT = D.cd;
     }
@@ -741,7 +755,7 @@ function playerStep(u: Unit, dt: number) {
     } else {
       const want = t.kind === 'boss' ? Math.max(12, Math.min(p.wantRange, 18)) : t.kind === 'mob' ? Math.max(10, Math.min(p.wantRange, 14)) : p.wantRange;
       if (d > want + 3) moveToward(u, t.x, t.z);
-      else if (d < want - 4) moveAway(u, t, AI.kiteSpeed);
+      else if (d < want - 4) moveAway(u, t, KNOW && (t.p?.plan === 'brawler' || t.p?.plan === 'ambush') ? 1 : AI.kiteSpeed);
     }
   } else if (b.goal) moveToward(u, b.goal.x, b.goal.z, speedMult);
   u.x = clamp(u.x, -MAP_HALF, MAP_HALF);
@@ -752,6 +766,13 @@ function playerStep(u: Unit, dt: number) {
   if (t) {
     const k = Math.max(0.01, d);
     (u.faceX = (t.x - u.x) / k), (u.faceZ = (t.z - u.z) / k);
+  } else if (KNOW && W.players.some((e) => e !== u && e.alive && e.p!.plan === 'assassin' && e.stealthT > 0 && dist(e, u) < 20)) {
+    // Knows the Rogue went invisible to get behind: keeps looking around.
+    b.scanT = (b.scanT ?? 0) - dt;
+    if (b.scanT <= 0) {
+      const a = W.rand() * Math.PI * 2;
+      (u.faceX = Math.cos(a)), (u.faceZ = Math.sin(a)), (b.scanT = 0.6);
+    }
   } else if (moved > 0.05) (u.faceX = (u.x - before.x) / moved), (u.faceZ = (u.z - before.z) / moved);
 
   // Attacks.
@@ -820,6 +841,7 @@ function playerStep(u: Unit, dt: number) {
       return;
     }
     u.ammo--;
+    if (p.cls === 'fighter') p.spearsOut++;
   }
   u.atkT = C.ranged.rate;
   weaponHit(u, t, false);
@@ -932,8 +954,10 @@ function petStep(u: Unit, dt: number) {
   if (t && (!t.alive || !hostile(u, t) || dist(o, t) > 30)) t = null;
   if (!t && o.target && o.target.alive && dist(o, o.target) < 25) t = o.target;
   if (u.kind === 'decoy' && u.dmg <= 0) {
-    // Plain copies wander next to the Rogue.
-    if (dist(u, o) > 6) moveToward(u, o.x, o.z, 0.8);
+    // Plain copies wander next to the Rogue; clone-plan copies circle the target.
+    const ct = o.p?.plan === 'clones' && o.target && o.target.alive ? o.target : null;
+    if (ct && dist(u, ct) > 5) moveToward(u, ct.x, ct.z, 0.8);
+    else if (!ct && dist(u, o) > 6) moveToward(u, o.x, o.z, 0.8);
     return;
   }
   u.target = t;
@@ -1188,7 +1212,7 @@ export function runDuel(
   level: number,
   styleA?: number,
   styleB?: number,
-  opts: { builds?: [string[] | null, string[] | null]; arena?: number } = {},
+  opts: { builds?: [string[] | null, string[] | null]; plans?: [string | undefined, string | undefined]; arena?: number } = {},
 ): { winner: 0 | 1 | -1; time: number } {
   resetWorld(seed);
   camps = [];
@@ -1212,6 +1236,7 @@ export function runDuel(
       u.p!.skills = [...tiers].map(([id, tier]) => ({ id, tier, cd: 0, charges: SKILLS[id].charges?.(tier) ?? 1 }));
       u.p!.poisonPerm = (tiers.get('poison') ?? 0) >= 3;
     }
+    u.p!.plan = opts.plans?.[side];
     u.hp = u.maxHp;
     u.p!.orbs = PASSIVES.mage.orbs(u.p!.level);
     u.p!.spellShield = true;
