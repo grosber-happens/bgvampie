@@ -87,7 +87,7 @@ export function MatchHud({ state, onPause, onDash, onMove, children }: MatchHudP
               <div className="mt-1 flex items-center gap-2"><div className="h-[3px] w-20 bg-[#131516]"><div className="h-full bg-[#a44b40]" style={{ width: `${Math.max(5, 100 - state.fog.stage * 13)}%` }} /></div><span className="mono text-[9px] text-[#c5ad7b]">STAGE {state.fog.stage}</span></div>
             </div>
           </div>
-          <div className="min-h-[390px] flex-1 border border-[#8e7750]/55 bg-[#202722]">
+          <div className="flex min-h-[390px] flex-1 flex-col border border-[#8e7750]/55 bg-[#202722]">
             {children}
           </div>
           <div className="panel mt-2 flex flex-wrap items-center justify-between gap-3 px-3 py-2">
