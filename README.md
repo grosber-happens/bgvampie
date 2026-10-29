@@ -14,7 +14,7 @@ pnpm build    # typecheck + production build in dist/public
 
 ## Controls
 
-WASD move · mouse aim · left click attack · Q switch melee/ranged · R reload · 1–5 skills · Shift sprint · Space jump · Tab level-up cards · Esc pause
+WASD move · mouse aim · left click attack · F switch melee/ranged · R reload · Q, E, 1, 2, 3 skills · Shift dash · Space jump · Tab level-up cards · Esc pause
 
 `?debug=1` adds test keys: L gives a level, B spawns the boss, K gives 100 currency. `?seed=N` fixes the map.
 
