@@ -8,5 +8,11 @@ export default defineConfig({
   base,
   server: { port, strictPort: true, host: '0.0.0.0', allowedHosts: true },
   preview: { port, host: '0.0.0.0', allowedHosts: true },
-  build: { outDir: 'dist/public', emptyOutDir: true, chunkSizeWarningLimit: 6000 },
+  build: {
+    outDir: process.env.SINGLE ? 'dist/single' : 'dist/public',
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 6000,
+    // SINGLE=1 makes one JS file (used to publish a shareable web build).
+    rollupOptions: process.env.SINGLE ? { output: { inlineDynamicImports: true } } : {},
+  },
 });
