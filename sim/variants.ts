@@ -26,6 +26,8 @@ export const VARIANTS: Record<string, { name: string; apply: () => void }> = {
   f_ammo: { name: 'Mızrak yenilenmesi 2.2 → 1.5 sn, şarjör 3 → 4', apply: () => ((CLASSES.fighter.ranged.ammoRegen = 1.5), (CLASSES.fighter.ranged.mag = 4)) },
   m_arms3a: { name: 'Nano kollar 3. seviye hasar 26 → 34', apply: () => void (M.arms.damage = [18, 26, 34]) },
   m_arms3b: { name: 'Nano kollar 3. seviye hasar 26 → 30, vuruş aralığı 0.5 → 0.4 sn, süre 8 → 10 sn', apply: () => ((M.arms.damage = [18, 26, 30]), (M.arms.every = [0.7, 0.5, 0.4]), (M.arms.dur3 = 10)) },
+  m_armor_tier: { name: 'Nano zırh kalkanı seviyeye bağlı 40/55/75 (patlama 40/65/65 kalır)', apply: () => void (M.armor.shieldByTier = [40, 55, 75]) },
+  m_wand: { name: 'Asa hasarı 14 → 13', apply: () => void (CLASSES.mage.ranged.dmg = 13) },
   m_hp: { name: 'Mage can 95 → 105 (+7/seviye)', apply: () => ((CLASSES.mage.hp = 105), (CLASSES.mage.hpPerLevel = 7)) },
   m_lvl: { name: 'Mage seviye başı hasar %6 → %8', apply: () => void (CLASSES.mage.dmgPerLevel = 0.08) },
 };

@@ -251,7 +251,7 @@ export const M = {
   sunray: { dur: [3, 5, 5] as [number, number, number], dps: 30, range: 22 },
   nanobots: { dps: 12, dur: [5, 8, 8] as [number, number, number], range: 28, jump: 10 },
   blink: { range: [10, 13, 13] as [number, number, number] },
-  armor: { shield: 40, dur: 6, radius: 4, damage: [30, 50, 50] as [number, number, number] },
+  armor: { shield: 40, shieldByTier: null as [number, number, number] | null, dur: 6, radius: 4, damage: [30, 50, 50] as [number, number, number] },
   arms: { dur: 8, dur3: 8, every: [0.7, 0.5, 0.5] as [number, number, number], damage: [14, 20, 20] as [number, number, number], reach: 3 },
   gravity: { lift: [1.2, 1.6, 1.6] as [number, number, number], damage: [35, 55, 55] as [number, number, number], range: 26, splash: 4 },
   mines: { max: 2, damage: [45, 65, 65] as [number, number, number], radius: 3, range: 22 },
@@ -348,7 +348,7 @@ const MAGE: SkillDef[] = [
     use: (c) => {
       const brawl = c.u.p!.plan === 'brawler' && c.t && c.d < 5;
       if (!c.t || (!brawl && (W.time - c.u.lastCombat > 1 || c.u.hp > c.u.maxHp * 0.8))) return false;
-      c.u.shield = Math.max(c.u.shield, M.armor.shield);
+      c.u.shield = Math.max(c.u.shield, M.armor.shieldByTier ? by(c.tier, M.armor.shieldByTier) : M.armor.shield);
       c.u.shieldT = M.armor.dur;
       const u = c.u;
       const dmg = by(c.tier, M.armor.damage);
