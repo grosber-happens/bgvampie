@@ -23,7 +23,8 @@ export const DAGGERS = { rate: 0.32, damage: 20, range: 2.3, arcDeg: 100 };
 /** Backstab passive: hitting from behind (more than 120° from where the target faces). */
 export const BACKSTAB = { angleDeg: 120, mult: 1.5 };
 /**
- * Passive 2 (Gölge izi): stand still this long and a decoy appears, and you turn faint.
+ * Passive 2 (Gölge izi): a dash leaves a decoy where it starts (once per `cooldown`).
+ * Standing still for `stillTime` makes you faint (also once per `cooldown`).
  * Faint = enemies see you at `fadeVis` of their normal range, for `fadeTime` seconds.
  * It breaks when you attack, take damage, or an enemy stays within `breakRange` m (in sight) for `breakTime` s.
  */

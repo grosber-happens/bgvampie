@@ -38,7 +38,7 @@ import {
   type ClassId,
   type Weapon,
 } from './kit';
-import './rogue';
+import { fadeState } from './rogue';
 import './mage';
 import './fighter';
 import './scout';
@@ -255,6 +255,7 @@ function updatePlayer(dt: number) {
     ctl.dashDir = move.lengthSquared() > 0 ? move.clone() : fwd.clone();
     ctl.dashT = dash.time;
     ctl.dashCd = dash.cd;
+    kit.onDash?.();
     dashFx(true);
     if (!ctl.grounded) ctl.airDashUsed = true;
     player.velY = Math.max(player.velY, 0);
@@ -895,6 +896,7 @@ window.addEventListener('resize', () => engine.resize());
     kills: PS.kills,
     time: G.time,
     invis: PS.invisT,
+    fade: fadeState(),
     alive: player.alive,
     units: G.units.map((u) => ({ id: u.id, kind: u.kind, name: u.name, hp: Math.round(u.hp), level: u.level, pos: u.pos.asArray().map((v) => +v.toFixed(1)), stun: u.stunT, poison: u.poisonT })),
   }),

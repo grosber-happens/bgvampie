@@ -261,6 +261,7 @@ export function resetRogue() {
   });
   still = 0;
   trailCd = 0;
+  fadeCd = 0;
   fadeT = 0;
   watchedT = 0;
   ammo = GUN.magazine;
@@ -270,9 +271,13 @@ export function resetRogue() {
 // ---- Per-frame -------------------------------------------------------------
 let still = 0;
 let trailCd = 0;
+let fadeCd = 0;
 /** Gölge izi faint time left, and how long a close enemy has been watching. */
 let fadeT = 0;
 let watchedT = 0;
+
+/** Gölge izi state, for tests. */
+export const fadeState = () => ({ fadeT, fadeCd, watchedT, trailCd, still });
 
 function breakFade() {
   fadeT = 0;
@@ -308,13 +313,13 @@ export function updateRogue(dt: number, moving: boolean, grounded: boolean) {
   }
   for (const k of ['evasionT', 'evasionImmuneT', 'invisT', 'poisonCoatT', 'poisonBoostT', 'sprintT'] as const) PS[k] = Math.max(0, PS[k] - dt);
 
-  // Passive 2 (Gölge izi): standing still leaves a decoy behind.
+  // Passive 2 (Gölge izi): standing still makes you faint. The copy comes from the dash (onDash).
   trailCd -= dt;
+  fadeCd -= dt;
   if (moving || !grounded) still = 0;
   else still += dt;
-  if (still >= SHADOW_TRAIL.stillTime && trailCd <= 0) {
-    spawnDecoy(G.player.pos, G.player.yaw, 'idle', false, SHADOW_TRAIL.decoyLife);
-    trailCd = SHADOW_TRAIL.cooldown;
+  if (still >= SHADOW_TRAIL.stillTime && fadeCd <= 0) {
+    fadeCd = SHADOW_TRAIL.cooldown;
     still = 0;
     fadeT = SHADOW_TRAIL.fadeTime;
     watchedT = 0;
@@ -497,7 +502,7 @@ export const ROGUE_KIT: ClassKit = {
   stats: ROGUE,
   dash: { anim: 'dash', speed: 26, time: 0.18, cd: 1.0, color: '#b46cff' },
   weaponNames: { ranged: 'Suikast tabancası', melee: 'İkili lazer hançer' },
-  passives: ['Backstab: arkadan vuruş x1.5', 'Gölge izi: 2.5 sn durunca kopya bırakır ve 10 sn silikleşirsin'],
+  passives: ['Backstab: arkadan vuruş x1.5', 'Gölge izi: dash başladığı yerde kopya bırakır; 2.5 sn durunca 10 sn silikleşirsin'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
   buildWeapons(root) {
@@ -512,6 +517,12 @@ export const ROGUE_KIT: ClassKit = {
   },
   reset: resetRogue,
   update: updateRogue,
+  // Gölge izi: a dash leaves a copy where it starts.
+  onDash() {
+    if (trailCd > 0) return;
+    spawnDecoy(G.player.pos.clone(), G.player.yaw, 'idle', false, SHADOW_TRAIL.decoyLife);
+    trailCd = SHADOW_TRAIL.cooldown;
+  },
   attack: (w: Weapon) => (w === 'ranged' ? shoot() : swing()),
   reload,
   weaponText: (w) => (w === 'ranged' ? `Suikast tabancası ${reloadT > 0 ? 'dolduruluyor…' : `${ammo}/${GUN.magazine}`}` : 'İkili lazer hançer'),

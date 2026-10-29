@@ -70,6 +70,8 @@ export type ClassKit = {
   update(dt: number, moving: boolean, grounded: boolean): void;
   /** Fire or swing the weapon. Returns the seconds until the next attack. */
   attack(w: Weapon): number;
+  /** Called when a dash starts. */
+  onDash?(): void;
   reload?(): void;
   /** HUD line for the weapon in hand. */
   weaponText(w: Weapon): string;
