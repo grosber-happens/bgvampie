@@ -12,6 +12,7 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Culling/ray';
 import './style.css';
 import { Input } from './input';
+import { placeHouses } from './houses';
 import { buildWorld, ceilingHeight, findOpenSpot, groundHeight, pointHitsObstacle, resolveWalls, type World } from './world';
 import { createActorBody, disposeBody, flash, forwardFromYaw, rightFromYaw, type ActorBody } from './actors';
 
@@ -68,6 +69,7 @@ const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
 const world: World = buildWorld(scene, seed);
 const input = new Input(canvas);
+placeHouses(scene, world).catch((e) => console.error('House model failed to load', e));
 seedEl.textContent = `Şehir #${seed} · N: yeni şehir`;
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
@@ -441,6 +443,11 @@ document.addEventListener('pointerlockchange', () => {
 (window as unknown as { __game: unknown }).__game = {
   input,
   start,
+  houses: () => world.houses.map((h) => [h.x, h.z, h.scale]),
+  teleport: (x: number, z: number) => {
+    player.pos.set(x, 3, z);
+    player.velY = 0;
+  },
   state: () => ({
     hp: player.hp,
     pos: player.pos.asArray(),

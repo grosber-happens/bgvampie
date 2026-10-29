@@ -12,6 +12,8 @@ export default defineConfig({
     outDir: process.env.SINGLE ? 'dist/single' : 'dist/public',
     emptyOutDir: true,
     chunkSizeWarningLimit: 6000,
+    // The single-file build also inlines models so the page needs no other files.
+    assetsInlineLimit: process.env.SINGLE ? 20_000_000 : 4096,
     // SINGLE=1 makes one JS file (used to publish a shareable web build).
     rollupOptions: process.env.SINGLE ? { output: { inlineDynamicImports: true } } : {},
   },

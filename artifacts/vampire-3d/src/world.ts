@@ -16,8 +16,15 @@ export const CITY_HALF = 40;
 /** Highest ledge an actor walks onto without jumping (curbs, rubble). */
 export const STEP_HEIGHT = 0.4;
 
+/** Where a house model goes; its collision box is already in `boxes`. */
+export type HouseSlot = { x: number; z: number; y: number; scale: number; rotY: number };
+
+/** Size of the house model in its own units (about 1.8 wide, 1.47 tall). */
+export const HOUSE = { size: 1.8, height: 1.47 };
+
 export type World = {
   boxes: Box[];
+  houses: HouseSlot[];
   shadows: ShadowGenerator;
   seed: number;
 };
@@ -69,6 +76,7 @@ export function buildWorld(scene: Scene, seed: number): World {
   ground.receiveShadows = true;
 
   const boxes: Box[] = [];
+  const houses: HouseSlot[] = [];
   const statics: Mesh[] = [];
   const wallMats = ['#8d8a86', '#a37b64', '#6f7a82', '#9b9076', '#7c5f57'].map((c, i) => mat(scene, `wall${i}`, c));
   const roofMat = mat(scene, 'roof', '#4a4342');
@@ -126,14 +134,17 @@ export function buildWorld(scene: Scene, seed: number): World {
             // Ruined low wall: easy to jump onto.
             addBox(lx, lz, w, between(0.6, 1.2), 0.25, between(1.0, 1.4), material);
           } else if (kind < 0.65) {
-            // Low building (about 3.5 m) with crates as steps to its roof.
-            const h = between(3.0, 3.6);
-            addBox(lx, lz, w, d, 0.25, h, material);
-            addBox(lx, lz, w + 0.3, d + 0.3, 0.25 + h, 0.2, roofMat);
+            // House (the user's model) with crates as steps to its roof.
+            // Only the collision box is made here; the model is placed once it has loaded.
+            const scale = Math.min(between(2.2, 2.6), (lot * 0.85) / HOUSE.size);
+            const hw = (HOUSE.size * scale) / 2;
+            const h = HOUSE.height * scale;
+            boxes.push({ x: lx, z: lz, hw, hd: hw, y0: 0.25, y1: 0.25 + h });
+            houses.push({ x: lx, z: lz, y: 0.25, scale, rotY: Math.floor(rand() * 4) * (Math.PI / 2) });
             const side = rand() < 0.5 ? 1 : -1;
-            const sx = lx + side * (w / 2 + 0.7);
-            addBox(sx, lz + d / 4, 1.4, 1.4, 0.25, 1.2, crateMat);
-            addBox(sx, lz - d / 4 + 0.2, 1.4, 1.4, 0.25, 2.4, crateMat);
+            const sx = lx + side * (hw + 0.7);
+            addBox(sx, lz + hw / 2, 1.4, 1.4, 0.25, 1.2, crateMat);
+            addBox(sx, lz - hw / 2 + 0.2, 1.4, 1.4, 0.25, 2.4, crateMat);
           } else {
             // Tall tower; some have a broken, smaller top part.
             const h = between(9, 22);
@@ -181,7 +192,7 @@ export function buildWorld(scene: Scene, seed: number): World {
   }
 
   for (const m of statics) m.freezeWorldMatrix();
-  return { boxes, shadows, seed };
+  return { boxes, houses, shadows, seed };
 }
 
 function overlapsFootprint(b: Box, x: number, z: number, r: number) {

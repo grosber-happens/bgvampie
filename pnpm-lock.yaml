@@ -413,6 +413,9 @@ importers:
       '@babylonjs/core':
         specifier: 9.32.0
         version: 9.32.0
+      '@babylonjs/loaders':
+        specifier: 9.32.0
+        version: 9.32.0(@babylonjs/core@9.32.0)
     devDependencies:
       vite:
         specifier: 'catalog:'
@@ -753,6 +756,12 @@ packages:
 
   '@babylonjs/core@9.32.0':
     resolution: {integrity: sha512-mHBsyKJuQHbs97Rb/1qxMRg6Ru79+0BjLhGLTa34s6U/fkBCtOh+xKTQDqFpFtPqgBw9TLFcIEvFHy01vnJxwA==}
+
+  '@babylonjs/loaders@9.32.0':
+    resolution: {integrity: sha512-pHWbOaR34riRNxX0rffPpVcbaAoEXmjtS00A4RO43zoz4EPVg4mESX0EqzaA8yl7FbVk+aYWwyj30uR1OWrl1Q==}
+    peerDependencies:
+      '@babylonjs/core': ^9.0.0
+      babylonjs-gltf2interface: ^9.0.0
 
   '@commander-js/extra-typings@15.0.0':
     resolution: {integrity: sha512-yeJlba62xqmkgELUsn7356MEnzLLu/fw2x4lofFqGnXh6YysRdEs2BaLeLtg1+KU0AXvMeqQvTTp+3hBEBK+EA==}
@@ -3211,6 +3220,10 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@babylonjs/core@9.32.0': {}
+
+  '@babylonjs/loaders@9.32.0(@babylonjs/core@9.32.0)':
+    dependencies:
+      '@babylonjs/core': 9.32.0
 
   '@commander-js/extra-typings@15.0.0(commander@15.0.0)':
     dependencies:
