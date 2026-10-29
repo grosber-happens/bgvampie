@@ -81,7 +81,8 @@ export const MAX_LEVEL = 12;
 export const MAX_SKILLS = 5;
 
 /**
- * XP needed to go from level N to N+1 (index 0 = level 1 -> 2). Total 6060.
+ * XP needed to go from level N to N+1 (index 0 = level 1 -> 2). Total 7880.
+ * Curve from the balance simulation (user-approved 2026-10-29, boss reward 30/min instead of 40).
  *
  * Goal (user): max level is reachable between minute 1 and minute 25 of a 25-35 minute match.
  * Most XP comes from mobs (XP grows with match time); player kills and bosses are big bonuses.
@@ -89,13 +90,13 @@ export const MAX_SKILLS = 5;
  * than a person, reach level 2 at minute 1-2 and level 10-11 by minute 25. An active player who
  * also takes a boss should reach level 12 around minute 20-25.
  */
-export const XP_TO_NEXT = [130, 190, 230, 290, 380, 460, 540, 680, 830, 1040, 1290];
+export const XP_TO_NEXT = [130, 190, 240, 340, 450, 550, 660, 920, 1150, 1450, 1800];
 
 /** XP for a kill. `min` is the match time in minutes. */
 export const XP_REWARD = {
   mob: (min: number) => Math.round(20 * (1 + 0.05 * min)),
-  player: (victimLevel: number) => 50 + 15 * victimLevel,
-  boss: (min: number) => Math.round(250 + 25 * min),
+  player: (victimLevel: number) => 60 + 30 * victimLevel,
+  boss: (min: number) => Math.round(400 + 30 * min),
 };
 
 /** Currency (x per player kill, y per boss, z% chance per mob). Placeholder values. */
