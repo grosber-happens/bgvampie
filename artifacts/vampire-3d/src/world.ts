@@ -46,7 +46,7 @@ function rng(seed: number) {
   };
 }
 
-export function buildWorld(scene: Scene, seed: number): World {
+export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boolean }): World {
   const rand = rng(seed);
   const between = (a: number, b: number) => a + rand() * (b - a);
 
@@ -139,8 +139,15 @@ export function buildWorld(scene: Scene, seed: number): World {
             const scale = Math.min(between(2.2, 2.6), (lot * 0.85) / HOUSE.size);
             const hw = (HOUSE.size * scale) / 2;
             const h = HOUSE.height * scale;
-            boxes.push({ x: lx, z: lz, hw, hd: hw, y0: 0.25, y1: 0.25 + h });
-            houses.push({ x: lx, z: lz, y: 0.25, scale, rotY: Math.floor(rand() * 4) * (Math.PI / 2) });
+            const rotY = Math.floor(rand() * 4) * (Math.PI / 2);
+            if (opts.houseModel) {
+              boxes.push({ x: lx, z: lz, hw, hd: hw, y0: 0.25, y1: 0.25 + h });
+              houses.push({ x: lx, z: lz, y: 0.25, scale, rotY });
+            } else {
+              // Plain block in the same spot while the house model is switched off.
+              addBox(lx, lz, hw * 2, hw * 2, 0.25, h, material);
+              addBox(lx, lz, hw * 2 + 0.3, hw * 2 + 0.3, 0.25 + h, 0.2, roofMat);
+            }
             const side = rand() < 0.5 ? 1 : -1;
             const sx = lx + side * (hw + 0.7);
             addBox(sx, lz + hw / 2, 1.4, 1.4, 0.25, 1.2, crateMat);

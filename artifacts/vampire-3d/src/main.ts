@@ -13,6 +13,7 @@ import '@babylonjs/core/Culling/ray';
 import './style.css';
 import { Input } from './input';
 import { placeHouses } from './houses';
+import { attachGun } from './gun';
 import { buildWorld, ceilingHeight, findOpenSpot, groundHeight, pointHitsObstacle, resolveWalls, type World } from './world';
 import { createActorBody, disposeBody, flash, forwardFromYaw, rightFromYaw, type ActorBody } from './actors';
 
@@ -67,9 +68,11 @@ const crosshair = document.getElementById('crosshair')!;
 
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
-const world: World = buildWorld(scene, seed);
+// The user paused the house model swap; flip this to show their house model again.
+const USE_HOUSE_MODEL = false;
+const world: World = buildWorld(scene, seed, { houseModel: USE_HOUSE_MODEL });
 const input = new Input(canvas);
-placeHouses(scene, world).catch((e) => console.error('House model failed to load', e));
+if (USE_HOUSE_MODEL) placeHouses(scene, world).catch((e) => console.error('House model failed to load', e));
 seedEl.textContent = `Şehir #${seed} · N: yeni şehir`;
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
@@ -112,7 +115,16 @@ const player = {
   dashDir: new Vector3(),
 };
 for (const m of player.body.meshes) m.isPickable = false;
-const gunMesh = player.body.meshes[2];
+attachGun(scene, world, player.body.root)
+  .then((gun) => {
+    gunMesh.dispose();
+    gunMesh = gun;
+    player.body.meshes[2] = gun;
+    setWeapon(player.weapon);
+  })
+  .catch((e) => console.error('Gun model failed to load', e));
+// Placeholder gun box until the gun model loads (then it is swapped in at the same slot).
+let gunMesh = player.body.meshes[2];
 // Melee weapon: a long glowing blade held on the right side.
 const blade = MeshBuilder.CreateBox('blade', { width: 0.08, height: 0.08, depth: 1.4 }, scene);
 blade.material = slashMat;
