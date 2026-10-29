@@ -61,8 +61,13 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
 | F | Switch between melee and ranged weapon |
 | R | Reload |
 | Q, E, 1, 2, 3 | The 5 skill slots |
-| Shift | Dash (each class has its own dash, see §10) |
-| Space | Jump |
+| Shift (tap) | Dash, S4 League style: taps chain while you have breath (SP). Dash then Space is a dash-jump |
+| Shift (hold) | Sprint (x1.55, drains breath) |
+| Space | Jump; again in the air for a double jump; against a wall for a wall kick (up to 3) |
+| Ctrl or C in the air | Ground slam (heavy legs only) |
+| X | Bandage: free, 3 s channel, heals 30%, 35 s cooldown; a big hit breaks it |
+| I | Bag (equip, unequip, drop) |
+| G | Last Reel (5-piece Noir set) |
 | Tab | Open the level-up cards; pick with 1, 2 or 3 |
 | Esc | Pause |
 
@@ -101,7 +106,7 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
   | Necklace | % bonuses: damage, cooldown reduction, area size… | Has its own XP bar and levels up |
   | Ring | Same kind of % bonuses as the necklace | Has its own XP bar and levels up |
 
-  - [Proposal] Treat the 3 armor types as light, medium and heavy. The Rogue may only wear light armor.
+  - [Built] The 3 armor types are light, medium and heavy. Rogue wears light, Mage and Scout light or medium, Fighter all three. Light legs add an air jump, medium legs a wall run, heavy legs a ground slam and a ramming dash. Full tables, the Noir detective set, legendary rules and the balance report are in `docs/GEAR.md`.
 
 ## 6. Classes — shared rules [Decided]
 

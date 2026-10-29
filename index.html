@@ -3,49 +3,131 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vampire Battleground 3D</title>
+    <title>Vampire Battleground</title>
   </head>
   <body>
     <canvas id="game"></canvas>
     <div id="hud">
       <div id="hurt"></div>
-      <div id="crosshair"></div>
+      <div id="crosshair"><svg id="band-ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" /></svg></div>
       <div id="numbers"></div>
       <div id="top">
         <div id="timer">00:00</div>
-        <div id="boss" class="hidden"><div class="boss-name">Zombi Devi</div><div class="bar"><div id="boss-fill"></div></div></div>
+        <div id="boss" class="hidden"><div class="boss-name" data-t="boss">Zombi Devi</div><div class="bar"><div id="boss-fill"></div></div></div>
         <div id="target"></div>
       </div>
       <div id="toast"></div>
       <div id="feed"></div>
-      <div id="stats">
+      <div id="stats" class="panel">
         <div id="level-line"><span id="level">Sv 1</span><span id="money">Para 0</span><span id="kills">0 leş</span></div>
-        <div class="bar"><div id="hp-fill"></div></div>
-        <div id="hp-text">100 / 100</div>
+        <div class="bar hp"><div id="hp-fill"></div><span id="hp-text">100 / 100</span></div>
+        <div class="bar sp"><div id="sp-fill"></div><span class="bar-label" data-t="sp">Nefes</span></div>
         <div id="weapon">Silah: Uzak (F)</div>
         <div id="buffs"></div>
-        <div class="bar small"><div id="dash-fill"></div></div>
-        <div class="label">Dash (Shift)</div>
+        <div id="gear-line">
+          <span id="band" class="chip"><b>X</b> <span data-t="bandageChip">Bandaj</span> <i id="band-cd"></i></span>
+          <span id="reel" class="chip hidden"><b>G</b> <span data-t="reel">Son Kare</span> <i id="reel-cd"></i></span>
+          <span class="chip"><b>I</b> <span data-t="bagChip">Çanta</span></span>
+        </div>
       </div>
       <div id="bottom">
-        <div id="pick-hint" class="hidden">Seviye atladın! Kart seçmek için <b>Tab</b></div>
+        <div id="pick-hint" class="hidden"></div>
         <div id="xp"><div id="xp-fill"></div><span id="xp-text"></span></div>
         <div id="slots"></div>
       </div>
       <div id="seed"></div>
-      <div id="hint">WASD hareket · Space zıpla · Shift dash · Sol tık ateş · Sağ tık nişan · F silah · R şarjör · Q E 1 2 3 yetenek · Tab kart · Esc duraklat</div>
+      <div id="hint" data-t="hint"></div>
     </div>
+
     <div id="cards" class="hidden">
-      <h2>Seviye atladın: bir kart seç</h2>
+      <h2 data-t="cardsTitle">Seviye atladın: bir kart seç</h2>
       <div id="card-row"></div>
-      <p class="card-foot"><span id="tier-rule"></span> · 1 2 3 ile de seçebilirsin · <button id="card-close">Sonra seç (Tab)</button></p>
+      <p class="card-foot"><span id="tier-rule"></span> · <span data-t="orPress">1 2 3 ile de seçebilirsin</span> · <button id="card-close" data-t="later">Sonra seç (Tab)</button></p>
     </div>
+
+    <div id="inventory" class="hidden">
+      <div class="dossier">
+        <header><h2 data-t="inventory">Çanta</h2><span id="inv-set"></span><button id="inv-close" class="x">×</button></header>
+        <div class="inv-cols">
+          <section><h3 data-t="equipped">Kuşanılan</h3><div id="inv-slots"></div></section>
+          <section><h3 data-t="bag">Çanta</h3><div id="inv-bag"></div><div id="inv-info" class="note"></div></section>
+        </div>
+      </div>
+    </div>
+
     <div id="overlay">
-      <h1>Vampire Battleground 3D</h1>
-      <p id="overlay-text">Sınıfını ve oyun tarzını seç. Başlangıç yeteneğin tarzına göre gelir.</p>
-      <div id="styles"></div>
-      <button id="play">Oyna</button>
-      <pre id="summary"></pre>
+      <div id="title-art" aria-hidden="true">
+        <svg class="city" viewBox="0 0 1600 600" preserveAspectRatio="xMidYMax slice">
+          <defs>
+            <pattern id="dots" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.3" fill="#15131a" opacity="0.35" /></pattern>
+          </defs>
+            <filter id="wash" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="7" /><feDisplacementMap in="SourceGraphic" scale="38" /><feGaussianBlur stdDeviation="2" /></filter>
+            <g id="koi">
+              <path d="M68 0 C80 -14 92 -16 96 -10 C90 -4 88 4 96 10 C92 16 80 14 68 0 Z" fill="#ff7a1a" stroke="#15131a" stroke-width="3" stroke-linejoin="round" />
+              <path d="M30 8 C34 20 44 22 46 14 Z M30 -8 C34 -20 44 -22 46 -14 Z" fill="#ff7a1a" stroke="#15131a" stroke-width="3" stroke-linejoin="round" />
+              <path d="M0 0 C18 -14 52 -12 70 0 C52 12 18 14 0 0 Z" fill="#fff6ea" stroke="#15131a" stroke-width="3" />
+              <path d="M14 -4 C22 -10 34 -8 36 -2 C30 4 20 4 14 -4 Z M44 2 C50 -2 58 0 60 3 C54 6 48 6 44 2 Z" fill="#e0412b" />
+              <circle cx="9" cy="-3" r="2.2" fill="#15131a" />
+            </g>
+          </defs>
+          <g filter="url(#wash)" class="sky-wash"><ellipse cx="400" cy="120" rx="520" ry="110" fill="#f6c58f" opacity="0.55" /><ellipse cx="1250" cy="330" rx="600" ry="130" fill="#e98a7a" opacity="0.4" /><ellipse cx="700" cy="40" rx="700" ry="90" fill="#8fb8d9" opacity="0.45" /></g>
+          <circle class="sun-halo" cx="1150" cy="230" r="230" filter="url(#wash)" />
+          <circle class="sun" cx="1150" cy="230" r="165" />
+          <circle cx="1150" cy="230" r="165" fill="url(#dots)" opacity="0.5" />
+          <g class="school">
+            <use href="#koi" class="k1" /><use href="#koi" class="k2" /><use href="#koi" class="k3" /><use href="#koi" class="k4" /><use href="#koi" class="k5" />
+          </g>
+          <g class="far">
+            <path d="M0 420 L0 300 H60 V250 H110 V320 H170 V210 L200 180 L230 210 V330 H300 V270 H360 V340 H420 V230 H470 V190 H500 V230 H520 V350 H600 V290 H680 V360 H760 V250 L800 200 L840 250 V370 H920 V300 H990 V230 H1060 V360 H1140 V280 H1220 V340 H1300 V240 H1350 V200 H1380 V320 H1460 V270 H1530 V350 H1600 V420 Z" />
+          </g>
+          <g class="mid">
+            <path d="M0 600 V420 H90 V350 H150 V300 L180 280 L210 300 V420 H260 V380 H340 V330 H380 V310 H420 V420 H520 V360 H590 V300 H650 V420 H720 V390 H800 V340 L860 300 L920 340 V430 H1000 V370 H1080 V320 H1120 V430 H1210 V380 H1290 V350 H1370 V430 H1460 V370 H1530 V330 H1600 V600 Z" />
+            <path class="robot" d="M1020 330 C1010 250 1030 190 1080 170 C1100 160 1130 165 1140 185 C1150 205 1140 225 1120 232 L1130 330 Z M1085 205 h14 M1110 205 h10" />
+          </g>
+          <g class="windows">
+            <rect x="160" y="320" width="10" height="14" /><rect x="190" y="350" width="10" height="14" /><rect x="350" y="350" width="8" height="12" /><rect x="610" y="330" width="10" height="14" /><rect x="820" y="360" width="10" height="14" /><rect x="850" y="390" width="10" height="14" /><rect x="1260" y="400" width="10" height="14" /><rect x="1480" y="390" width="10" height="14" />
+          </g>
+          <g class="sign"><rect x="520" y="372" width="64" height="26" rx="5" /><text x="552" y="391" text-anchor="middle">KAN</text></g>
+          <path class="cable" d="M0 300 C300 350 600 330 900 280 C1100 250 1300 270 1600 240" />
+          <g class="tram"><rect x="700" y="300" width="90" height="34" rx="10" /><rect x="712" y="308" width="16" height="12" /><rect x="736" y="308" width="16" height="12" /><rect x="760" y="308" width="16" height="12" /><path d="M745 300 V290" /></g>
+          <g class="street">
+            <path d="M0 600 V520 H1600 V600 Z" />
+            <path class="lamp" d="M300 520 V420 C300 400 330 400 335 410" />
+            <path class="glow" d="M335 410 L290 520 H380 Z" />
+            <g class="detective"><ellipse cx="345" cy="505" rx="18" ry="16" /><path d="M327 492 C330 470 360 470 363 492 Z M320 493 H370" /><path d="M335 520 v-6 M355 520 v-6" /></g>
+          </g>
+          <rect class="puddle" x="240" y="540" width="260" height="10" rx="5" />
+        </svg>
+        <div class="petals"></div>
+        <div class="grain"></div>
+      </div>
+      <div class="title-ui">
+        <h1 class="logo"><span class="v">Vampire</span><span class="b">Battleground</span></h1>
+        <p class="subtitle" data-t="subtitle">Güneş hiç batmadı. Hasat başlıyor.</p>
+        <p id="overlay-text"></p>
+        <div id="styles"></div>
+        <div class="menu">
+          <button id="play">Oyna</button>
+          <button id="open-settings" class="ghost" data-t="settings">Ayarlar</button>
+          <button id="open-howto" class="ghost" data-t="howto">Nasıl oynanır</button>
+          <div class="lang"><button data-lang="tr">TR</button><button data-lang="en">EN</button></div>
+        </div>
+        <pre id="summary"></pre>
+        <p class="credits" data-t="credits"></p>
+      </div>
+    </div>
+
+    <div id="settings" class="modal hidden">
+      <div class="dossier small">
+        <header><h2 data-t="settings">Ayarlar</h2><button class="x" data-close>×</button></header>
+        <div id="settings-body"></div>
+      </div>
+    </div>
+    <div id="howto" class="modal hidden">
+      <div class="dossier small">
+        <header><h2 data-t="howto">Nasıl oynanır</h2><button class="x" data-close>×</button></header>
+        <p class="howto-text" data-t="hint"></p>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

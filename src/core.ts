@@ -112,6 +112,8 @@ export const minutes = () => G.time / 60;
 /** Class rules for damage the player deals and takes (the active class kit fills these in). */
 export const MODS = {
   damagePerLevel: 0.04,
+  /** Share cut from stuns and slows on the player (heavy armor). */
+  tenacity: 0,
   outgoing: (_target: Unit, dmg: number, _src: Unit | null, _opts: HitOpts): { dmg: number; crit: boolean } => ({ dmg, crit: false }),
   /** Return the damage left after shields; 0 shows BLOK. */
   incoming: (dmg: number, _src: Unit | null): number => dmg,
@@ -301,11 +303,13 @@ export function applyDot(src: Unit, target: Unit, dps: number, dur: number, slow
 
 /** Slow a unit by a share (0.3 = 30% slower) for a while. The strongest slow wins. */
 export function slowUnit(target: Unit, share: number, dur: number) {
+  if (target === G.player) dur *= 1 - MODS.tenacity;
   target.slowMul = Math.min(target.slowT > 0 ? target.slowMul : 1, 1 - share);
   target.slowT = Math.max(target.slowT, dur);
 }
 
 export function stun(target: Unit, dur: number) {
+  if (target === G.player) dur *= 1 - MODS.tenacity;
   target.stunT = Math.max(target.stunT, dur);
 }
 

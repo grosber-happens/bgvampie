@@ -45,6 +45,12 @@ import './fighter';
 import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { boss, botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
+import { INV, debugKit, spawnDrop, bandageCdShare, bandageShare, dashTouch, gearAfterHit, gearAirDashes, gearAirJumps, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, reelReady, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
+import { SLAM, WALL_RUN } from './gear';
+import { castHooks } from './kit';
+import { applySkillLanguage, blurb, hud, onLang, t as T } from './i18n';
+import { SETTINGS, initUi, invUi, paintArt, onSettings, renderInventory } from './ui';
+import { loadArtIndex, skillIcon } from './icons';
 import { killLog, xpLog, cardText, currentOffer, grantXp, pickCard, prog, resetProgression, rewardKill, tier3Open, xpNeeded } from './progression';
 
 // ---- Tuning (movement and camera) -------------------------------------------
@@ -56,6 +62,29 @@ const MOVE = {
   coyoteTime: 0.1,
 };
 const STEP_DOWN = 0.45;
+/**
+ * S4 League style movement: a breath (stamina) bar pays for chained dashes and sprinting,
+ * a jump right after a dash becomes a long dash-jump, everyone has a double jump and can kick off walls.
+ * Leg gear adds air jumps, wall running (medium) or a ground slam (heavy).
+ */
+const S4 = {
+  spMax: 100,
+  spRegen: 34,
+  /** Breath starts coming back this long after the last dash or sprint. */
+  spDelay: 0.55,
+  dashCost: 26,
+  /** Shortest gap between two chained dashes. */
+  dashLock: 0.16,
+  sprintMult: 1.55,
+  sprintDrain: 15,
+  /** Holding Shift this long while moving turns into a sprint. */
+  sprintHold: 0.22,
+  dashJumpWindow: 0.22,
+  dashJumpSpeed: 12,
+  doubleJump: 8.6,
+  wallKick: { up: 9.5, out: 8, max: 3 },
+  flipTime: 0.42,
+};
 const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
 // Right-click aim: closer over-the-shoulder view with zoom and slower movement.
 const AIM = { distance: 2.8, shoulder: 1.15, fov: 0.55, moveMult: 0.55, blendSpeed: 12 };
@@ -90,7 +119,8 @@ placeHouses(scene, world)
 placeProps(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('Street props failed to load', e));
-$('seed').textContent = `Şehir #${seed} · N: yeni şehir${DEBUG ? ' · L seviye · B boss · K para' : ''}`;
+const seedText = () => ($('seed').textContent = `${T('city')} #${seed} · ${T('newCity')}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
+seedText();
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
 camera.inputs.clear();
@@ -120,7 +150,22 @@ for (const m of pBody.meshes) m.isPickable = false;
 const ctl = {
   grounded: true,
   sinceGrounded: 0,
-  airDashUsed: false,
+  sp: 100,
+  spIdle: 0,
+  airJumps: 1,
+  airDashes: 1,
+  wallKicks: 3,
+  dashLock: 0,
+  shiftHeld: 0,
+  sprinting: false,
+  sinceDash: 9,
+  velH: new Vector3(),
+  flipT: 0,
+  flipDir: 1,
+  wallRunT: 0,
+  wallRunDone: false,
+  wallN: new Vector3(),
+  slamming: false,
   weapon: 'ranged' as Weapon,
   fireCd: 0,
   dashT: 0,
@@ -215,9 +260,13 @@ setHost({
 });
 
 // Class rules for damage: the kit first (evasion, spell shield), then any shield points.
-MODS.outgoing = (t, d, src, opts) => kit.outgoing?.(t, d, src, opts) ?? { dmg: d, crit: false };
+MODS.outgoing = (t, d, src, opts) => {
+  const o = kit.outgoing?.(t, d, src, opts) ?? { dmg: d, crit: false };
+  return { dmg: gearOutgoing(t, o.dmg, src), crit: o.crit };
+};
 MODS.incoming = (d, src) => {
   let dmg = kit.incoming ? kit.incoming(d, src) : d;
+  if (dmg > 0) dmg = gearIncoming(dmg, src);
   if (dmg > 0 && P.shield > 0) {
     const absorbed = Math.min(P.shield, dmg);
     P.shield -= absorbed;
@@ -225,7 +274,27 @@ MODS.incoming = (d, src) => {
   }
   return dmg;
 };
-MODS.afterHit = (t, d, src) => kit.afterHit?.(t, d, src);
+MODS.afterHit = (t, d, src) => {
+  kit.afterHit?.(t, d, src);
+  gearAfterHit(t, d, src);
+};
+castHooks.onCast = () => stopBandage(true);
+
+/** The wall the player touches (its outward normal), if any. */
+function wallNormal(): Vector3 | null {
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const d = new Vector3(Math.sin(a), 0, Math.cos(a));
+    const p = player.pos.add(d.scale(player.radius + 0.35)).addInPlaceFromFloats(0, 1.0, 0);
+    if (pointHitsObstacle(p, world.boxes)) return d.scale(-1);
+  }
+  return null;
+}
+
+function flip(dir: number) {
+  ctl.flipT = S4.flipTime;
+  ctl.flipDir = dir;
+}
 
 // ---- Player update -------------------------------------------------------------
 function updatePlayer(dt: number) {
@@ -250,31 +319,113 @@ function updatePlayer(dt: number) {
     }
   });
 
-  ctl.dashCd -= dt;
   const dash = kit.dash;
-  if (!stunned && input.consume('ShiftLeft', 'ShiftRight') && ctl.dashCd <= 0 && (ctl.grounded || !ctl.airDashUsed)) {
+  if (input.consume('KeyX')) {
+    const why = tryBandage();
+    if (why) toast(why);
+  }
+  if (input.consume('KeyG') && !tryReel() && INV.set >= 5) toast(T('reel'));
+  // Shift: a tap dashes (chain them while breath lasts), holding it sprints.
+  const shiftDown = input.keys.has('ShiftLeft') || input.keys.has('ShiftRight');
+  ctl.dashLock -= dt;
+  ctl.sinceDash += dt;
+  ctl.shiftHeld = shiftDown ? ctl.shiftHeld + dt : 0;
+  const cost = S4.dashCost * gearDashCost();
+  if (!stunned && input.consume('ShiftLeft', 'ShiftRight') && ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0)) {
     ctl.dashDir = move.lengthSquared() > 0 ? move.clone() : fwd.clone();
     ctl.dashT = dash.time;
-    ctl.dashCd = dash.cd;
+    ctl.dashLock = S4.dashLock;
+    ctl.sp -= cost;
+    ctl.spIdle = 0;
+    ctl.sinceDash = 0;
+    ctl.velH.setAll(0);
+    ctl.wallRunT = 0;
+    stopBandage(true);
     kit.onDash?.();
     dashFx(true);
-    if (!ctl.grounded) ctl.airDashUsed = true;
+    if (!ctl.grounded) ctl.airDashes -= 1;
     player.velY = Math.max(player.velY, 0);
   }
-  if (!stunned && input.consume('Space') && (ctl.grounded || ctl.sinceGrounded < MOVE.coyoteTime) && ctl.dashT <= 0) {
-    player.velY = MOVE.jumpSpeed;
-    ctl.grounded = false;
-    ctl.sinceGrounded = MOVE.coyoteTime;
+  ctl.sprinting = !stunned && shiftDown && ctl.shiftHeld > S4.sprintHold && move.lengthSquared() > 0 && ctl.grounded && ctl.sp > 0 && ctl.dashT <= 0 && !isAiming() && INV.bandT <= 0;
+  if (ctl.sprinting) {
+    ctl.sp = Math.max(0, ctl.sp - S4.sprintDrain * dt);
+    ctl.spIdle = 0;
+  } else if (ctl.dashT <= 0) {
+    ctl.spIdle += dt;
+    if (ctl.spIdle > S4.spDelay) ctl.sp = Math.min(S4.spMax, ctl.sp + S4.spRegen * dt);
+  }
+
+  // Jumps: ground jump, dash-jump, wall run jump-off, wall kick, double jump.
+  if (!stunned && input.consume('Space')) {
+    const wn = ctl.grounded ? null : wallNormal();
+    if (ctl.wallRunT > 0) {
+      player.velY = WALL_RUN.jumpOff;
+      ctl.velH = ctl.wallN.scale(7).add(fwd.scale(4));
+      ctl.wallRunT = 0;
+      flip(-1);
+    } else if (ctl.grounded || ctl.sinceGrounded < MOVE.coyoteTime) {
+      if (ctl.dashT > 0 || ctl.sinceDash < S4.dashJumpWindow) {
+        // Dash-jump: keep the dash's speed for a long, low leap.
+        player.velY = MOVE.jumpSpeed * 0.85;
+        ctl.velH = ctl.dashDir.scale(S4.dashJumpSpeed);
+        if (ctl.dashT > 0) dashFx(false);
+        ctl.dashT = 0;
+        flip(1);
+      } else player.velY = MOVE.jumpSpeed;
+      ctl.grounded = false;
+      ctl.sinceGrounded = MOVE.coyoteTime;
+      ctl.airJumps = gearAirJumps();
+      ctl.airDashes = gearAirDashes();
+      ctl.wallKicks = S4.wallKick.max;
+    } else if (wn && ctl.wallKicks > 0) {
+      player.velY = S4.wallKick.up;
+      ctl.velH = wn.scale(S4.wallKick.out).add(move.scale(2));
+      ctl.wallKicks -= 1;
+      ringFx(player.pos.add(wn.scale(-0.4)), 0.5, kit.dash.color, 0.25);
+      flip(-1);
+    } else if (ctl.airJumps > 0) {
+      player.velY = S4.doubleJump;
+      ctl.airJumps -= 1;
+      ringFx(player.pos, 0.7, kit.dash.color, 0.3);
+      flip(1);
+    }
+  }
+  // Heavy legs: drop and slam (Ctrl or C in the air).
+  if (!stunned && !ctl.grounded && !ctl.slamming && input.consume('ControlLeft', 'KeyC') && slamReady() && gearSlam() > 0) {
+    ctl.slamming = true;
+    ctl.wallRunT = 0;
+    ctl.velH.setAll(0);
+    player.velY = -SLAM.fallSpeed;
+  }
+  // Medium legs: touching a wall in the air while moving starts a wall run.
+  if (gearWallRun() > 0 && !ctl.grounded && ctl.wallRunT <= 0 && !ctl.wallRunDone && !ctl.slamming && move.lengthSquared() > 0 && ctl.dashT <= 0) {
+    const wn = wallNormal();
+    if (wn && Math.abs(Vector3.Dot(wn, fwd)) < 0.6) {
+      ctl.wallRunT = gearWallRun();
+      ctl.wallN = wn;
+      ctl.wallRunDone = true;
+      player.velY = Math.max(player.velY, 1.5);
+    }
   }
 
   if (ctl.dashT > 0) {
     ctl.dashT -= dt;
     player.pos.addInPlace(ctl.dashDir.scale(dash.speed * dt));
+    dashTouch(ctl.dashDir);
     if (ctl.dashT <= 0) dashFx(false);
+  } else if (ctl.wallRunT > 0) {
+    const along = fwd.subtract(ctl.wallN.scale(Vector3.Dot(fwd, ctl.wallN)));
+    if (along.lengthSquared() > 0.01) player.pos.addInPlace(along.normalize().scale(WALL_RUN.speed * dt));
+    player.pos.addInPlace(ctl.wallN.scale(-0.5 * dt));
+    player.velY -= WALL_RUN.gravity * dt;
+    ctl.wallRunT -= dt;
+    if (!wallNormal()) ctl.wallRunT = 0;
   } else {
     const slow = player.slowT > 0 ? player.slowMul : 1;
-    const speed = stunned ? 0 : MOVE.speed * kit.speedMult() * slow * (ctl.grounded ? 1 : MOVE.airControl) * (isAiming() ? AIM.moveMult : 1);
-    player.pos.addInPlace(move.scale(speed * dt));
+    const run = ctl.sprinting ? S4.sprintMult : 1;
+    const speed = stunned || ctl.slamming ? 0 : MOVE.speed * kit.speedMult() * gearSpeedMult() * run * slow * (ctl.grounded ? 1 : MOVE.airControl) * (isAiming() ? AIM.moveMult : 1);
+    player.pos.addInPlace(move.scale(speed * dt)).addInPlace(ctl.velH.scale(dt));
+    ctl.velH.scaleInPlace(Math.max(0, 1 - (ctl.grounded ? 10 : 1.2) * dt));
     player.velY -= MOVE.gravity * dt;
   }
   resolveWalls(player.pos, player.radius, player.height, world.boxes);
@@ -294,9 +445,18 @@ function updatePlayer(dt: number) {
   if (player.pos.y <= floor && player.velY <= 0) {
     player.pos.y = floor;
     player.velY = 0;
+    if (!ctl.grounded && ctl.slamming) {
+      landSlam();
+      addShake(0.35);
+    }
+    ctl.slamming = false;
     ctl.grounded = true;
     ctl.sinceGrounded = 0;
-    ctl.airDashUsed = false;
+    ctl.airJumps = gearAirJumps();
+    ctl.airDashes = gearAirDashes();
+    ctl.wallKicks = S4.wallKick.max;
+    ctl.wallRunT = 0;
+    ctl.wallRunDone = false;
   } else if (player.pos.y > floor + 0.02 || player.velY > 0) {
     if (ctl.grounded && player.velY <= 0 && player.pos.y - floor < STEP_DOWN) player.pos.y = floor;
     else {
@@ -309,19 +469,21 @@ function updatePlayer(dt: number) {
   ctl.aimTime = isAiming() ? ctl.aimTime + dt : 0;
   ctl.fireCd -= dt;
   if (!stunned && input.firing && ctl.fireCd <= 0) {
-    ctl.fireCd = kit.attack(ctl.weapon);
+    stopBandage(true);
+    ctl.fireCd = kit.attack(ctl.weapon) / gearAtkMult();
     if (ctl.weapon === 'ranged') crosshairKick = 1;
   }
   // Health comes back out of combat.
   if (G.time - player.lastCombat > kit.stats.regenDelay && !(player.ai?.noHealT > G.time)) player.hp = Math.min(player.maxHp, player.hp + kit.stats.regenPerSec * dt);
   kit.update(dt, ctl.moving, ctl.grounded);
+  updateInventory(dt);
   // Player animation: every class has its own dash.
   if (pBody.play) {
     if (ctl.dashT > 0) pBody.play(dash.anim, 1.5);
     else if (!ctl.grounded) pBody.play('jump');
     else if (move.lengthSquared() > 0 && !stunned) {
-      if (isAiming() || player.slowT > 0) pBody.play('walk', 1.2);
-      else pBody.play('run', kit.speedMult());
+      if (isAiming() || player.slowT > 0 || INV.bandT > 0) pBody.play('walk', 1.2);
+      else pBody.play('run', kit.speedMult() * (ctl.sprinting ? 1.45 : 1));
     } else pBody.play('idle');
   }
 }
@@ -379,8 +541,37 @@ function updateCamera(dt: number) {
   if (vis === 0) fade = Math.min(fade, 0.2);
   else if (vis < 1 || playerFaded()) fade = Math.min(fade, 0.55);
   if (blinkHidden) fade = 0;
+  poseBody(dt);
   for (const m of pBody.meshes) m.visibility = fade;
   if (weaponNodes) for (const n of Object.values(weaponNodes)) for (const m of n.getChildMeshes()) m.visibility = fade;
+}
+
+/** Flips, wall-run lean, sprint lean and slam dive on top of the body animation. */
+function poseBody(dt: number) {
+  ctl.flipT = Math.max(0, ctl.flipT - dt);
+  let rx = 0;
+  let rz = 0;
+  let up = 0;
+  let fw = 0;
+  if (ctl.flipT > 0) {
+    const k = 1 - ctl.flipT / S4.flipTime;
+    // Ease out so the flip snaps and settles.
+    const a = ctl.flipDir * (1 - (1 - k) * (1 - k)) * Math.PI * 2;
+    const h = 0.9;
+    rx = a;
+    up = h * (1 - Math.cos(a));
+    fw = -h * Math.sin(a);
+  } else if (ctl.wallRunT > 0) {
+    const side = Vector3.Dot(ctl.wallN, rightFromYaw(player.yaw));
+    rz = side > 0 ? -0.42 : 0.42;
+  } else if (ctl.slamming) rx = 0.55;
+  else if (ctl.sprinting) rx = 0.14;
+  else if (ctl.dashT > 0) rx = 0.22;
+  const r = pBody.root;
+  r.rotation.x += (rx - r.rotation.x) * (ctl.flipT > 0 ? 1 : Math.min(1, dt * 14));
+  r.rotation.z += (rz - r.rotation.z) * Math.min(1, dt * 12);
+  if (up || fw) r.position.copyFrom(player.pos.add(forwardFromYaw(player.yaw).scale(fw)).addInPlaceFromFloats(0, up, 0));
+  else r.position.copyFrom(player.pos);
 }
 
 // ---- HUD ---------------------------------------------------------------------------
@@ -424,10 +615,11 @@ function feed(text: string) {
 type Num = { el: HTMLDivElement; pos: Vector3; t: number };
 let nums: Num[] = [];
 G.hooks.number = (pos, amount, style) => {
+  if (!SETTINGS.numbers) return;
   if (style === 'hit' && amount < 0.5) return;
   const el = document.createElement('div');
   el.className = `num ${style}`;
-  el.textContent = style === 'block' ? 'BLOK' : style === 'crit' ? `${Math.round(amount)} SIRT!` : `${Math.round(amount)}`;
+  el.textContent = style === 'block' ? (T('level') === 'Sv' ? 'BLOK' : 'BLOCK') : style === 'crit' ? `${Math.round(amount)}!` : `${Math.round(amount)}`;
   $('numbers').appendChild(el);
   nums.push({ el, pos: pos.add(new Vector3((Math.random() - 0.5) * 0.4, 0.3, 0)), t: 0.9 });
 };
@@ -463,8 +655,8 @@ function renderSlots() {
     const el = document.createElement('div');
     el.className = `slot${s ? '' : ' empty'}`;
     el.innerHTML = s
-      ? `<div class="cd"></div><span class="charges"></span><span class="cdtext"></span><span class="key">${k.label}</span><span class="name">${def(s.id).name}</span><span class="pips">${[1, 2, 3].map((t) => `<i class="${t <= s.tier ? 'on' : ''}"></i>`).join('')}</span>`
-      : `<span class="key">${k.label}</span><span class="name">boş</span>`;
+      ? `<div class="icon">${skillIcon(s.id, def(s.id).name, kit.id)}</div><div class="cd"></div><span class="charges"></span><span class="cdtext"></span><span class="key">${k.label}</span><span class="name">${def(s.id).name}</span><span class="pips">${[1, 2, 3].map((t) => `<i class="${t <= s.tier ? 'on' : ''}"></i>`).join('')}</span>`
+      : `<span class="key">${k.label}</span><span class="name">${T('empty')}</span>`;
     slotsEl.appendChild(el);
   });
 }
@@ -493,17 +685,26 @@ function fmtTime(t: number) {
 function updateHud(dt: number) {
   $('hp-fill').style.width = `${(Math.max(0, player.hp) / player.maxHp) * 100}%`;
   $('hp-text').textContent = `${Math.ceil(Math.max(0, player.hp))} / ${player.maxHp}`;
-  $('weapon').textContent = `${kit.weaponText(ctl.weapon)} (F)`;
-  $('dash-fill').style.width = `${Math.min(1, 1 - ctl.dashCd / kit.dash.cd) * 100}%`;
-  $('level').textContent = `Sv ${player.level}${player.level >= MAX_LEVEL ? ' (max)' : ''}`;
-  $('money').textContent = `Para ${PS.currency}`;
-  $('kills').textContent = `${PS.kills} leş`;
+  $('weapon').textContent = `${hud(kit.weaponText(ctl.weapon))} (F)`;
+  $('sp-fill').style.width = `${(ctl.sp / S4.spMax) * 100}%`;
+  $('sp-fill').parentElement!.classList.toggle('low', ctl.sp < S4.dashCost * gearDashCost());
+  const band = bandageShare();
+  ($('band-ring').firstElementChild as SVGCircleElement).style.strokeDasharray = `${band * 119.4} 200`;
+  const bcd = bandageCdShare();
+  $('band').classList.toggle('cool', bcd > 0);
+  $('band-cd').textContent = bcd > 0 ? `${Math.ceil(INV.bandCd)}` : '';
+  $('reel').classList.toggle('hidden', INV.set < 5);
+  $('reel').classList.toggle('ready', reelReady());
+  $('reel-cd').textContent = INV.reelCd > 0 ? `${Math.ceil(INV.reelCd)}` : '';
+  $('level').textContent = `${T('level')} ${player.level}${player.level >= MAX_LEVEL ? ` (${T('max')})` : ''}`;
+  $('money').textContent = `${T('money')} ${PS.currency}`;
+  $('kills').textContent = `${PS.kills} ${T('kills')}`;
   const need = xpNeeded(player.level);
   $('xp-fill').style.width = need ? `${(player.xp / need) * 100}%` : '100%';
-  $('xp-text').textContent = need ? `${Math.floor(player.xp)} / ${need} XP` : 'Maksimum seviye';
+  $('xp-text').textContent = need ? `${Math.floor(player.xp)} / ${need} XP` : T('maxLevel');
   $('timer').textContent = fmtTime(G.time);
   $('pick-hint').classList.toggle('hidden', prog.pending <= 0);
-  $('pick-hint').innerHTML = `Seviye atladın! ${prog.pending > 1 ? `${prog.pending} kart` : 'Kart'} seçmek için <b>Tab</b>`;
+  $('pick-hint').innerHTML = `${T('levelUp')} <b>Tab</b> ${prog.pending > 1 ? `${prog.pending} ${T('cards')}` : T('card')} ${T('pickCards')}`;
   crosshair.classList.toggle('hit', hitMarkerT > 0);
   crosshair.classList.toggle('kill', killMarkerT > 0);
   crosshairKick = Math.max(0, crosshairKick - dt * 6);
@@ -513,10 +714,11 @@ function updateHud(dt: number) {
   crosshair.classList.toggle('aim', aimBlend > 0.5);
 
   const buffs: string[] = kit.buffs();
-  if (P.shield > 0) buffs.push(`Kalkan ${Math.ceil(P.shield)}`);
-  if (player.stunT > 0) buffs.push('Sersem!');
-  if (inCombat(player)) buffs.push('Savaşta');
-  $('buffs').textContent = buffs.join(' · ');
+  if (P.shield > 0) buffs.push(`${T('shield')} ${Math.ceil(P.shield)}`);
+  if (player.stunT > 0) buffs.push(T('stunned'));
+  if (inCombat(player)) buffs.push(T('inCombat'));
+  if (INV.bandT > 0) buffs.push(T('bandaging'));
+  $('buffs').textContent = hud(buffs.join(' · '));
 
   if (boss?.alive) {
     $('boss').classList.remove('hidden');
@@ -524,7 +726,7 @@ function updateHud(dt: number) {
   } else $('boss').classList.add('hidden');
 
   const t = targetUnderCrosshair(70, 4, (u) => u !== player);
-  $('target').textContent = t ? (t.kind === 'decoy' ? `Kopyan (${t.name})` : t.kind === 'pet' ? t.name : t.kind === 'mob' || t.kind === 'boss' ? t.name : `${t.name} · Sv ${t.level}`) : '';
+  $('target').textContent = t ? (t.kind === 'decoy' ? `${T('yourCopy')} (${t.name})` : t.kind === 'pet' ? t.name : t.kind === 'mob' || t.kind === 'boss' ? t.name : `${t.name} · ${T('level')} ${t.level}`) : '';
 
   toastT -= dt;
   if (toastT <= 0) $('toast').style.opacity = '0';
@@ -548,19 +750,20 @@ function openCards() {
     const el = document.createElement('div');
     el.className = `card${c.locked ? ' locked' : ''}`;
     el.innerHTML = `
-      <div class="tag ${c.isNew ? 'new' : ''}">${c.isNew ? 'Yeni yetenek' : `Seviye ${c.tier}`}</div>
+      <div class="seal-wrap">${skillIcon(c.id, txt.name, kit.id)}</div>
+      <div class="tag ${c.isNew ? 'new' : ''}">${c.isNew ? T('newSkill') : `${T('tier')} ${c.tier}`}</div>
       <h3>${txt.name}</h3>
       ${c.isNew ? `<div class="desc">${txt.desc}</div>` : ''}
-      <div class="tier">Seviye ${c.tier}: ${txt.tier}</div>
-      ${c.cost ? `<div class="cost">Token: ${c.cost} para${c.locked ? ` (sende ${PS.currency})` : ''}</div>` : ''}
-      <div class="key">${c.locked ? c.locked : `Seç: ${i + 1} ya da tıkla`}</div>`;
+      <div class="tier">${T('tier')} ${c.tier}: ${txt.tier}</div>
+      ${c.cost ? `<div class="cost">${T('token', { c: c.cost })}${c.locked ? ` (${T('youHave', { c: PS.currency })})` : ''}</div>` : ''}
+      <div class="key">${c.locked ? c.locked : T('pickKey', { n: i + 1 })}</div>`;
     el.addEventListener('click', () => choose(i));
     row.appendChild(el);
   });
-  if (!offer.length) row.innerHTML = '<p>Tüm yeteneklerin en üst seviyede.</p>';
+  if (!offer.length) row.innerHTML = `<p>${T('allMax')}</p>`;
   $('tier-rule').textContent = tier3Open()
-    ? `3. seviye açık (token ${TOKEN_PRICE} para)`
-    : `3. seviye için en az 3 yetenek 2. seviyede olmalı (şu an ${skills.filter((s) => s.tier >= 2).length})`;
+    ? T('tier3Open', { c: TOKEN_PRICE })
+    : T('tier3Rule', { n: skills.filter((s) => s.tier >= 2).length });
 }
 
 function closeCards() {
@@ -577,6 +780,42 @@ function choose(i: number) {
 }
 
 $('card-close').addEventListener('click', closeCards);
+
+// ---- Bag (I) ---------------------------------------------------------------------------
+invUi.open = () => {
+  $('inventory').classList.remove('hidden');
+  renderInventory();
+  if (document.pointerLockElement) document.exitPointerLock();
+};
+invUi.close = () => {
+  if (!invUi.isOpen()) return;
+  $('inventory').classList.add('hidden');
+  input.lock();
+};
+window.addEventListener('keydown', (e) => {
+  if (!invUi.isOpen()) return;
+  if (e.code === 'KeyI' || e.code === 'Escape' || e.code === 'Tab') invUi.close();
+  input.consume(e.code);
+});
+
+// ---- Language and settings ----------------------------------------------------------------
+initUi();
+applySkillLanguage(allKits());
+onLang(() => {
+  applySkillLanguage(allKits());
+  slotKey = '';
+  seedText();
+  if (!started) buildStyles();
+  if (!running && !dead) playBtn.textContent = !ready ? T('loading') : started ? T('resume') : T('play');
+});
+onSettings(() => {
+  input.sensitivity = 0.0022 * SETTINGS.sens;
+  CAMERA.fov = SETTINGS.fov;
+});
+loadArtIndex().then(() => {
+  slotKey = '';
+  paintArt();
+});
 window.addEventListener('keydown', (e) => {
   if (!cardsOpen) return;
   if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3') choose(Number(e.code.slice(5)) - 1);
@@ -587,6 +826,7 @@ window.addEventListener('keydown', (e) => {
 // ---- Kills -------------------------------------------------------------------------
 G.hooks.kill = (killer, victim) => {
   const xp = rewardKill(killer, victim);
+  gearOnKill(killer, victim);
   const credit = killer?.kind === 'decoy' || killer?.kind === 'pet' ? killer.owner : killer;
   if (credit === player && victim !== player && victim.kind !== 'decoy' && victim.kind !== 'pet') {
     killMarkerT = 0.35;
@@ -595,9 +835,9 @@ G.hooks.kill = (killer, victim) => {
   if (victim.kind === 'bot') botDied(victim);
   if (victim === player) return die(killer);
   if (victim.kind === 'decoy' || victim.kind === 'pet') return;
-  const kName = killer ? (killer === player ? 'Sen' : killer.name) : 'Zehir';
+  const kName = killer ? (killer === player ? T('you') : killer.name) : T('poison');
   if (victim.kind !== 'mob' || killer === player) feed(`${kName} ▸ ${victim.name}${killer === player && xp ? `  +${xp} XP` : ''}`);
-  if (victim.kind === 'boss') toast(killer === player ? "Zombi Devi'ni sen devirdin!" : `${kName} Zombi Devi'ni devirdi`, 2.5);
+  if (victim.kind === 'boss') toast(killer === player ? T('bossDown') : T('bossDownBy', { n: kName }), 2.5);
 };
 
 // ---- Match ---------------------------------------------------------------------------
@@ -607,16 +847,17 @@ let dead = false;
 let styleIndex = 0;
 
 function levelLog() {
-  const lines = prog.levelTimes.map((l) => `Sv ${l.level}: ${fmtTime(l.t)}`);
-  return lines.length ? `Seviye zamanları\n${lines.join('\n')}` : '';
+  const lines = prog.levelTimes.map((l) => `${T('level')} ${l.level}: ${fmtTime(l.t)}`);
+  return lines.length ? `${T('levelTimes')}\n${lines.join('\n')}` : '';
 }
 
 function die(killer: Unit | null) {
   dead = true;
   running = false;
   if (document.pointerLockElement) document.exitPointerLock();
-  overlayText.textContent = `Öldün${killer && killer !== player ? ` (${killer.name})` : ''}. Süre ${fmtTime(G.time)}, seviye ${player.level}, ${PS.kills} leş.`;
-  playBtn.textContent = 'Tekrar oyna';
+  overlayText.textContent = `${T('died')}${killer && killer !== player ? ` (${killer.name})` : ''}. ${T('diedLine', { t: fmtTime(G.time), l: player.level, k: PS.kills })}`;
+  playBtn.textContent = T('again');
+  overlay.classList.add('paused');
   $('summary').textContent = levelLog();
   overlay.classList.remove('hidden');
 }
@@ -630,7 +871,7 @@ function buildStyles() {
   for (const k of allKits()) {
     const b = document.createElement('button');
     b.className = `style class${k.id === kit.id ? ' on' : ''}`;
-    b.innerHTML = `<b>${k.name}</b><span>${k.blurb}</span>`;
+    b.innerHTML = `<b>${k.name}</b><span>${blurb(k)}</span>`;
     b.addEventListener('click', () => {
       if (k.id === kit.id) return;
       setKit(k.id);
@@ -646,7 +887,7 @@ function buildStyles() {
   kit.playstyles.forEach((s, i) => {
     const b = document.createElement('button');
     b.className = `style${i === styleIndex ? ' on' : ''}`;
-    b.innerHTML = `<b>${s.name}</b><span>Başlangıç: ${kit.skills[s.skill].name}</span>`;
+    b.innerHTML = `<b>${s.name}</b><span>${T('start')}: ${kit.skills[s.skill].name}</span>`;
     b.addEventListener('click', () => {
       styleIndex = i;
       buildStyles();
@@ -656,7 +897,7 @@ function buildStyles() {
   box.appendChild(styles);
   const pass = document.createElement('div');
   pass.className = 'passives';
-  pass.textContent = `Pasifler: ${kit.passives.join(' · ')} · Silahlar: ${kit.weaponNames.ranged}, ${kit.weaponNames.melee}`;
+  pass.textContent = `${T('passives')}: ${kit.passives.join(' · ')} · ${T('weapons')}: ${kit.weaponNames.ranged}, ${kit.weaponNames.melee}`;
   box.appendChild(pass);
 }
 buildStyles();
@@ -669,6 +910,7 @@ function resetMatch() {
   G.time = 0;
   resetKit();
   resetProgression();
+  ctl.sp = S4.spMax;
   MODS.damagePerLevel = kit.stats.damagePerLevel;
   Object.assign(PS, { kills: 0, currency: 0 });
   player.pos.set(0, groundHeight(new Vector3(0, 0.3, 0), player.radius, world.boxes), 0);
@@ -677,6 +919,8 @@ function resetMatch() {
   player.level = 1;
   player.xp = 0;
   player.maxHp = kit.stats.maxHp;
+  player.hp = player.maxHp;
+  resetInventory();
   player.hp = player.maxHp;
   input.yaw = 0;
   input.pitch = -0.12;
@@ -697,10 +941,11 @@ function start() {
     setWeapon(style.weapon);
     $('styles').classList.add('hidden');
     overlayText.textContent = '';
-    toast(`${kit.name} · ${style.name}: ${kit.skills[style.skill].name} ile başladın`, 2.5);
+    toast(T('startedWith', { c: kit.name, s: style.name, k: kit.skills[style.skill].name }), 2.5);
   }
   running = true;
   overlay.classList.add('hidden');
+  overlay.classList.add('paused');
 }
 
 playBtn.addEventListener('click', () => {
@@ -710,10 +955,11 @@ playBtn.addEventListener('click', () => {
 });
 
 document.addEventListener('pointerlockchange', () => {
-  if (!input.locked && running && !cardsOpen && !dead) {
+  if (!input.locked && running && !cardsOpen && !invUi.isOpen() && !dead) {
     running = false;
-    overlayText.textContent = 'Duraklatıldı.';
-    playBtn.textContent = 'Devam et';
+    overlayText.textContent = T('paused');
+    playBtn.textContent = T('resume');
+    overlay.classList.add('paused');
     $('summary').textContent = levelLog();
     overlay.classList.remove('hidden');
   }
@@ -722,7 +968,7 @@ document.addEventListener('pointerlockchange', () => {
 // Characters (Kenney survivors and zombies) load first; the match is set up once they are in.
 let ready = false;
 playBtn.disabled = true;
-playBtn.textContent = 'Yükleniyor…';
+playBtn.textContent = T('loading');
 loadCharacterKits(scene)
   .catch((e) => console.error('Character kit failed to load', e))
   .then(() => {
@@ -730,7 +976,7 @@ loadCharacterKits(scene)
     resetMatch();
     ready = true;
     playBtn.disabled = false;
-    playBtn.textContent = 'Oyna';
+    playBtn.textContent = T('play');
   });
 setWeapon('ranged');
 updateCamera(1);
@@ -749,8 +995,9 @@ function simStep(dt: number) {
 
 engine.runRenderLoop(() => {
   const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
-  if (running && !cardsOpen && input.consume('Tab') && prog.pending > 0) openCards();
-  const live = running && !cardsOpen;
+  if (running && !cardsOpen && !invUi.isOpen() && input.consume('Tab') && prog.pending > 0) openCards();
+  if (running && !cardsOpen && !invUi.isOpen() && input.consume('KeyI')) invUi.open();
+  const live = running && !cardsOpen && !invUi.isOpen();
   if (live) {
     if (input.consume('KeyN')) {
       location.search = '';
@@ -814,6 +1061,10 @@ window.addEventListener('resize', () => engine.resize());
     });
   },
   setWeapon,
+  gear: (w: 'light' | 'medium' | 'heavy' | 'noir', r: 'common' | 'rare' | 'epic' | 'legendary' = 'epic') => debugKit(w, r),
+  inv: () => ({ load: INV.load, bag: INV.bag, s: INV.s, set: INV.set, bandT: INV.bandT, bandCd: INV.bandCd }),
+  move: () => ({ sp: ctl.sp, dashT: ctl.dashT, airJumps: ctl.airJumps, wallRunT: ctl.wallRunT, sprinting: ctl.sprinting, grounded: ctl.grounded }),
+  dropItem: (id: string, rarity: 'common' | 'rare' | 'epic' | 'legendary' = 'rare') => spawnDrop({ id, rarity, xp: 0 }, player.pos.add(new Vector3(0, 0, 0.5))),
   orbs: (n: number) => (P.orbs = n),
   /** Hold the player in a pose (for screenshots): plays the animation, then freezes it. */
   pose: (anim: string, at = 0.15) => {

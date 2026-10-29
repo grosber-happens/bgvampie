@@ -1,0 +1,11 @@
+400 maç, 192 sn. Süre ort 25.9 dk
+Rogue    kazanma 21%   sıra 11.1  K/D 0.76  tarz sırası: yakın 13.8, uzak 9.4, aldatmaca 9.9
+Mage     kazanma 28%   sıra 9.4  K/D 1.09  tarz sırası: yerçekimi 8.4, lazer 8.1, nano 11.9
+Fighter  kazanma 30%   sıra 10.6  K/D 1.06  tarz sırası: çift kılıç 10.0, mızrakçı 10.9, kale 10.9
+Scout    kazanma 22%   sıra 10.9  K/D 0.98  tarz sırası: nişancı 8.9, vahşi 14.2, sürü 9.9
+Seviye (yaşayanlar): 10dk 4.9 · 15dk 7.1 · 20dk 8.9 · 25dk 10.5 | ilk L12 ort 18.5 dk (288/400 maç) | kazanan seviyesi 11.4
+XP payı: mob 78%, oyuncu 9%, boss 13%
+Boss öldürülme: 5dk Kök Ana 99%, 5dk Kum Solucanı Ana 97%, 11dk Hurda Devi 100%, 11dk Gümüş Sırt Şaman 99%, 16dk Kök Ana 73%, 16dk Kum Solucanı Ana 70%, 21dk Kızıl Kontes 47%
+Düello L3: Rogue 44% · Mage 61% · Fighter 54% · Scout 40%
+Düello L7: Rogue 50% · Mage 56% · Fighter 46% · Scout 48%
+Düello L12: Rogue 54% · Mage 44% · Fighter 41% · Scout 61%

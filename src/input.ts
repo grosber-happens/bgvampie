@@ -10,7 +10,7 @@ export class Input {
   locked = false;
   /** Keys pressed since the last frame (one entry per press, key repeat ignored). */
   private presses = new Set<string>();
-  private sensitivity = 0.0022;
+  sensitivity = 0.0022;
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', (e) => {

@@ -14,7 +14,7 @@ pnpm build    # typecheck + production build in dist/public
 
 ## Controls
 
-WASD move · mouse aim · left click attack · F switch melee/ranged · R reload · Q, E, 1, 2, 3 skills · Shift dash · Space jump · Tab level-up cards · Esc pause
+WASD move · mouse aim · left click attack · F switch melee/ranged · R reload · Q, E, 1, 2, 3 skills · Shift tap dash (chains on breath) · Shift hold sprint · Space jump, double jump, wall kick · Ctrl/C in the air ground slam (heavy legs) · X bandage · I bag · G Last Reel (Noir set) · Tab level-up cards · Esc pause
 
 `?debug=1` adds test keys: L gives a level, B spawns the boss, K gives 100 currency. `?seed=N` fixes the map.
 
@@ -26,6 +26,9 @@ WASD move · mouse aim · left click attack · F switch melee/ranged · R reload
 - Local bots (Kenney survivors), zombie packs and a zombie boss at minutes 5, 13 and 21
 - Ruined city block with walkable houses (voxelized colliders) and Kenney urban props
 - The player is the hippo model, simplified and animated by `tools/hippo_blender.py`
+
+- Gear: light/medium/heavy armor, rings and necklaces that level up, class weapons and the Noir detective set; title screen, settings and TR/EN (see `docs/GEAR.md`)
+- Painted icons and a title poster made with Artlist (`tools/art/`, cut into `public/art/` by `tools/art/cut.py`)
 
 ## Files
 

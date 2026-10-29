@@ -1,0 +1,16 @@
+Gölge izi silik görüntü: kapalı · 400 tekrar · 50 m arena
+Build      L3     L5     L7     L9     L12    Toplam
+Scout-2    78%    76%    82%    79%    77%    78%
+Scout-1    73%    74%    82%    80%    76%    77%
+Fighter-1  58%    57%    49%    52%    41%    51%
+Mage-1     51%    51%    51%    53%    43%    50%
+Mage-2     46%    51%    48%    42%    28%    43%
+Rogue-1    41%    35%    38%    34%    52%    40%
+Fighter-2  24%    28%    29%    40%    33%    31%
+Rogue-2    30%    28%    23%    20%    50%    30%
+Sınıflar: rogue 35% · mage 46% · fighter 41% · scout 78%
+
+Rogue eşleşmeleri (satırdaki build'in kazanma oranı):
+           Rogue-1    Rogue-2    Mage-1     Mage-2     Fighter-1  Fighter-2  Scout-1    Scout-2    
+Rogue-1    -          59%        48%        52%        35%        66%        9%         11%        
+Rogue-2    41%        -          24%        47%        28%        53%        8%         11%        

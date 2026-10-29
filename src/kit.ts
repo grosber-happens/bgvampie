@@ -191,6 +191,7 @@ export function castSlot(i: number) {
   if (d.weapon && host.weapon() !== d.weapon) host.setWeapon(d.weapon);
   if (d.cast(s)) {
     sfx.skill();
+    castHooks.onCast();
     if (d.orb) P.orbs -= 1;
     s.charges -= 1;
     if (s.cd <= 0) s.cd = d.cooldown(s.tier);
@@ -199,6 +200,7 @@ export function castSlot(i: number) {
 
 /** Refill skill charges over time. */
 export function updateCooldowns(dt: number, rate = 1) {
+  rate *= CDR.rate;
   for (const s of skills) {
     const max = maxCharges(s);
     if (s.charges < max) {
@@ -272,7 +274,14 @@ export function meleeTargets(range: number, arcDeg: number, from: Unit = G.playe
 }
 
 /** Enemies of the player within a radius of a point. */
+/** Gear multipliers: area size (necklaces) and skill cooldown speed. */
+export const AOE = { mult: 1 };
+export const CDR = { rate: 1 };
+/** Called after any skill is cast (the bandage stops). */
+export const castHooks = { onCast: () => {} };
+
 export function enemiesNear(p: Vector3, radius: number, height = 3): Unit[] {
+  radius *= AOE.mult;
   return G.units.filter((u) => enemyOfPlayer(u) && flatDist(u.pos, p) <= radius + u.radius && Math.abs(u.pos.y - p.y) < height);
 }
 

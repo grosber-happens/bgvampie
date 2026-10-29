@@ -24,8 +24,15 @@ export const feel = {
   hurt: 0,
 };
 
+/** Player settings: volume 0..1, camera shake multiplier. */
+export const FEEL_SETTINGS = { volume: 0.5, shake: 1 };
+export function setVolume(v: number) {
+  FEEL_SETTINGS.volume = v;
+  if (master) master.gain.value = v;
+}
+
 export function addShake(amount: number) {
-  feel.shake = Math.min(1, feel.shake + amount);
+  feel.shake = Math.min(1, feel.shake + amount * FEEL_SETTINGS.shake);
 }
 
 export function kick(pitch: number, gun: number, fov: number, shake: number) {
@@ -137,7 +144,7 @@ function audio(): AudioContext | null {
     if (!ctx) {
       ctx = new AudioContext();
       master = ctx.createGain();
-      master.gain.value = 0.5;
+      master.gain.value = FEEL_SETTINGS.volume;
       master.connect(ctx.destination);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);

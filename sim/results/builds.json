@@ -1,0 +1,1518 @@
+{
+ "arena": 50,
+ "levels": [
+  3,
+  5,
+  7,
+  9,
+  12
+ ],
+ "builds": [
+  {
+   "name": "Rogue-1",
+   "label": "Rogue yakın: Wink > Evasion > Kopya yerleştirme > Sprint > Poison",
+   "picks": [
+    "wink",
+    "evasion",
+    "decoy",
+    "wink",
+    "evasion",
+    "decoy",
+    "wink",
+    "sprint",
+    "poison",
+    "evasion",
+    "sprint",
+    "decoy"
+   ]
+  },
+  {
+   "name": "Rogue-2",
+   "label": "Rogue aldatmaca: Kopya yerleştirme > Poison > Evasion > Insane > Detonate",
+   "picks": [
+    "decoy",
+    "poison",
+    "evasion",
+    "decoy",
+    "poison",
+    "evasion",
+    "decoy",
+    "insane",
+    "detonate",
+    "poison",
+    "insane",
+    "evasion"
+   ]
+  },
+  {
+   "name": "Mage-1",
+   "label": "Mage yerçekimi: Gravity > Nano zırh > Suicide bombs > Sunray > Sis",
+   "picks": [
+    "gravity",
+    "armor",
+    "bombs",
+    "gravity",
+    "armor",
+    "bombs",
+    "gravity",
+    "sunray",
+    "fog",
+    "armor",
+    "sunray",
+    "bombs"
+   ]
+  },
+  {
+   "name": "Mage-2",
+   "label": "Mage nano: Nano kollar > Suicide bombs > Gravity > Sunray > Sonic boom",
+   "picks": [
+    "arms",
+    "bombs",
+    "gravity",
+    "arms",
+    "bombs",
+    "gravity",
+    "arms",
+    "sunray",
+    "sonic",
+    "bombs",
+    "sunray",
+    "gravity"
+   ]
+  },
+  {
+   "name": "Fighter-1",
+   "label": "Fighter çift kılıç: İkinci kılıç > Jet sıçrayışı > Hücum > Aşırı güç > Delici mızrak",
+   "picks": [
+    "second",
+    "leap",
+    "charge",
+    "second",
+    "leap",
+    "charge",
+    "second",
+    "overpower",
+    "pierce",
+    "leap",
+    "overpower",
+    "charge"
+   ]
+  },
+  {
+   "name": "Fighter-2",
+   "label": "Fighter mızrakçı: Mızrak yağmuru > Jet sıçrayışı > Delici mızrak > Mızrak geri çağırma > Hücum",
+   "picks": [
+    "rain",
+    "leap",
+    "pierce",
+    "rain",
+    "leap",
+    "pierce",
+    "rain",
+    "recall",
+    "charge",
+    "leap",
+    "recall",
+    "pierce"
+   ]
+  },
+  {
+   "name": "Scout-1",
+   "label": "Scout nişancı: Fast charge > Av emri > Kanca > Smoke bomb > Switch weapons",
+   "picks": [
+    "fast",
+    "hunt",
+    "hook",
+    "fast",
+    "hunt",
+    "hook",
+    "fast",
+    "smoke",
+    "shotgun",
+    "hunt",
+    "smoke",
+    "hook"
+   ]
+  },
+  {
+   "name": "Scout-2",
+   "label": "Scout nişancı: Fast charge > Switch weapons > Kanca > Av emri > Sürü çağrısı",
+   "picks": [
+    "fast",
+    "shotgun",
+    "hook",
+    "fast",
+    "shotgun",
+    "hook",
+    "fast",
+    "hunt",
+    "pack",
+    "shotgun",
+    "hunt",
+    "hook"
+   ]
+  }
+ ],
+ "search": {
+  "rogue": [
+   {
+    "label": "Rogue yakın: Wink > Evasion > Kopya yerleştirme > Sprint > Poison",
+    "score": 0.5933333333333334,
+    "byLevel": [
+     0.5583333333333333,
+     0.5583333333333333,
+     0.525,
+     0.6083333333333333,
+     0.7166666666666667
+    ]
+   },
+   {
+    "label": "Rogue yakın: Wink > Kopya yerleştirme > Evasion > Execute > Insane",
+    "score": 0.5633333333333334,
+    "byLevel": [
+     0.5583333333333333,
+     0.5083333333333333,
+     0.525,
+     0.5,
+     0.725
+    ]
+   },
+   {
+    "label": "Rogue yakın: Wink > Poison > Evasion > Sprint > Kidney shot",
+    "score": 0.5366666666666667,
+    "byLevel": [
+     0.48333333333333334,
+     0.35833333333333334,
+     0.43333333333333335,
+     0.6,
+     0.8083333333333333
+    ]
+   },
+   {
+    "label": "Rogue yakın: Wink > Poison > Kidney shot > Sprint > Görünmezlik",
+    "score": 0.48500000000000004,
+    "byLevel": [
+     0.475,
+     0.48333333333333334,
+     0.5166666666666667,
+     0.4166666666666667,
+     0.5333333333333333
+    ]
+   },
+   {
+    "label": "Rogue yakın: Wink > Kidney shot > Sprint > Evasion > Execute",
+    "score": 0.4833333333333333,
+    "byLevel": [
+     0.45,
+     0.4083333333333333,
+     0.4,
+     0.5333333333333333,
+     0.625
+    ]
+   },
+   {
+    "label": "Rogue yakın: Wink > Poison > Kopya yerleştirme > Execute > Evasion",
+    "score": 0.45666666666666667,
+    "byLevel": [
+     0.425,
+     0.36666666666666664,
+     0.4166666666666667,
+     0.65,
+     0.425
+    ]
+   },
+   {
+    "label": "Rogue aldatmaca: Kopya yerleştirme > Poison > Evasion > Insane > Detonate",
+    "score": 0.4366666666666667,
+    "byLevel": [
+     0.43333333333333335,
+     0.4083333333333333,
+     0.39166666666666666,
+     0.325,
+     0.625
+    ]
+   },
+   {
+    "label": "Rogue aldatmaca: Kopya yerleştirme > Evasion > Kidney shot > Detonate > Insane",
+    "score": 0.38666666666666666,
+    "byLevel": [
+     0.5166666666666667,
+     0.425,
+     0.30833333333333335,
+     0.2,
+     0.48333333333333334
+    ]
+   },
+   {
+    "label": "Rogue aldatmaca: Kopya yerleştirme > Detonate > Evasion > Insane > Poison",
+    "score": 0.3716666666666667,
+    "byLevel": [
+     0.48333333333333334,
+     0.375,
+     0.24166666666666667,
+     0.2916666666666667,
+     0.4666666666666667
+    ]
+   },
+   {
+    "label": "Rogue aldatmaca: Kopya yerleştirme > Evasion > Insane > Detonate > Görünmezlik",
+    "score": 0.3591666666666667,
+    "byLevel": [
+     0.4583333333333333,
+     0.38333333333333336,
+     0.25833333333333336,
+     0.17083333333333334,
+     0.525
+    ]
+   },
+   {
+    "label": "Rogue aldatmaca: Kopya yerleştirme > Evasion > Detonate > Insane > Sprint",
+    "score": 0.35833333333333334,
+    "byLevel": [
+     0.4666666666666667,
+     0.43333333333333335,
+     0.23333333333333334,
+     0.16666666666666666,
+     0.49166666666666664
+    ]
+   },
+   {
+    "label": "Rogue aldatmaca: Kopya yerleştirme > Evasion > Insane > Detonate > Sprint",
+    "score": 0.35250000000000004,
+    "byLevel": [
+     0.4583333333333333,
+     0.38333333333333336,
+     0.25833333333333336,
+     0.1875,
+     0.475
+    ]
+   }
+  ],
+  "mage": [
+   {
+    "label": "Mage yerçekimi: Gravity > Nano zırh > Suicide bombs > Sunray > Sis",
+    "score": 0.6399999999999999,
+    "byLevel": [
+     0.675,
+     0.7,
+     0.65,
+     0.6416666666666667,
+     0.5333333333333333
+    ]
+   },
+   {
+    "label": "Mage yerçekimi: Gravity > Lazer mayınları > Sunray > Nano zırh > Sis",
+    "score": 0.6166666666666666,
+    "byLevel": [
+     0.625,
+     0.6416666666666667,
+     0.5916666666666667,
+     0.6666666666666666,
+     0.5583333333333333
+    ]
+   },
+   {
+    "label": "Mage yerçekimi: Gravity > Suicide bombs > Sunray > Nano bots > Nano kollar",
+    "score": 0.6066666666666667,
+    "byLevel": [
+     0.6333333333333333,
+     0.675,
+     0.6583333333333333,
+     0.6083333333333333,
+     0.4583333333333333
+    ]
+   },
+   {
+    "label": "Mage lazer: Lazer mayınları > Nano kollar > Gravity > Sunray > Sis",
+    "score": 0.5824999999999999,
+    "byLevel": [
+     0.6,
+     0.6416666666666667,
+     0.6166666666666667,
+     0.5666666666666667,
+     0.4875
+    ]
+   },
+   {
+    "label": "Mage yerçekimi: Gravity > Sonic boom > Suicide bombs > Lazer mayınları > Nano bots",
+    "score": 0.5774999999999999,
+    "byLevel": [
+     0.5666666666666667,
+     0.6083333333333333,
+     0.6333333333333333,
+     0.5916666666666667,
+     0.4875
+    ]
+   },
+   {
+    "label": "Mage lazer: Lazer mayınları > Nano bots > Gravity > Suicide bombs > Sunray",
+    "score": 0.5633333333333334,
+    "byLevel": [
+     0.5833333333333334,
+     0.6,
+     0.625,
+     0.5166666666666667,
+     0.49166666666666664
+    ]
+   },
+   {
+    "label": "Mage nano: Nano kollar > Suicide bombs > Gravity > Sunray > Sonic boom",
+    "score": 0.5658333333333334,
+    "byLevel": [
+     0.5583333333333333,
+     0.6416666666666667,
+     0.5916666666666667,
+     0.5541666666666667,
+     0.48333333333333334
+    ]
+   },
+   {
+    "label": "Mage nano: Nano kollar > Suicide bombs > Gravity > Sunray > Sis",
+    "score": 0.5625000000000001,
+    "byLevel": [
+     0.5583333333333333,
+     0.6416666666666667,
+     0.5916666666666667,
+     0.5541666666666667,
+     0.4666666666666667
+    ]
+   },
+   {
+    "label": "Mage nano: Nano kollar > Gravity > Lazer mayınları > Sis > Nano zırh",
+    "score": 0.5341666666666666,
+    "byLevel": [
+     0.49166666666666664,
+     0.5291666666666667,
+     0.5583333333333333,
+     0.5666666666666667,
+     0.525
+    ]
+   },
+   {
+    "label": "Mage nano: Nano kollar > Gravity > Sunray > Sonic boom > Lazer mayınları",
+    "score": 0.4991666666666667,
+    "byLevel": [
+     0.6333333333333333,
+     0.5583333333333333,
+     0.5416666666666666,
+     0.4041666666666667,
+     0.35833333333333334
+    ]
+   },
+   {
+    "label": "Mage nano: Nano kollar > Gravity > Nano bots > Sonic boom > Blink",
+    "score": 0.49749999999999994,
+    "byLevel": [
+     0.525,
+     0.5375,
+     0.55,
+     0.475,
+     0.4
+    ]
+   },
+   {
+    "label": "Mage nano: Nano kollar > Lazer mayınları > Gravity > Blink > Sunray",
+    "score": 0.4683333333333334,
+    "byLevel": [
+     0.48333333333333334,
+     0.5083333333333333,
+     0.5541666666666667,
+     0.38333333333333336,
+     0.4125
+    ]
+   }
+  ],
+  "fighter": [
+   {
+    "label": "Fighter çift kılıç: İkinci kılıç > Jet sıçrayışı > Hücum > Aşırı güç > Delici mızrak",
+    "score": 0.6566666666666665,
+    "byLevel": [
+     0.6916666666666667,
+     0.7333333333333333,
+     0.675,
+     0.6666666666666666,
+     0.5166666666666667
+    ]
+   },
+   {
+    "label": "Fighter çift kılıç: İkinci kılıç > Kılıç kasırgası > Jet sıçrayışı > Delici mızrak > Mızrak geri çağırma",
+    "score": 0.6416666666666667,
+    "byLevel": [
+     0.7333333333333333,
+     0.7333333333333333,
+     0.6583333333333333,
+     0.575,
+     0.5083333333333333
+    ]
+   },
+   {
+    "label": "Fighter çift kılıç: İkinci kılıç > Hücum > Jet sıçrayışı > Delici mızrak > Kılıç kasırgası",
+    "score": 0.6399999999999999,
+    "byLevel": [
+     0.725,
+     0.6583333333333333,
+     0.65,
+     0.6333333333333333,
+     0.5333333333333333
+    ]
+   },
+   {
+    "label": "Fighter kale: Enerji kalkanı > Jet sıçrayışı > İkinci kılıç > Aşırı güç > Mızrak yağmuru",
+    "score": 0.6016666666666667,
+    "byLevel": [
+     0.725,
+     0.625,
+     0.5333333333333333,
+     0.5833333333333334,
+     0.5416666666666666
+    ]
+   },
+   {
+    "label": "Fighter çift kılıç: İkinci kılıç > Delici mızrak > Jet sıçrayışı > Zincirli mızrak > Kılıç kasırgası",
+    "score": 0.5983333333333334,
+    "byLevel": [
+     0.7083333333333334,
+     0.6166666666666667,
+     0.6666666666666666,
+     0.55,
+     0.45
+    ]
+   },
+   {
+    "label": "Fighter çift kılıç: İkinci kılıç > Enerji kalkanı > Hücum > Jet sıçrayışı > Mızrak geri çağırma",
+    "score": 0.5883333333333334,
+    "byLevel": [
+     0.7583333333333333,
+     0.6,
+     0.575,
+     0.55,
+     0.4583333333333333
+    ]
+   },
+   {
+    "label": "Fighter mızrakçı: Mızrak yağmuru > Jet sıçrayışı > Delici mızrak > Mızrak geri çağırma > Hücum",
+    "score": 0.5133333333333334,
+    "byLevel": [
+     0.475,
+     0.5166666666666667,
+     0.49166666666666664,
+     0.5833333333333334,
+     0.5
+    ]
+   },
+   {
+    "label": "Fighter mızrakçı: Mızrak yağmuru > Kılıç kasırgası > Jet sıçrayışı > Hücum > İkinci kılıç",
+    "score": 0.47000000000000003,
+    "byLevel": [
+     0.525,
+     0.38333333333333336,
+     0.4166666666666667,
+     0.55,
+     0.475
+    ]
+   },
+   {
+    "label": "Fighter mızrakçı: Mızrak yağmuru > Aşırı güç > Hücum > Mızrak geri çağırma > Kılıç kasırgası",
+    "score": 0.4583333333333333,
+    "byLevel": [
+     0.575,
+     0.43333333333333335,
+     0.39166666666666666,
+     0.475,
+     0.4166666666666667
+    ]
+   },
+   {
+    "label": "Fighter mızrakçı: Mızrak yağmuru > Mızrak geri çağırma > Hücum > İkinci kılıç > Delici mızrak",
+    "score": 0.45499999999999996,
+    "byLevel": [
+     0.4666666666666667,
+     0.45,
+     0.3333333333333333,
+     0.5416666666666666,
+     0.48333333333333334
+    ]
+   },
+   {
+    "label": "Fighter mızrakçı: Mızrak yağmuru > Kılıç kasırgası > Jet sıçrayışı > Aşırı güç > Mızrak geri çağırma",
+    "score": 0.4483333333333334,
+    "byLevel": [
+     0.525,
+     0.38333333333333336,
+     0.4166666666666667,
+     0.475,
+     0.44166666666666665
+    ]
+   },
+   {
+    "label": "Fighter mızrakçı: Mızrak yağmuru > Kılıç kasırgası > Mızrak geri çağırma > Delici mızrak > Hücum",
+    "score": 0.38166666666666665,
+    "byLevel": [
+     0.38333333333333336,
+     0.4083333333333333,
+     0.25,
+     0.475,
+     0.39166666666666666
+    ]
+   }
+  ],
+  "scout": [
+   {
+    "label": "Scout nişancı: Fast charge > Av emri > Kanca > Smoke bomb > Switch weapons",
+    "score": 0.7691666666666668,
+    "byLevel": [
+     0.6833333333333333,
+     0.7666666666666667,
+     0.8333333333333334,
+     0.7666666666666667,
+     0.7958333333333333
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Av emri > Kanca > Smoke bomb > Pençe atılması",
+    "score": 0.7675000000000001,
+    "byLevel": [
+     0.6833333333333333,
+     0.7666666666666667,
+     0.8333333333333334,
+     0.75,
+     0.8041666666666667
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Switch weapons > Sürü çağrısı > Pençe atılması > Parçalama",
+    "score": 0.7666666666666668,
+    "byLevel": [
+     0.7583333333333333,
+     0.7708333333333334,
+     0.8083333333333333,
+     0.725,
+     0.7708333333333334
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Kanca > Switch weapons > Gözcü drone > Pençe atılması",
+    "score": 0.7666666666666667,
+    "byLevel": [
+     0.7583333333333333,
+     0.8,
+     0.825,
+     0.7333333333333333,
+     0.7166666666666667
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Parçalama > Av emri > Gözcü drone > Switch weapons",
+    "score": 0.765,
+    "byLevel": [
+     0.7333333333333333,
+     0.7791666666666667,
+     0.8416666666666667,
+     0.7375,
+     0.7333333333333333
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Smoke bomb > Sürü çağrısı > Kanca > Parçalama",
+    "score": 0.7558333333333332,
+    "byLevel": [
+     0.6833333333333333,
+     0.7625,
+     0.775,
+     0.8,
+     0.7583333333333333
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Switch weapons > Kanca > Av emri > Sürü çağrısı",
+    "score": 0.7966666666666666,
+    "byLevel": [
+     0.7625,
+     0.85,
+     0.8333333333333334,
+     0.7708333333333334,
+     0.7666666666666667
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Sürü çağrısı > Kanca > Parçalama > Switch weapons",
+    "score": 0.7875,
+    "byLevel": [
+     0.7333333333333333,
+     0.8083333333333333,
+     0.8,
+     0.7833333333333333,
+     0.8125
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Gözcü drone > Kanca > Sürü çağrısı > Smoke bomb",
+    "score": 0.7583333333333333,
+    "byLevel": [
+     0.6666666666666666,
+     0.75,
+     0.85,
+     0.7916666666666666,
+     0.7333333333333333
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Av emri > Sürü çağrısı > Kanca > Switch weapons",
+    "score": 0.7575000000000001,
+    "byLevel": [
+     0.6916666666666667,
+     0.7375,
+     0.7833333333333333,
+     0.7958333333333333,
+     0.7791666666666667
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Smoke bomb > Sürü çağrısı > Av emri > Kanca",
+    "score": 0.7441666666666666,
+    "byLevel": [
+     0.6833333333333333,
+     0.7625,
+     0.775,
+     0.7666666666666667,
+     0.7333333333333333
+    ]
+   },
+   {
+    "label": "Scout nişancı: Fast charge > Elektrik tuzağı > Sürü çağrısı > Pençe atılması > Av emri",
+    "score": 0.7375,
+    "byLevel": [
+     0.7333333333333333,
+     0.7333333333333333,
+     0.7666666666666667,
+     0.7666666666666667,
+     0.6875
+    ]
+   }
+  ]
+ },
+ "tournament": [
+  [
+   [
+    0,
+    1,
+    1,
+    1,
+    0,
+    0,
+    2,
+    0
+   ],
+   [
+    1,
+    0,
+    0,
+    1,
+    0,
+    2,
+    1,
+    0
+   ],
+   [
+    1,
+    2,
+    0,
+    1,
+    2,
+    2,
+    0,
+    0
+   ],
+   [
+    1,
+    1,
+    1,
+    0,
+    2,
+    0,
+    1,
+    0
+   ],
+   [
+    2,
+    2,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0
+   ],
+   [
+    2,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    2,
+    1,
+    2,
+    2,
+    0,
+    0
+   ],
+   [
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    0
+   ]
+  ],
+  [
+   [
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0
+   ],
+   [
+    1,
+    0,
+    0,
+    1,
+    0,
+    2,
+    0,
+    1
+   ],
+   [
+    2,
+    2,
+    0,
+    1,
+    1,
+    2,
+    2,
+    0
+   ],
+   [
+    2,
+    1,
+    1,
+    0,
+    1,
+    2,
+    1,
+    1
+   ],
+   [
+    2,
+    2,
+    1,
+    1,
+    0,
+    2,
+    2,
+    0
+   ],
+   [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2
+   ],
+   [
+    2,
+    2,
+    0,
+    1,
+    0,
+    2,
+    0,
+    2
+   ],
+   [
+    2,
+    1,
+    2,
+    1,
+    2,
+    0,
+    0,
+    0
+   ]
+  ],
+  [
+   [
+    0,
+    1,
+    0,
+    1,
+    1,
+    2,
+    0,
+    1
+   ],
+   [
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    2,
+    1,
+    0,
+    1,
+    2,
+    2,
+    0,
+    0
+   ],
+   [
+    1,
+    1,
+    1,
+    0,
+    1,
+    2,
+    0,
+    0
+   ],
+   [
+    1,
+    2,
+    0,
+    1,
+    0,
+    2,
+    0,
+    1
+   ],
+   [
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   [
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    0,
+    1
+   ],
+   [
+    1,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1,
+    0
+   ]
+  ],
+  [
+   [
+    0,
+    1,
+    2,
+    1,
+    0,
+    0,
+    0,
+    1
+   ],
+   [
+    1,
+    0,
+    1,
+    2,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    1,
+    0,
+    1,
+    0,
+    1,
+    1,
+    1,
+    0
+   ],
+   [
+    2,
+    2,
+    2,
+    1,
+    0,
+    2,
+    1,
+    1
+   ],
+   [
+    2,
+    2,
+    2,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    2,
+    2,
+    2,
+    1,
+    1,
+    2,
+    0,
+    1
+   ],
+   [
+    1,
+    2,
+    2,
+    2,
+    1,
+    2,
+    1,
+    0
+   ]
+  ],
+  [
+   [
+    0,
+    1,
+    2,
+    0,
+    2,
+    2,
+    1,
+    1
+   ],
+   [
+    1,
+    0,
+    1,
+    2,
+    1,
+    0,
+    0,
+    1
+   ],
+   [
+    0,
+    1,
+    0,
+    1,
+    1,
+    2,
+    0,
+    1
+   ],
+   [
+    2,
+    0,
+    1,
+    0,
+    2,
+    1,
+    2,
+    0
+   ],
+   [
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    2,
+    0,
+    1,
+    2,
+    0,
+    0,
+    0
+   ],
+   [
+    1,
+    2,
+    2,
+    0,
+    2,
+    2,
+    0,
+    1
+   ],
+   [
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    1,
+    0
+   ]
+  ]
+ ],
+ "big": [
+  [
+   [
+    0,
+    130,
+    87,
+    111,
+    40,
+    124,
+    26,
+    24
+   ],
+   [
+    70,
+    0,
+    36,
+    80,
+    41,
+    140,
+    21,
+    21
+   ],
+   [
+    113,
+    164,
+    0,
+    108,
+    61,
+    183,
+    47,
+    49
+   ],
+   [
+    89,
+    120,
+    92,
+    0,
+    90,
+    114,
+    66,
+    64
+   ],
+   [
+    160,
+    159,
+    139,
+    110,
+    0,
+    162,
+    68,
+    55
+   ],
+   [
+    76,
+    60,
+    17,
+    86,
+    38,
+    0,
+    29,
+    32
+   ],
+   [
+    174,
+    179,
+    153,
+    134,
+    132,
+    171,
+    0,
+    99
+   ],
+   [
+    176,
+    179,
+    151,
+    136,
+    145,
+    168,
+    101,
+    0
+   ]
+  ],
+  [
+   [
+    0,
+    150,
+    68,
+    47,
+    36,
+    104,
+    31,
+    24
+   ],
+   [
+    50,
+    0,
+    64,
+    66,
+    27,
+    111.5,
+    26,
+    25
+   ],
+   [
+    132,
+    136,
+    0,
+    101,
+    97,
+    160.5,
+    44,
+    40
+   ],
+   [
+    153,
+    134,
+    99,
+    0,
+    97,
+    128,
+    66,
+    60
+   ],
+   [
+    164,
+    173,
+    103,
+    103,
+    0,
+    155,
+    72,
+    43
+   ],
+   [
+    96,
+    88.5,
+    39.5,
+    72,
+    45,
+    0,
+    33,
+    43
+   ],
+   [
+    169,
+    174,
+    156,
+    134,
+    128,
+    167,
+    0,
+    113
+   ],
+   [
+    176,
+    175,
+    160,
+    140,
+    157,
+    157,
+    87,
+    0
+   ]
+  ],
+  [
+   [
+    0,
+    166,
+    53,
+    81,
+    71,
+    125,
+    26,
+    24
+   ],
+   [
+    34,
+    0,
+    39,
+    60,
+    9,
+    102,
+    10,
+    19
+   ],
+   [
+    147,
+    161,
+    0,
+    100,
+    111,
+    158,
+    35,
+    28
+   ],
+   [
+    119,
+    140,
+    100,
+    0,
+    97,
+    126.5,
+    31,
+    48
+   ],
+   [
+    129,
+    191,
+    89,
+    103,
+    0,
+    158,
+    35,
+    19
+   ],
+   [
+    75,
+    98,
+    42,
+    73.5,
+    42,
+    0,
+    26.5,
+    36
+   ],
+   [
+    174,
+    190,
+    165,
+    169,
+    165,
+    173.5,
+    0,
+    87
+   ],
+   [
+    176,
+    181,
+    172,
+    152,
+    181,
+    164,
+    113,
+    0
+   ]
+  ],
+  [
+   [
+    0,
+    132,
+    58,
+    94,
+    31,
+    110,
+    30,
+    35
+   ],
+   [
+    68,
+    0,
+    27,
+    54,
+    17,
+    34,
+    12,
+    15
+   ],
+   [
+    142,
+    173,
+    0,
+    131.5,
+    120,
+    121,
+    35,
+    42.5
+   ],
+   [
+    106,
+    146,
+    68.5,
+    0,
+    90,
+    98,
+    42,
+    33.5
+   ],
+   [
+    169,
+    183,
+    80,
+    110,
+    0,
+    134,
+    43,
+    35
+   ],
+   [
+    90,
+    166,
+    79,
+    102,
+    66,
+    0,
+    32,
+    42
+   ],
+   [
+    170,
+    188,
+    165,
+    158,
+    157,
+    168,
+    0,
+    116.5
+   ],
+   [
+    165,
+    185,
+    157.5,
+    166.5,
+    165,
+    158,
+    83.5,
+    0
+   ]
+  ],
+  [
+   [
+    0,
+    97,
+    146,
+    169,
+    126,
+    152,
+    62,
+    68
+   ],
+   [
+    103,
+    0,
+    99.5,
+    122,
+    102,
+    149.5,
+    56,
+    49
+   ],
+   [
+    54,
+    100.5,
+    0,
+    123,
+    108,
+    116,
+    37.5,
+    45
+   ],
+   [
+    31,
+    78,
+    77,
+    0,
+    87,
+    79,
+    43.5,
+    31.5
+   ],
+   [
+    74,
+    98,
+    92,
+    113,
+    0,
+    126,
+    47,
+    38
+   ],
+   [
+    48,
+    50.5,
+    84,
+    121,
+    74,
+    0,
+    30,
+    31.5
+   ],
+   [
+    138,
+    144,
+    162.5,
+    156.5,
+    153,
+    170,
+    0,
+    114.5
+   ],
+   [
+    132,
+    151,
+    155,
+    168.5,
+    162,
+    168.5,
+    85.5,
+    0
+   ]
+  ]
+ ]
+}

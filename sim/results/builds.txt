@@ -1,0 +1,108 @@
+Build araması (arena yarıçapı 50 m, rakip: her sınıftan rastgele build'ler)
+
+Rogue, serbest arama, en iyi 6:
+  59%   Rogue yakın: Wink > Evasion > Kopya yerleştirme > Sprint > Poison  [56% 56% 53% 61% 72%]
+  56%   Rogue yakın: Wink > Kopya yerleştirme > Evasion > Execute > Insane  [56% 51% 53% 50% 73%]
+  54%   Rogue yakın: Wink > Poison > Evasion > Sprint > Kidney shot  [48% 36% 43% 60% 81%]
+  49%   Rogue yakın: Wink > Poison > Kidney shot > Sprint > Görünmezlik  [48% 48% 52% 42% 53%]
+  48%   Rogue yakın: Wink > Kidney shot > Sprint > Evasion > Execute  [45% 41% 40% 53% 63%]
+  46%   Rogue yakın: Wink > Poison > Kopya yerleştirme > Execute > Evasion  [43% 37% 42% 65% 43%]
+Rogue, tema "kopya odaklı", en iyi 6:
+  44%   Rogue aldatmaca: Kopya yerleştirme > Poison > Evasion > Insane > Detonate  [43% 41% 39% 33% 63%]
+  39%   Rogue aldatmaca: Kopya yerleştirme > Evasion > Kidney shot > Detonate > Insane  [52% 43% 31% 20% 48%]
+  37%   Rogue aldatmaca: Kopya yerleştirme > Detonate > Evasion > Insane > Poison  [48% 38% 24% 29% 47%]
+  36%   Rogue aldatmaca: Kopya yerleştirme > Evasion > Insane > Detonate > Görünmezlik  [46% 38% 26% 17% 53%]
+  36%   Rogue aldatmaca: Kopya yerleştirme > Evasion > Detonate > Insane > Sprint  [47% 43% 23% 17% 49%]
+  35%   Rogue aldatmaca: Kopya yerleştirme > Evasion > Insane > Detonate > Sprint  [46% 38% 26% 19% 48%]
+
+Mage, serbest arama, en iyi 6:
+  64%   Mage yerçekimi: Gravity > Nano zırh > Suicide bombs > Sunray > Sis  [68% 70% 65% 64% 53%]
+  62%   Mage yerçekimi: Gravity > Lazer mayınları > Sunray > Nano zırh > Sis  [63% 64% 59% 67% 56%]
+  61%   Mage yerçekimi: Gravity > Suicide bombs > Sunray > Nano bots > Nano kollar  [63% 68% 66% 61% 46%]
+  58%   Mage lazer: Lazer mayınları > Nano kollar > Gravity > Sunray > Sis  [60% 64% 62% 57% 49%]
+  58%   Mage yerçekimi: Gravity > Sonic boom > Suicide bombs > Lazer mayınları > Nano bots  [57% 61% 63% 59% 49%]
+  56%   Mage lazer: Lazer mayınları > Nano bots > Gravity > Suicide bombs > Sunray  [58% 60% 63% 52% 49%]
+Mage, tema "yakın dövüş", en iyi 6:
+  57%   Mage nano: Nano kollar > Suicide bombs > Gravity > Sunray > Sonic boom  [56% 64% 59% 55% 48%]
+  56%   Mage nano: Nano kollar > Suicide bombs > Gravity > Sunray > Sis  [56% 64% 59% 55% 47%]
+  53%   Mage nano: Nano kollar > Gravity > Lazer mayınları > Sis > Nano zırh  [49% 53% 56% 57% 53%]
+  50%   Mage nano: Nano kollar > Gravity > Sunray > Sonic boom > Lazer mayınları  [63% 56% 54% 40% 36%]
+  50%   Mage nano: Nano kollar > Gravity > Nano bots > Sonic boom > Blink  [53% 54% 55% 48% 40%]
+  47%   Mage nano: Nano kollar > Lazer mayınları > Gravity > Blink > Sunray  [48% 51% 55% 38% 41%]
+
+Fighter, serbest arama, en iyi 6:
+  66%   Fighter çift kılıç: İkinci kılıç > Jet sıçrayışı > Hücum > Aşırı güç > Delici mızrak  [69% 73% 68% 67% 52%]
+  64%   Fighter çift kılıç: İkinci kılıç > Kılıç kasırgası > Jet sıçrayışı > Delici mızrak > Mızrak geri çağırma  [73% 73% 66% 57% 51%]
+  64%   Fighter çift kılıç: İkinci kılıç > Hücum > Jet sıçrayışı > Delici mızrak > Kılıç kasırgası  [73% 66% 65% 63% 53%]
+  60%   Fighter kale: Enerji kalkanı > Jet sıçrayışı > İkinci kılıç > Aşırı güç > Mızrak yağmuru  [73% 63% 53% 58% 54%]
+  60%   Fighter çift kılıç: İkinci kılıç > Delici mızrak > Jet sıçrayışı > Zincirli mızrak > Kılıç kasırgası  [71% 62% 67% 55% 45%]
+  59%   Fighter çift kılıç: İkinci kılıç > Enerji kalkanı > Hücum > Jet sıçrayışı > Mızrak geri çağırma  [76% 60% 57% 55% 46%]
+Fighter, tema "mızrak", en iyi 6:
+  51%   Fighter mızrakçı: Mızrak yağmuru > Jet sıçrayışı > Delici mızrak > Mızrak geri çağırma > Hücum  [48% 52% 49% 58% 50%]
+  47%   Fighter mızrakçı: Mızrak yağmuru > Kılıç kasırgası > Jet sıçrayışı > Hücum > İkinci kılıç  [53% 38% 42% 55% 48%]
+  46%   Fighter mızrakçı: Mızrak yağmuru > Aşırı güç > Hücum > Mızrak geri çağırma > Kılıç kasırgası  [57% 43% 39% 48% 42%]
+  45%   Fighter mızrakçı: Mızrak yağmuru > Mızrak geri çağırma > Hücum > İkinci kılıç > Delici mızrak  [47% 45% 33% 54% 48%]
+  45%   Fighter mızrakçı: Mızrak yağmuru > Kılıç kasırgası > Jet sıçrayışı > Aşırı güç > Mızrak geri çağırma  [53% 38% 42% 48% 44%]
+  38%   Fighter mızrakçı: Mızrak yağmuru > Kılıç kasırgası > Mızrak geri çağırma > Delici mızrak > Hücum  [38% 41% 25% 48% 39%]
+
+Scout, serbest arama, en iyi 6:
+  77%   Scout nişancı: Fast charge > Av emri > Kanca > Smoke bomb > Switch weapons  [68% 77% 83% 77% 80%]
+  77%   Scout nişancı: Fast charge > Av emri > Kanca > Smoke bomb > Pençe atılması  [68% 77% 83% 75% 80%]
+  77%   Scout nişancı: Fast charge > Switch weapons > Sürü çağrısı > Pençe atılması > Parçalama  [76% 77% 81% 73% 77%]
+  77%   Scout nişancı: Fast charge > Kanca > Switch weapons > Gözcü drone > Pençe atılması  [76% 80% 83% 73% 72%]
+  77%   Scout nişancı: Fast charge > Parçalama > Av emri > Gözcü drone > Switch weapons  [73% 78% 84% 74% 73%]
+  76%   Scout nişancı: Fast charge > Smoke bomb > Sürü çağrısı > Kanca > Parçalama  [68% 76% 78% 80% 76%]
+Scout, tema "sniper + yoldaş", en iyi 6:
+  80%   Scout nişancı: Fast charge > Switch weapons > Kanca > Av emri > Sürü çağrısı  [76% 85% 83% 77% 77%]
+  79%   Scout nişancı: Fast charge > Sürü çağrısı > Kanca > Parçalama > Switch weapons  [73% 81% 80% 78% 81%]
+  76%   Scout nişancı: Fast charge > Gözcü drone > Kanca > Sürü çağrısı > Smoke bomb  [67% 75% 85% 79% 73%]
+  76%   Scout nişancı: Fast charge > Av emri > Sürü çağrısı > Kanca > Switch weapons  [69% 74% 78% 80% 78%]
+  74%   Scout nişancı: Fast charge > Smoke bomb > Sürü çağrısı > Av emri > Kanca  [68% 76% 78% 77% 73%]
+  74%   Scout nişancı: Fast charge > Elektrik tuzağı > Sürü çağrısı > Pençe atılması > Av emri  [73% 73% 77% 77% 69%]
+
+Seçilen 8 build:
+  Rogue-1    (Claude) Rogue yakın: Wink > Evasion > Kopya yerleştirme > Sprint > Poison
+  Rogue-2    (tema: kopya odaklı) Rogue aldatmaca: Kopya yerleştirme > Poison > Evasion > Insane > Detonate
+  Mage-1     (Claude) Mage yerçekimi: Gravity > Nano zırh > Suicide bombs > Sunray > Sis
+  Mage-2     (tema: yakın dövüş) Mage nano: Nano kollar > Suicide bombs > Gravity > Sunray > Sonic boom
+  Fighter-1  (Claude) Fighter çift kılıç: İkinci kılıç > Jet sıçrayışı > Hücum > Aşırı güç > Delici mızrak
+  Fighter-2  (tema: mızrak) Fighter mızrakçı: Mızrak yağmuru > Jet sıçrayışı > Delici mızrak > Mızrak geri çağırma > Hücum
+  Scout-1    (Claude) Scout nişancı: Fast charge > Av emri > Kanca > Smoke bomb > Switch weapons
+  Scout-2    (tema: sniper + yoldaş) Scout nişancı: Fast charge > Switch weapons > Kanca > Av emri > Sürü çağrısı
+
+=== Turnuva: her eşleşme 2 kez (yan değiştirerek), 50 m yarıçaplı arena ===
+Her build seviye başına 14 düello yapar. Tablo: kazanılan düello sayısı (yüzde).
+Build      L3         L5         L7         L9         L12        Toplam
+Scout-2    14/14 100% 8/14 57%   10/14 71%  11/14 79%  10/14 71%  53/70 76%
+Scout-1    8/14 57%   9/14 64%   13/14 93%  11/14 79%  10/14 71%  51/70 73%
+Fighter-1  6/14 43%   10/14 71%  7/14 50%   11/14 79%  2/14 14%   36/70 51%
+Mage-1     8/14 57%   10/14 71%  8/14 57%   2/14 14%   6/14 43%   34/70 49%
+Mage-2     6/14 43%   9/14 64%   6/14 43%   5/14 36%   8/14 57%   34/70 49%
+Rogue-1    5/14 36%   2/14 14%   6/14 43%   5/14 36%   9/14 64%   27/70 39%
+Rogue-2    5/14 36%   5/14 36%   3/14 21%   4/14 29%   6/14 43%   23/70 33%
+Fighter-2  4/14 29%   3/14 21%   3/14 21%   7/14 50%   5/14 36%   22/70 31%
+Sınıf sıralaması: Scout 74% · Mage 49% · Fighter 41% · Rogue 36%
+
+=== Güven kontrolü: aynı turnuva, her eşleşme 200 kez ===
+Her build seviye başına 1400 düello yapar. Tablo: kazanılan düello sayısı (yüzde).
+Build      L3         L5         L7         L9         L12        Toplam
+Scout-1    1042/1400 74%1041/1400 74%1123.5/1400 80%1122.5/1400 80%1038.5/1400 74%5367.5/7000 77%
+Scout-2    1056/1400 75%1052/1400 75%1139/1400 81%1080.5/1400 77%1022.5/1400 73%5350/7000 76%
+Fighter-1  853/1400 61%813/1400 58%724/1400 52%754/1400 54%588/1400 42%3732/7000 53%
+Mage-1     725/1400 52%710.5/1400 51%740/1400 53%765/1400 55%584/1400 42%3524.5/7000 50%
+Mage-2     635/1400 45%737/1400 53%661.5/1400 47%584/1400 42%427/1400 31%3044.5/7000 43%
+Rogue-1    542/1400 39%460/1400 33%546/1400 39%490/1400 35%820/1400 59%2858/7000 41%
+Fighter-2  338/1400 24%417/1400 30%393/1400 28%577/1400 41%439/1400 31%2164/7000 31%
+Rogue-2    409/1400 29%369.5/1400 26%273/1400 20%227/1400 16%681/1400 49%1959.5/7000 28%
+Sınıf sıralaması: Scout 77% · Mage 47% · Fighter 42% · Rogue 34%
+
+Eşleşme tablosu (200 düello, tüm seviyelerin ortalaması; satırdaki build'in kazanma oranı):
+           Rogue-1    Rogue-2    Mage-1     Mage-2     Fighter-1  Fighter-2  Scout-1    Scout-2    
+Rogue-1    -          68%        41%        50%        30%        62%        18%        18%        
+Rogue-2    33%        -          27%        38%        20%        54%        13%        13%        
+Mage-1     59%        73%        -          56%        50%        74%        20%        20%        
+Mage-2     50%        62%        44%        -          46%        55%        25%        24%        
+Fighter-1  70%        80%        50%        54%        -          74%        27%        19%        
+Fighter-2  39%        46%        26%        45%        27%        -          15%        18%        
+Scout-1    83%        88%        80%        75%        74%        85%        -          53%        
+Scout-2    83%        87%        80%        76%        81%        82%        47%        -          

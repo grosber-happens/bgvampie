@@ -10,7 +10,9 @@ The full game plan is in [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md): gameplay,
 - A new class or skill goes through the `ClassKit` registry in `src/kit.ts` (see `src/rogue.ts` as the reference kit).
 - Keep the art direction: clay characters and buildings, watercolor sky and effects (`src/look.ts`).
 - Run `pnpm build` (typecheck + build) before you commit. Claude Code also works on this repo through Git, so keep commits small and pull before you start.
-- The owner sometimes writes in Turkish; reply in their language. In-game text is Turkish for now.
+- The owner sometimes writes in Turkish; reply in their language. In-game text is Turkish and English: every UI string goes through `t()` in `src/i18n.ts`, and skill names and texts live in `SKILL_TEXT` there.
+- Item data (armor, jewels, weapons, Noir set, bandage) lives in `src/gear.ts`. Keep it free of Babylon imports, because the headless simulator in `sim/` imports it. Re-run `sim/gear-test.ts` after changing item numbers (see `docs/GEAR.md`).
+- Painted icons come from `public/art/` (cut by `tools/art/cut.py`); without a file the game falls back to the SVG ink icon.
 
 ## Run
 ```

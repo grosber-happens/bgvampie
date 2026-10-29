@@ -1,0 +1,20 @@
+== GEAR=0 BANDAGE=0
+D) Tam maç (50 maç, eşya düşmeleri açık)
+   süre ort 25.9 dk · kazanan sınıf: rogue 32% · mage 38% · fighter 22% · scout 8%
+   bandaj: oyuncu başına 0.0 kez, %0 yarıda kaldı, oyuncu başına 0 can
+   maç başına oyuncu öldürme 18.3, kazananın seviyesi 11.6
+== GEAR=0 BANDAGE=1
+D) Tam maç (50 maç, eşya düşmeleri açık)
+   süre ort 24.3 dk · kazanan sınıf: rogue 28% · mage 22% · fighter 46% · scout 4%
+   bandaj: oyuncu başına 0.7 kez, %22 yarıda kaldı, oyuncu başına 25 can
+   maç başına oyuncu öldürme 18.6, kazananın seviyesi 11.5
+== GEAR=1 BANDAGE=0
+D) Tam maç (50 maç, eşya düşmeleri açık)
+   süre ort 26.4 dk · kazanan sınıf: rogue 20% · mage 30% · fighter 44% · scout 6%
+   bandaj: oyuncu başına 0.0 kez, %0 yarıda kaldı, oyuncu başına 0 can
+   maç başına oyuncu öldürme 18.5, kazananın seviyesi 11.8
+== GEAR=1 BANDAGE=1
+D) Tam maç (50 maç, eşya düşmeleri açık)
+   süre ort 27.6 dk · kazanan sınıf: rogue 28% · mage 32% · fighter 40% · scout 0%
+   bandaj: oyuncu başına 0.6 kez, %25 yarıda kaldı, oyuncu başına 22 can
+   maç başına oyuncu öldürme 18.3, kazananın seviyesi 11.7
