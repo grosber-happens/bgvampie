@@ -136,7 +136,7 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
           } else if (kind < 0.65) {
             // House (the user's model) with crates as steps to its roof.
             // Only the collision box is made here; the model is placed once it has loaded.
-            const scale = Math.min(between(2.2, 2.6), (lot * 0.85) / HOUSE.size);
+            const scale = Math.min(between(3.8, 4.4), (lot * 0.9) / HOUSE.size);
             const hw = (HOUSE.size * scale) / 2;
             const h = HOUSE.height * scale;
             const rotY = Math.floor(rand() * 4) * (Math.PI / 2);

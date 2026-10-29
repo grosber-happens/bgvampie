@@ -69,7 +69,7 @@ const crosshair = document.getElementById('crosshair')!;
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
 // The user paused the house model swap; flip this to show their house model again.
-const USE_HOUSE_MODEL = false;
+const USE_HOUSE_MODEL = true;
 const world: World = buildWorld(scene, seed, { houseModel: USE_HOUSE_MODEL });
 const input = new Input(canvas);
 if (USE_HOUSE_MODEL) placeHouses(scene, world).catch((e) => console.error('House model failed to load', e));
