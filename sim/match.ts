@@ -62,6 +62,7 @@ import {
 } from './core.ts';
 import { POOL, SKILLS, STYLES, decoysOf, makeDecoy, spawnBeast } from './kits.ts';
 import './tuning.ts';
+import './variants.ts';
 
 // ---- Map ------------------------------------------------------------------
 export function regionAt(x: number, z: number): RegionId {

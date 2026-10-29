@@ -50,7 +50,7 @@ if (!isMainThread) {
   const n = builds.length;
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const games = (n - 1) * REPEATS;
-  console.log(`Rogue kuralları: ${process.env.ROGUE2 !== '0' ? 'YENİ (silik görüntü, dash kopyası, arkaya geçince backstab)' : process.env.FADE === '1' ? 'eski + silik görüntü' : 'eski'} · karşı hamle ${process.env.KNOW === '0' ? 'kapalı' : 'açık'} · ${REPEATS} tekrar · ${ARENA} m arena`);
+  console.log(`Rogue kuralları: ${process.env.ROGUE2 !== '0' ? 'YENİ (silik görüntü, dash kopyası, arkaya geçince backstab)' : process.env.FADE === '1' ? 'eski + silik görüntü' : 'eski'} · karşı hamle ${process.env.KNOW === '0' ? 'kapalı' : 'açık'} · deneme: ${process.env.VARIANT || 'yok'} · ${REPEATS} tekrar · ${ARENA} m arena`);
   console.log(`${'Build'.padEnd(11)}${LEVELS.map((l) => `L${l}`.padEnd(7)).join('')}Toplam`);
   const tot = builds.map((_: any, i: number) => all.reduce((s, w) => s + w[i].reduce((a, b) => a + b, 0), 0));
   for (const i of builds.map((_: any, i: number) => i).sort((a: number, b: number) => tot[b] - tot[a]))
