@@ -77,6 +77,8 @@ function candidates(cls: ClassId, styles: number[], must: string[], count: numbe
       [rest[i], rest[j]] = [rest[j], rest[i]];
     }
     const skills = [start, ...rest];
+    // Detonate and Insane only use copies; without the Decoy skill they lean on the passive alone.
+    if (cls === 'rogue' && (skills.includes('detonate') || skills.includes('insane')) && !skills.includes('decoy')) continue;
     const key = `${style}|${skills.join(',')}`;
     if (seen.has(key)) continue;
     seen.add(key);
