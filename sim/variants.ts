@@ -17,6 +17,7 @@ export const VARIANTS: Record<string, { name: string; apply: () => void }> = {
   r_back: { name: 'Backstab 1.5x → 1.8x', apply: () => void (PASSIVES.rogue.backstabMult = 1.8) },
   r_dagger: { name: 'Hançer 22 → 27', apply: () => void (CLASSES.rogue.melee.dmg = 27) },
   r_invis: { name: 'Görünmezlik süresi +1.5 sn', apply: () => void (R.invis.dur = [4.5, 6, 6]) },
+  r_clone: { name: 'Detonate alanı 3.5/4.5 → 4.5/5.5 m, hasar 55 → 70, en fazla kopya 3 → 4', apply: () => ((R.detonate.radius = [4.5, 5.5, 5.5]), (R.detonate.damage = 70), (R.decoy.max = 4)) },
   // ---- Mage buffs (mostly the melee build, which fades late)
   m_arms: { name: 'Nano kollar hasarı 14/20 → 18/26', apply: () => void (M.arms.damage = [18, 26, 26]) },
   m_armor: { name: 'Nano zırh kalkanı 40 → 60', apply: () => void (M.armor.shield = 60) },
