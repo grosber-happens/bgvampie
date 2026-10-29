@@ -1,0 +1,74 @@
+
+=== 60 maç, 20 oyuncu (her sınıftan 5), 5 bölgelik 1 km harita (90 sn) ===
+Maç süresi: ort 22.3 dk, en kısa 13.8, en uzun 40.0
+Ölüm zamanları: 0-5 dk 3% · 5-10 dk 29% · 10-15 dk 44% · 15-20 dk 14% · 20-25 dk 5% · 25-30 dk 1% · 30-35 dk 0% · 35-40 dk 0%
+
+Sınıf    Kazanma  Ort. sıra Top 5  Öldürme  PvP hasar Boss  Mob   Ölüm dk Seviye
+Rogue    8%       12.3      13%    0.5      94        0.1   38.7  11.3    5.3
+Mage     27%      9.2       31%    0.9      137       0.2   51.5  13.6    6.4
+Fighter  53%      8.3       39%    1.9      381       0.2   45.4  13.9    6.0
+Scout    12%      12.2      18%    0.5      98        0.1   40.5  11.6    5.4
+
+Oyun tarzına göre (kazanma oranı = o tarzla oynayanların maçı kazanma payı, eşit pay = %5):
+  Rogue    yakın: 0% (sıra 14.6) · uzak: 2% (sıra 10.2) · aldatmaca: 3% (sıra 11.7)
+  Mage     yerçekimi: 8% (sıra 8.2) · nano: 0% (sıra 10.7) · lazer: 9% (sıra 8.6)
+  Fighter  çift kılıç: 9% (sıra 8.1) · mızrakçı: 7% (sıra 8.4) · kale: 15% (sıra 8.3)
+  Scout    nişancı: 3% (sıra 10.1) · vahşi: 0% (sıra 15.5) · sürü: 4% (sıra 10.7)
+
+Yaşayan oyuncuların ortalama seviyesi (dakikaya göre):
+         5. dk   10. dk  15. dk  20. dk  25. dk  30. dk  
+Rogue    3.4     5.4     7.6     9.3     10.0    12.0    
+Mage     3.7     5.9     8.0     9.4     10.6    10.7    
+Fighter  3.0     5.1     8.0     9.2     10.1    12.0    
+Scout    3.3     5.5     8.0     9.9     11.8    12.0    
+Hepsi    3.4     5.5     7.9     9.4     10.6    11.2    
+
+Seviye 12: oyuncuların 4%'i ulaştı. Ulaşanlarda ort 17.8. dk (en erken 12.1). Maç başına ilk ulaşan: ort 16.6. dk. Hiç kimsenin ulaşmadığı maç: 22/60
+Kazananların seviyesi: ort 11.2; seviye 12'ye ulaştıkları dakika: ort 17.5
+Seviyeye ulaşma dakikası (ulaşanlarda) → 6: 9.1. dk · 8: 11.7. dk · 10: 14.3. dk
+
+XP kaynakları (oyuncu başına ort): mob 1509 (89%), oyuncu 115 (7%), boss 63 (4%)
+Kazananlarda: mob 4086, oyuncu 905, boss 498
+
+Bosslar (doğduğu dk → öldürülme oranı, ort öldürülme dk, en çok kesen sınıf):
+  5. dk Kök Ana             83%   8.6. dk   mage 20, fighter 13, rogue 9, scout 8
+  5. dk Kum Solucanı Ana    87%   7.8. dk   fighter 18, mage 17, scout 10, rogue 7
+  12. dk Hurda Devi         35%   12.7. dk  fighter 11, rogue 4, mage 3, scout 3
+  12. dk Gümüş Sırt Şaman   28%   13.0. dk  mage 8, fighter 4, rogue 3, scout 2
+  19. dk Kök Ana            7%    19.6. dk  rogue 2, fighter 1, scout 1
+  19. dk Kum Solucanı Ana   3%    19.7. dk  rogue 1, fighter 1
+  24. dk Kızıl Kontes       17%   24.9. dk  scout 5, mage 3, fighter 2
+
+Mob yoğunluğu: haritada ort 103.4 canlı mob (en çok 158). Bölge başına ort: Mantar 23.0, Yıkık şehir 23.0, Maymun ağaç köyü 22.9, Çöl 23.2, Kızıl Katedral 11.3
+Bir oyuncunun 40 m çevresinde ort 0.4 mob, 80 m çevresinde 1.6 mob
+
+Kim kimi öldürdü (satır: öldüren, sütun: ölen, maç başına):
+         Rogue    Mage     Fighter  Scout    K/D
+Rogue    0.4      0.6      0.6      0.7      0.46
+Mage     1.3      0.9      1.1      1.1      0.93
+Fighter  2.5      2.3      2.0      2.5      2.10
+Scout    0.7      0.8      0.7      0.5      0.54
+Ölüm sebepleri: fighter 47%, mage 22%, scout 13%, rogue 11%,  1%, mob 1%, boss 0%, storm 0%
+
+=== 1v1 düello (aynı seviye, rastgele tarz ve yetenekler, 100 düello/eşleşme) ===
+
+Seviye 3: satırdaki sınıfın kazanma oranı
+         Rogue    Mage     Fighter  Scout    Ortalama
+Rogue    -        31%      30%      37%      33%
+Mage     69%      -        51%      71%      64%
+Fighter  70%      49%      -        48%      56%
+Scout    63%      29%      52%      -        48%
+
+Seviye 7: satırdaki sınıfın kazanma oranı
+         Rogue    Mage     Fighter  Scout    Ortalama
+Rogue    -        37%      34%      48%      40%
+Mage     63%      -        58%      52%      58%
+Fighter  66%      42%      -        32%      47%
+Scout    52%      48%      68%      -        56%
+
+Seviye 12: satırdaki sınıfın kazanma oranı
+         Rogue    Mage     Fighter  Scout    Ortalama
+Rogue    -        57%      41%      46%      48%
+Mage     43%      -        44%      30%      39%
+Fighter  59%      56%      -        27%      47%
+Scout    54%      70%      73%      -        66%
