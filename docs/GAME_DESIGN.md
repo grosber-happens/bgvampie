@@ -63,8 +63,6 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
 | Q, E, 1, 2, 3 | The 5 skill slots |
 | W W | Double tap W: sprint while W is held |
 | A or D + Space | Side dash left or right |
-| Shift (tap) | Dash, S4 League style: taps chain while you have breath (SP). Dash then Space is a dash-jump |
-| Shift (hold) | Sprint (x1.55, drains breath) |
 | Space | Jump; again in the air for a double jump; against a wall for a wall kick (up to 3) |
 | Ctrl or C in the air | Ground slam (heavy legs only) |
 | X | Bandage: free, 3 s channel, heals 30%, 35 s cooldown; a big hit breaks it |

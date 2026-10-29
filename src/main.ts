@@ -77,8 +77,6 @@ const S4 = {
   dashLock: 0.16,
   sprintMult: 1.55,
   sprintDrain: 15,
-  /** Holding Shift this long while moving turns into a sprint. */
-  sprintHold: 0.22,
   /** Two W taps within this gap start a sprint that lasts while W is held. */
   doubleTap: 0.3,
   dashJumpWindow: 0.22,
@@ -158,7 +156,6 @@ const ctl = {
   airDashes: 1,
   wallKicks: 3,
   dashLock: 0,
-  shiftHeld: 0,
   sprinting: false,
   /** Time since the last W press, and whether a W double tap is sprinting. */
   sinceW: 9,
@@ -330,11 +327,8 @@ function updatePlayer(dt: number) {
     if (why) toast(why);
   }
   if (input.consume('KeyG') && !tryReel() && INV.set >= 5) toast(T('reel'));
-  // Shift: a tap dashes (chain them while breath lasts), holding it sprints.
-  const shiftDown = input.keys.has('ShiftLeft') || input.keys.has('ShiftRight');
   ctl.dashLock -= dt;
   ctl.sinceDash += dt;
-  ctl.shiftHeld = shiftDown ? ctl.shiftHeld + dt : 0;
   const cost = S4.dashCost * gearDashCost();
   const canDash = () => !stunned && ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0);
   const doDash = (dir: Vector3) => {
@@ -352,7 +346,6 @@ function updatePlayer(dt: number) {
     if (!ctl.grounded) ctl.airDashes -= 1;
     player.velY = Math.max(player.velY, 0);
   };
-  if (input.consume('ShiftLeft', 'ShiftRight') && canDash()) doDash(move.lengthSquared() > 0 ? move.clone() : fwd.clone());
   // W twice quickly: sprint for as long as W stays held.
   ctl.sinceW += dt;
   if (input.consume('KeyW')) {
@@ -360,7 +353,7 @@ function updatePlayer(dt: number) {
     ctl.sinceW = 0;
   }
   if (!input.keys.has('KeyW') || ctl.sp <= 0) ctl.wSprint = false;
-  ctl.sprinting = !stunned && ((shiftDown && ctl.shiftHeld > S4.sprintHold) || ctl.wSprint) && move.lengthSquared() > 0 && ctl.grounded && ctl.sp > 0 && ctl.dashT <= 0 && !isAiming() && INV.bandT <= 0;
+  ctl.sprinting = !stunned && ctl.wSprint && move.lengthSquared() > 0 && ctl.grounded && ctl.sp > 0 && ctl.dashT <= 0 && !isAiming() && INV.bandT <= 0;
   if (ctl.sprinting) {
     ctl.sp = Math.max(0, ctl.sp - S4.sprintDrain * dt);
     ctl.spIdle = 0;

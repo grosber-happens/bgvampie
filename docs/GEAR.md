@@ -7,11 +7,9 @@ This is the design and balance record for the gear update: armor, jewels, class 
 | Key | Action |
 | --- | --- |
 | WASD | Move |
-| W W | Double tap W to sprint while W is held |
-| A or D + Space | Side dash left or right (chains on breath) |
+| W W | Double tap W to sprint (x1.55, drains breath) while W is held. Shift does nothing |
+| A or D + Space | Side dash left or right. Chains while you have breath (SP). Dash then Space: dash-jump |
 | Space | Jump. Again in the air: double jump. Against a wall in the air: wall kick (up to 3) |
-| Shift (tap) | Dash. Taps chain while you have breath (SP). Dash then Space: dash-jump |
-| Shift (hold) | Sprint (x1.55, drains breath) |
 | Ctrl or C in the air | Ground slam (heavy legs only) |
 | X | Bandage: free, 3 s channel, heals 30%, 35 s cooldown. Moving slows you to 60%. Taking a hit over 8% of max health breaks it |
 | I | Bag. Click to equip, right click to unequip or drop |
