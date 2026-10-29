@@ -1,0 +1,148 @@
+{
+ "builds": [
+  {
+   "name": "Rogue-yakın",
+   "label": "Rogue yakın: Wink, Görünmezlik (3), Execute, Kidney shot (3), Detonate",
+   "picks": [
+    "wink",
+    "wink",
+    "invis",
+    "kidney",
+    "invis",
+    "execute",
+    "kidney",
+    "detonate",
+    "invis",
+    "kidney",
+    "execute",
+    "detonate"
+   ]
+  },
+  {
+   "name": "Rogue-kopya",
+   "label": "Rogue aldatmaca: Kopya yerleştirme (3), Detonate (3), Insane, Görünmezlik, Wink",
+   "picks": [
+    "decoy",
+    "decoy",
+    "detonate",
+    "insane",
+    "detonate",
+    "invis",
+    "insane",
+    "wink",
+    "decoy",
+    "detonate",
+    "invis",
+    "wink"
+   ]
+  },
+  {
+   "name": "Mage-yakın",
+   "label": "Mage nano: Nano kollar (3), Sonic boom, Sis, Nano zırh (3), Blink",
+   "picks": [
+    "arms",
+    "arms",
+    "armor",
+    "sonic",
+    "armor",
+    "fog",
+    "sonic",
+    "blink",
+    "arms",
+    "armor",
+    "fog",
+    "blink"
+   ]
+  },
+  {
+   "name": "Mage-uzak",
+   "label": "Mage lazer: Blink, Sunray, Nano bots (3), Gravity, Lazer mayınları (3)",
+   "picks": [
+    "mines",
+    "mines",
+    "nanobots",
+    "blink",
+    "nanobots",
+    "sunray",
+    "blink",
+    "gravity",
+    "nanobots",
+    "mines",
+    "sunray",
+    "gravity"
+   ]
+  },
+  {
+   "name": "Fighter-yakın",
+   "label": "Fighter çift kılıç: İkinci kılıç (3), Enerji kalkanı (3), Aşırı güç, Kılıç kasırgası, Hücum",
+   "picks": [
+    "second",
+    "second",
+    "eshield",
+    "overpower",
+    "eshield",
+    "whirl",
+    "overpower",
+    "charge",
+    "second",
+    "eshield",
+    "whirl",
+    "charge"
+   ]
+  },
+  {
+   "name": "Fighter-uzak",
+   "label": "Fighter mızrakçı: Jet sıçrayışı, Mızrak geri çağırma (3), Mızrak yağmuru, Zincirli mızrak (3), Delici mızrak",
+   "picks": [
+    "rain",
+    "rain",
+    "recall",
+    "chain",
+    "recall",
+    "leap",
+    "chain",
+    "pierce",
+    "recall",
+    "chain",
+    "leap",
+    "pierce"
+   ]
+  },
+  {
+   "name": "Scout-pençe",
+   "label": "Scout nişancı: Parçalama (3), Gözcü drone, Smoke bomb, Fast charge (3), Kanca",
+   "picks": [
+    "fast",
+    "fast",
+    "rend",
+    "drone",
+    "rend",
+    "smoke",
+    "drone",
+    "hook",
+    "fast",
+    "rend",
+    "smoke",
+    "hook"
+   ]
+  },
+  {
+   "name": "Scout-pet",
+   "label": "Scout nişancı: Switch weapons (3), Fast charge, Sürü çağrısı (3), Av emri, Elektrik tuzağı",
+   "picks": [
+    "fast",
+    "fast",
+    "pack",
+    "shotgun",
+    "pack",
+    "hunt",
+    "shotgun",
+    "trap",
+    "pack",
+    "shotgun",
+    "hunt",
+    "trap"
+   ]
+  }
+ ]
+}

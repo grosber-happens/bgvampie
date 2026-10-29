@@ -11,7 +11,8 @@ import { STYLES } from './kits.ts';
 import { runDuel } from './match.ts';
 
 const LEVELS = [3, 5, 7, 9, 12];
-const data = JSON.parse(readFileSync(new URL('./results/builds.json', import.meta.url), 'utf8'));
+const FILE: string = isMainThread ? (process.argv.find((a) => a.endsWith('.json')) ?? 'builds.json') : workerData.file;
+const data = JSON.parse(readFileSync(new URL(`./results/${FILE.split('/').pop()}`, import.meta.url), 'utf8'));
 const builds = data.builds.map((b: any) => {
   const cls = CLASS_IDS.find((c) => b.label.toLowerCase().startsWith(c)) as ClassId;
   const sid = b.label.split(':')[0].split(' ').slice(1).join(' ');
@@ -41,7 +42,7 @@ if (!isMainThread) {
 } else {
   const run = (li: number) =>
     new Promise<number[][]>((res, rej) => {
-      const w = new Worker(new URL(import.meta.url), { workerData: { li, repeats: REPEATS, arena: ARENA }, execArgv: ['--experimental-strip-types', '--no-warnings'] });
+      const w = new Worker(new URL(import.meta.url), { workerData: { li, repeats: REPEATS, arena: ARENA, file: FILE }, execArgv: ['--experimental-strip-types', '--no-warnings'] });
       w.on('message', res);
       w.on('error', rej);
     });
@@ -49,7 +50,7 @@ if (!isMainThread) {
   const n = builds.length;
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const games = (n - 1) * REPEATS;
-  console.log(`Gölge izi silik görüntü: ${process.env.FADE === '1' ? 'AÇIK' : 'kapalı'} · ${REPEATS} tekrar · ${ARENA} m arena`);
+  console.log(`Rogue kuralları: ${process.env.ROGUE2 !== '0' ? 'YENİ (silik görüntü, dash kopyası, arkaya geçince backstab)' : process.env.FADE === '1' ? 'eski + silik görüntü' : 'eski'} · ${REPEATS} tekrar · ${ARENA} m arena`);
   console.log(`${'Build'.padEnd(11)}${LEVELS.map((l) => `L${l}`.padEnd(7)).join('')}Toplam`);
   const tot = builds.map((_: any, i: number) => all.reduce((s, w) => s + w[i].reduce((a, b) => a + b, 0), 0));
   for (const i of builds.map((_: any, i: number) => i).sort((a: number, b: number) => tot[b] - tot[a]))
@@ -61,6 +62,6 @@ if (!isMainThread) {
   console.log(`Sınıflar: ${cls.join(' · ')}`);
   console.log(`\nRogue eşleşmeleri (satırdaki build'in kazanma oranı):`);
   console.log(`${''.padEnd(11)}${builds.map((b: any) => b.name.padEnd(11)).join('')}`);
-  for (let i = 0; i < 2; i++)
+  for (let i = 0; i < n && builds[i].cls === 'rogue'; i++)
     console.log(`${builds[i].name.padEnd(11)}${builds.map((_: any, j: number) => (i === j ? '-' : pct(all.reduce((s, w) => s + w[i][j], 0) / (REPEATS * LEVELS.length))).padEnd(11)).join('')}`);
 }
