@@ -60,7 +60,7 @@ import {
   type Obstacle,
   type Unit,
 } from './core.ts';
-import { POOL, SKILLS, STYLES, decoysOf, makeDecoy, spawnBeast } from './kits.ts';
+import { F, POOL, SKILLS, STYLES, decoysOf, makeDecoy, spawnBeast } from './kits.ts';
 import './tuning.ts';
 import './variants.ts';
 
@@ -219,7 +219,6 @@ function makePlayer(cls: ClassId, styleIndex: number, x: number, z: number): Uni
     xp: 0,
     xpBy: { mob: 0, player: 0, boss: 0 },
     skills: [{ id: style.skill, tier: 1, cd: 0, charges: SKILLS[style.skill].charges?.(1) ?? 1 }],
-    spearsOut: 0,
     currency: 0,
     aim: AIM.min + W.rand() * (AIM.max - AIM.min),
     aggression: 0.3 + W.rand() * 0.6,
@@ -480,6 +479,8 @@ function weaponHit(u: Unit, t: Unit, melee: boolean) {
   const chance = melee ? (t.kind === 'player' ? 0.85 : 0.97) : hitChance(u, t, d, w.range, w.acc ?? 1);
   if (W.rand() > chance) return;
   damage(u, t, dmg, melee ? 'melee' : 'ranged');
+  // A thrown spear stays stuck in the target until recalled.
+  if (!melee && p.cls === 'fighter') t.spearsIn = Math.min(F.recall.maxSpears, t.spearsIn + 1);
   // Cleave: wide sweeps hit others around the target.
   if (melee && w.cleave) {
     let n = 0;
@@ -842,7 +843,6 @@ function playerStep(u: Unit, dt: number) {
       return;
     }
     u.ammo--;
-    if (p.cls === 'fighter') p.spearsOut++;
   }
   u.atkT = C.ranged.rate;
   weaponHit(u, t, false);

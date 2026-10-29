@@ -412,7 +412,7 @@ export const F = {
   leap: { dist: [10, 13, 13] as [number, number, number], damage: [35, 55, 55] as [number, number, number], radius: 4, lift: 0.6 },
   whirl: { dur: [2.5, 3.5, 3.5] as [number, number, number], damage: [12, 18, 18] as [number, number, number], every: 0.3, radius: 3 },
   overpower: { dur: [5, 7, 7] as [number, number, number], dmg: 0.3, lifesteal: [0.1, 0.2, 0.2] as [number, number, number] },
-  recall: { damage: [25, 40, 40] as [number, number, number], slow: 0.4, perSpear: 12, maxSpears: 8 },
+  recall: { damage: [25, 40, 40] as [number, number, number], slow: 0.4, perSpear: 15, maxSpears: 8 },
 };
 
 const FIGHTER: SkillDef[] = [
@@ -476,7 +476,9 @@ const FIGHTER: SkillDef[] = [
       shot(c, F.pierce.range, 0.9, (t) => {
         damage(c.u, t, by(c.tier, F.pierce.damage), 'skill');
         // Pins the target to a wall, tree or box right behind it; in the open (BR map) a small chance.
-        if (W.obstacles.length ? wallBehind(c.u, t) : W.rand() < 0.3) stun(t, W.obstacles.length ? F.pierce.wallPin : F.pierce.pin);
+        // Closer throws pin longer: 1.5 s point blank down to 0.25 s at max range.
+        const pin = F.pierce.wallPin - (F.pierce.wallPin - F.pierce.pin) * Math.min(1, Math.max(0, (c.d - 5) / (F.pierce.range - 5)));
+        if (W.obstacles.length ? wallBehind(c.u, t) : W.rand() < 0.3) stun(t, pin);
         // It goes through: one more enemy behind sometimes.
         const behind = W.units.find((e) => e !== t && hostile(c.u, e) && e.kind !== 'decoy' && dist(e, t) < 3);
         if (behind) damage(c.u, behind, by(c.tier, F.pierce.damage), 'skill');
@@ -533,19 +535,23 @@ const FIGHTER: SkillDef[] = [
   },
   {
     id: 'recall', cls: 'fighter', name: 'Mızrak geri çağırma', w: 0.9, cd: (t) => by(t, [10, 7, 7]),
-    use: (c) =>
-      !!c.t && c.d < 25 &&
-      // Spear plan: collect spears first.
-      (c.u.p!.plan !== 'spear' || c.u.p!.spearsOut >= 4 || c.u.hp < c.u.maxHp * 0.35) &&
-      shot(c, 25, 0.9, (t) => {
+    use: (c) => {
+      if (!c.t || c.d > 25) return false;
+      const t = c.t;
+      // Spear plan: let spears pile up in the target first.
+      if (c.u.p!.plan === 'spear' && t.spearsIn < 3 && c.u.hp > c.u.maxHp * 0.35) return false;
+      const hit = () => {
         damage(c.u, t, by(c.tier, F.recall.damage), 'skill');
-        // Spears on the ground fly back through the target: about half of them hit.
-        const p = c.u.p!;
-        for (let i = 0; i < Math.min(p.spearsOut, F.recall.maxSpears); i++) if (W.rand() < 0.5) damage(c.u, t, F.recall.perSpear, 'skill');
-        p.spearsOut = 0;
+        // Each spear stuck in the target tears out on the way back.
+        damage(c.u, t, t.spearsIn * F.recall.perSpear, 'skill');
+        t.spearsIn = 0;
         if (c.tier >= 3) slow(t, F.recall.slow, 2);
         c.u.ammo = CLASSES.fighter.ranged.mag!;
-      }),
+      };
+      // Spears already in the target always come back through it.
+      if (t.spearsIn > 0) return hit(), true;
+      return shot(c, 25, 0.9, hit);
+    },
   },
 ];
 

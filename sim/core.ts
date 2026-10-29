@@ -27,8 +27,6 @@ export type PlayerState = {
   cls: ClassId;
   /** The user's playstyle for this build (duels only), see PLANS in match.ts. */
   plan?: string;
-  /** Fighter spears lying on the ground since the last recall. */
-  spearsOut: number;
   style: string;
   level: number;
   xp: number;
@@ -106,6 +104,8 @@ export type Unit = {
   fadeT: number;
   /** Hits taken (copies die after 2 hits). */
   hitsTaken: number;
+  /** Fighter spears stuck in this unit, waiting for a recall. */
+  spearsIn: number;
   /** Where the unit is looking (unit vector, 0,0 = unknown). */
   faceX: number;
   faceZ: number;
@@ -263,6 +263,7 @@ export function makeUnit(kind: Kind, name: string, x: number, z: number, hp: num
     stealthT: 0,
     fadeT: 0,
     hitsTaken: 0,
+    spearsIn: 0,
     faceX: 0,
     faceZ: 0,
     fogT: 0,
