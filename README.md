@@ -16,6 +16,8 @@ pnpm build    # typecheck + production build in dist/public
 
 WASD move · mouse aim · left click attack · F switch melee/ranged · R reload · Q, E, 1, 2, 3 skills · W W sprint · A/D + Space side dash · Space jump, double jump, wall kick · Ctrl/C in the air ground slam (heavy legs) · X bandage · I bag · G Last Reel (Noir set) · Tab level-up cards · Esc pause
 
+Map planner: `/planner.html` grows a map from sliders and a seed and lets you edit it (see [`docs/MAP_PLANNER.md`](docs/MAP_PLANNER.md)).
+
 `?debug=1` adds test keys: L gives a level, B spawns the boss, K gives 100 currency. `?seed=N` fixes the map.
 
 ## What is in it

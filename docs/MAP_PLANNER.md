@@ -1,0 +1,28 @@
+# Map planner (Harita Planlayıcı)
+
+Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). It grows one Harvest map of Ufuk-i Kehribar from a seed and sliders, then lets you edit it by hand.
+
+## How the map is made
+
+- `src/mapgen/` is pure TypeScript (no Babylon), so the game, the sim or a server can rebuild the exact map from a saved file.
+  - `generate.ts`: landscapes, terrain height, object kinds and placement. `Field` answers height, slope and landscape weights at any point; `generate()` places objects; `applyOps()` replays hand edits.
+  - `noise.ts`: seeded random and value/fractal/ridged noise.
+- Landscapes follow `design/dunya-tasarimi.md`: Kızıl Kanyon in the middle; clockwise from north Spor Ormanı, Asma Köyler, Turkuaz Lagün, Kehribar Kumu, Kemik Şehir. Borders are wobbly and blended, never hard lines. Each landscape has its own terrain shape (canyon cuts, rolling spore hills, high village ridges, lagoon islands, dunes, city terraces).
+- Landmarks: the Kızıl Katedral in the canyon center and the Fallen Giant (Düşmüş Dev, design §11.1). The ground flattens under them.
+- Objects are made only of primitives (box, cylinder, cone, sphere, dome, ring, rock) in `src/planner/kit.ts`: 27 kinds, such as tower mushrooms with balconies and windows, Moebius flat-top trees, giant flowers, Gardener robots, walking houses, buried gears, blood pipes, boilers, antenna towers, monowheels, stone heads and hands, clay domes, brutalist blocks, hanging highways, capsule houses, red gates, lagoon arches, moss hills with faces and Kusama polka dots. All parts are thin instances: about one draw call per shape.
+
+## Editor
+
+- Tools (left): view, place (pick a kind), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo, walk (WASD, Shift to run), photo, hide UI.
+- Panel (right): seed and dice, symmetry for fair maps, landscape toggles, terrain sliders, density sliders, atmosphere presets (Altın Saat, Koi Tutulması, Kızıl Sis, Spor Sabahı) and sliders for fog, sun, bloom, god rays, ink lines, spores, koi and paper grain.
+- Keys: 1–5 tools, M mirror, Y walk, P photo, H hide UI, R new seed, Ctrl+Z / Ctrl+Y.
+- The map autosaves in the browser. Export / import writes a JSON `MapFile` (`{ v, gen, ops, atmos }`): the generator settings plus the ordered hand edits, so files stay small.
+- `?q=low` renders at lower resolution with lighter shadows.
+
+## Look
+
+`src/planner/atmos.ts`: watercolor sky shader with the huge amber sun in the west, depth-based height fog that glows toward the sun, Moebius-style ink outlines from depth edges, god rays, spores in the air, up to three koi high in the sky, and the Kızıl Sis ring at the map edge.
+
+## Not yet
+
+- The game still uses its old city block. Next step: load a planner `MapFile` in `src/world.ts` (terrain height for walking, colliders from object footprints).
