@@ -205,6 +205,8 @@ body.reel #crosshair { border-color: var(--rose); }
 .style.on { background: var(--amber); }
 .style b { display: block; font-family: var(--display); font-weight: 400; font-size: 15px; }
 .style span { font-size: 12px; }
+.style.species { min-width: 130px; max-width: 200px; padding: 5px 12px; }
+.style.species b { font-size: 13px; }
 .passives { font-size: 12px; max-width: 640px; background: var(--ink); padding: 4px 10px; border-radius: 8px; }
 
 /* ---- Dossier panels (inventory, settings) ------------------------------------------- */

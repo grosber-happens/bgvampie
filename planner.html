@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Harita Planlayıcı · Vampire Battleground</title>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <header id="topbar">
+      <a class="brand" href="./">Vampire <b>Battleground</b></a>
+      <span class="title">Harita Planlayıcı <em>Ufuk-i Kehribar</em></span>
+      <span class="stats"><span id="stat-here">—</span> · <span id="stat-count"></span> · <span id="stat-time"></span> · <span id="stat-fps"></span></span>
+    </header>
+
+    <nav id="tools"></nav>
+    <div id="palette-wrap" class="card hidden"><div id="palette"></div></div>
+    <div id="brush" class="card hidden"></div>
+
+    <aside id="panel">
+      <button id="panel-toggle" title="Paneli aç/kapat">☰</button>
+      <div id="panel-body"></div>
+      <div class="files">
+        <button id="btn-export">Dışa aktar</button>
+        <button id="btn-import">İçe aktar</button>
+        <button id="btn-clear" class="ghost">Elle yapılanları sil</button>
+        <button id="btn-reset" class="ghost">Varsayılana dön</button>
+        <input id="file" type="file" accept="application/json,.json" hidden />
+      </div>
+    </aside>
+
+    <div id="mini-wrap" class="card"><canvas id="minimap" title="Tıkla: oraya git"></canvas><span class="n">K</span></div>
+    <div id="hint"></div>
+    <div id="flash"></div>
+    <script type="module" src="/src/planner/main.ts"></script>
+  </body>
+</html>

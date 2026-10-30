@@ -41,6 +41,7 @@ const UI: Dict = {
   again: ['Tekrar oyna', 'Play again'],
   settings: ['Ayarlar', 'Settings'],
   howto: ['Nasıl oynanır', 'How to play'],
+  planner: ['Harita planlayıcı', 'Map planner'],
   back: ['Geri', 'Back'],
   paused: ['Duraklatıldı.', 'Paused.'],
   pickClass: ['Sınıfını ve tarzını seç. Başlangıç yeteneğin tarzına göre gelir.', 'Pick your class and style. Your first skill comes from the style.'],

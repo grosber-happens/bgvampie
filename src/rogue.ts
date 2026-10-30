@@ -1,6 +1,6 @@
+import { armPlayer, dressDecoy } from './armory/rig';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createActorBody, forwardFromYaw } from './actors';
 import { createCharacterBody, createHippoBody } from './characters';
@@ -27,7 +27,6 @@ import {
   type Unit,
 } from './core';
 import { addShake, kick, muzzleFlash, sfx } from './feel';
-import { attachGun } from './gun';
 import {
   aimedShotDir,
   behind,
@@ -42,7 +41,6 @@ import {
   sweep,
   targetUnderCrosshair,
   updateCooldowns,
-  weaponPart,
   type ClassKit,
   type OwnedSkill,
   type SkillDef,
@@ -355,6 +353,8 @@ export function spawnDecoy(at: Vector3, yaw: number, mode: 'run' | 'idle', disgu
     disguise && colors.skin
       ? createCharacterBody(G.scene, G.world, `decoy${G.nextId}`, colors.skin, { tint: colors.tint })
       : (createHippoBody(G.scene, G.world, `decoy${G.nextId}`) ?? createActorBody(G.scene, G.world, `decoy${G.nextId}`, colors, false, {}));
+  // A copy of the player carries the same weapon in hand.
+  if (!disguise || !colors.skin) dressDecoy(G.scene, body.root, 'rogue', host.weapon());
   const lifeT = life ?? (ownedTier('insane') >= 2 ? NUM.decoy.insaneLife : NUM.decoy.life);
   const d = makeUnit('decoy', name, body, at, 0, NUM.decoy.hp, {
     owner: G.player,
@@ -504,16 +504,8 @@ export const ROGUE_KIT: ClassKit = {
   passives: ['Backstab: arkadan vuruş x1.8', 'Gölge izi: dash başladığı yerde kopya bırakır; 2.5 sn durunca 10 sn silikleşirsin'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
-  buildWeapons(root) {
-    const ranged = new TransformNode('rogue-ranged', G.scene);
-    ranged.parent = root;
-    attachGun(G.scene, G.world, ranged).catch((e) => console.error('Gun model failed to load', e));
-    const melee = new TransformNode('rogue-melee', G.scene);
-    melee.parent = root;
-    // Twin laser daggers, one in each hand.
-    for (const s of [1, -1]) weaponPart('dagger', melee, { w: 0.06, h: 0.06, d: 0.75 }, [0.42 * s, 1.15, 0.75], '#ff5a6e');
-    return { ranged, melee };
-  },
+  buildWeapons: (root) => armPlayer(G.scene, root, 'rogue'),
+  gauge: () => ({ ammo, mag: GUN.magazine, reloading: reloadT > 0 }),
   reset: resetRogue,
   update: updateRogue,
   // Gölge izi: a dash leaves a copy where it starts.

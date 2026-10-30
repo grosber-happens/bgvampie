@@ -1,6 +1,6 @@
+import { armPlayer } from './armory/rig';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { forwardFromYaw, rightFromYaw } from './actors';
 import { SCOUT } from './balance';
@@ -27,7 +27,6 @@ import {
   sweep,
   targetUnderCrosshair,
   updateCooldowns,
-  weaponPart,
   zones,
   type ClassKit,
   type SkillDef,
@@ -526,17 +525,6 @@ function update(dt: number) {
   updateMarks(dt);
 }
 
-function buildWeapons(root: TransformNode) {
-  const ranged = new TransformNode('scout-sniper', G.scene);
-  ranged.parent = root;
-  weaponPart('sniper', ranged, { w: 0.08, h: 0.12, d: 1.25 }, [0.32, 1.22, 0.75], '#2f3a2f', false);
-  weaponPart('scope', ranged, { w: 0.07, h: 0.07, d: 0.3 }, [0.32, 1.33, 0.6], '#7be36f');
-  const melee = new TransformNode('scout-claws', G.scene);
-  melee.parent = root;
-  for (const s of [1, -1]) for (const k of [-1, 0, 1]) weaponPart('claw', melee, { w: 0.03, h: 0.03, d: 0.4 }, [0.42 * s + k * 0.06, 1.1, 0.7], '#7be36f');
-  return { ranged, melee };
-}
-
 export const SCOUT_KIT: ClassKit = {
   id: 'scout',
   name: 'Scout',
@@ -547,7 +535,8 @@ export const SCOUT_KIT: ClassKit = {
   passives: ['Yoldaş: son vurduğun rakibe saldıran kurt (ölürse 20 sn sonra döner)', 'Yüksek zemin: alçaktaki rakibe +%20 hasar'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
-  buildWeapons,
+  buildWeapons: (root) => armPlayer(G.scene, root, 'scout'),
+  gauge: () => ({ ammo, mag: SCOUT.sniper.magazine, reloading: reloadT > 0, charge: charge(), shotgun: burst?.left ?? 0, shotgunDual: ownedTier('shotgun') >= 3 }),
   reset,
   update,
   attack: (w) => (w === 'ranged' ? snipe() : claw()),
