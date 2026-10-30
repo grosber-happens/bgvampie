@@ -46,9 +46,11 @@ import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { boss, botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
 import { INV, debugKit, spawnDrop, bandageCdShare, bandageShare, dashTouch, gearAfterHit, gearAirDashes, gearAirJumps, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, reelReady, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
-import { SLAM, WALL_RUN } from './gear';
+import { ITEM, RARITY_COLOR, SLAM, WALL_RUN } from './gear';
+import { rigHooks, rigReparent, rigSwing, updateRig } from './armory/rig';
+import { SPECIES, SPECIES_IDS, getSpecies, setSpecies, type SpeciesId } from './armory/species';
 import { castHooks } from './kit';
-import { applySkillLanguage, blurb, hud, onLang, t as T } from './i18n';
+import { applySkillLanguage, blurb, getLang, hud, onLang, t as T } from './i18n';
 import { SETTINGS, initUi, invUi, paintArt, onSettings, renderInventory } from './ui';
 import { loadArtIndex, skillIcon } from './icons';
 import { killLog, xpLog, cardText, currentOffer, grantXp, pickCard, prog, resetProgression, rewardKill, tier3Open, xpNeeded } from './progression';
@@ -185,6 +187,13 @@ const ctl = {
   aimTime: 0,
 };
 
+/** A named weapon item changes how that weapon looks; its rarity shows as a gem. */
+rigHooks.named = () => {
+  const it = INV.load.weapon;
+  const d = it && ITEM[it.id];
+  return it && d?.hand ? { hand: d.hand, gem: RARITY_COLOR[it.rarity] } : null;
+};
+
 /** The class's two weapons, parented to the player's body (built when the match starts). */
 let weaponNodes: Record<Weapon, TransformNode> | null = null;
 function buildWeapons() {
@@ -202,6 +211,7 @@ function usePlayerModel() {
     m.metadata = { unitId: player.id };
   }
   if (weaponNodes) for (const n of Object.values(weaponNodes)) n.parent = body.root;
+  rigReparent(body.root);
   for (const m of pBody.meshes) m.dispose();
   pBody.root.dispose(true);
   pBody = body;
@@ -505,11 +515,14 @@ function updatePlayer(dt: number) {
     stopBandage(true);
     ctl.fireCd = kit.attack(ctl.weapon) / gearAtkMult();
     if (ctl.weapon === 'ranged') crosshairKick = 1;
+    else rigSwing();
   }
   // Health comes back out of combat.
   if (G.time - player.lastCombat > kit.stats.regenDelay && !(player.ai?.noHealT > G.time)) player.hp = Math.min(player.maxHp, player.hp + kit.stats.regenPerSec * dt);
   kit.update(dt, ctl.moving, ctl.grounded);
   updateInventory(dt);
+  // Weapons in hand: ready pose while aiming or attacking, class state on the models.
+  updateRig({ dt, pitch: input.pitch, ready: isAiming() || (input.firing && !stunned), hand: ctl.weapon, gauge: kit.gauge?.() ?? {} });
   // Player animation: every class has its own dash.
   if (pBody.play) {
     if (ctl.dashT > 0) pBody.play(dash.anim, 1.5);
@@ -938,6 +951,22 @@ function buildStyles() {
     classes.appendChild(b);
   }
   box.appendChild(classes);
+  // Species: only the look of the weapons (and later the body), never stats.
+  const species = document.createElement('div');
+  species.className = 'style-row species-row';
+  for (const id of SPECIES_IDS) {
+    const sp = SPECIES[id];
+    const b = document.createElement('button');
+    b.className = `style species${getSpecies().id === id ? ' on' : ''}`;
+    b.innerHTML = `<b>${sp.name[getLang()]}</b><span>${sp.blurb[getLang()]}</span>`;
+    b.addEventListener('click', () => {
+      setSpecies(id as SpeciesId);
+      if (weaponNodes) buildWeapons();
+      buildStyles();
+    });
+    species.appendChild(b);
+  }
+  box.appendChild(species);
   const styles = document.createElement('div');
   styles.className = 'style-row';
   kit.playstyles.forEach((s, i) => {

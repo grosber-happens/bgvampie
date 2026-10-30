@@ -1,6 +1,6 @@
+import { armPlayer } from './armory/rig';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { forwardFromYaw } from './actors';
 import { FIGHTER } from './balance';
@@ -24,7 +24,6 @@ import {
   registerKit,
   sweep,
   updateCooldowns,
-  weaponPart,
   zones,
   type ClassKit,
   type SkillDef,
@@ -261,7 +260,6 @@ let dropped: { mesh: Mesh; t: number }[] = [];
 let returning: { from: Vector3; t: number; dmg: number; hit: Unit[]; slow: boolean }[] = [];
 let shieldMesh: Mesh | null = null;
 let whirlMesh: Mesh | null = null;
-let secondBlade: Mesh | null = null;
 
 function reset() {
   shieldT = 0;
@@ -550,21 +548,6 @@ function updateVisuals() {
       whirlMesh.rotation.y += 0.5;
     }
   }
-  if (secondBlade) secondBlade.isVisible = secondT > 0;
-}
-
-function buildWeapons(root: TransformNode) {
-  const melee = new TransformNode('fighter-sword', G.scene);
-  melee.parent = root;
-  weaponPart('hilt', melee, { w: 0.08, h: 0.08, d: 0.25 }, [0.45, 1.15, 0.55], '#3a3a3a', false);
-  weaponPart('blade', melee, { w: 0.07, h: 0.07, d: 1.3 }, [0.45, 1.15, 1.3], '#ff9a3b');
-  secondBlade = weaponPart('blade2', melee, { w: 0.07, h: 0.07, d: 1.3 }, [-0.45, 1.15, 1.2], '#ff9a3b');
-  secondBlade.isVisible = false;
-  const ranged = new TransformNode('fighter-spear', G.scene);
-  ranged.parent = root;
-  weaponPart('spear-shaft', ranged, { w: 0.06, h: 0.06, d: 1.6 }, [0.46, 1.25, 0.35], '#5a4a3a', false);
-  weaponPart('spear-tip', ranged, { w: 0.1, h: 0.1, d: 0.32 }, [0.46, 1.25, 1.3], '#ffd27a');
-  return { ranged, melee };
 }
 
 export const FIGHTER_KIT: ClassKit = {
@@ -577,7 +560,8 @@ export const FIGHTER_KIT: ClassKit = {
   passives: ['Kalkan jeneratörü: 10 sn\'de bir 20 kalkan', 'Can çalma: verdiğin hasarın %7\'si'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
-  buildWeapons,
+  buildWeapons: (root) => armPlayer(G.scene, root, 'fighter'),
+  gauge: () => ({ spears, dual: secondT > 0 }),
   reset,
   update,
   attack: (w) => (w === 'ranged' ? throwSpear() : swingSword()),

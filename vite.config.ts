@@ -16,9 +16,9 @@ export default defineConfig({
     // The single-file build also inlines models so the page needs no other files.
     assetsInlineLimit: process.env.SINGLE ? 20_000_000 : 4096,
     // SINGLE=1 makes one JS file (used to publish a shareable web build).
-    // PAGE=planner SINGLE=1 builds the map planner as one file instead of the game.
+    // PAGE=planner or PAGE=armory with SINGLE=1 builds that page as one file instead of the game.
     rollupOptions: process.env.SINGLE
-      ? { input: resolve(__dirname, process.env.PAGE === 'planner' ? 'planner.html' : 'index.html'), output: { inlineDynamicImports: true } }
-      : { input: { main: resolve(__dirname, 'index.html'), planner: resolve(__dirname, 'planner.html') } },
+      ? { input: resolve(__dirname, process.env.PAGE ? `${process.env.PAGE}.html` : 'index.html'), output: { inlineDynamicImports: true } }
+      : { input: { main: resolve(__dirname, 'index.html'), planner: resolve(__dirname, 'planner.html'), armory: resolve(__dirname, 'armory.html') } },
   },
 });

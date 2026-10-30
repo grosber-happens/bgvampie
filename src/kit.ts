@@ -9,6 +9,7 @@ import type { Anim } from './characters';
 import { G, chest, dealDamage, type HitOpts, faceTowards, flatDist, glowMat, hostile, lineOfSight, moveUnit, removeUnit, spawnFx, type Unit } from './core';
 import { kick, sfx } from './feel';
 import { pointHitsObstacle, resolveWalls } from './world';
+import type { Gauge } from './armory/rig';
 
 /**
  * Shared class-kit machinery: every class (Rogue, Mage, Fighter, Scout) is a ClassKit with
@@ -75,6 +76,8 @@ export type ClassKit = {
   reload?(): void;
   /** HUD line for the weapon in hand. */
   weaponText(w: Weapon): string;
+  /** What the weapon models show: bullets, heat, orbs, charge, spears (armory/rig.ts). */
+  gauge?(): Gauge;
   buffs(): string[];
   speedMult(): number;
   /** 1 normal, 0.5 faint, 0 hidden (for enemies). */
