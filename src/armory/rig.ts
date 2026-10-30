@@ -53,16 +53,16 @@ type Grip = {
 
 /** How each design sits in the hand at rest and in the ready pose (metres, radians, root space). */
 const HOLD: Record<DesignId, { ready: [number, number, number]; restPitch: number; readyPitch?: number; tilt?: [number, number, number]; offset?: [number, number, number] }> = {
-  pistol: { ready: [0.3, 1.2, 0.6], restPitch: 0.9 },
-  dagger: { ready: [0.38, 1.1, 0.5], restPitch: 1.1, readyPitch: -0.15 },
-  pen: { ready: [0.32, 1.22, 0.58], restPitch: 0.9 },
-  lantern: { ready: [0.42, 1.0, 0.42], restPitch: 0, tilt: [-1.32, 0, 0], offset: [0, 0, 0] },
-  sword: { ready: [0.42, 1.08, 0.48], restPitch: 0.9, readyPitch: -0.85 },
-  spear: { ready: [0.36, 1.42, 0.12], restPitch: -1.15, readyPitch: -0.2, offset: [0, 0, -0.15] },
+  pistol: { ready: [0.4, 1.27, 0.95], restPitch: 0.9 },
+  dagger: { ready: [0.42, 1.1, 0.62], restPitch: 1.1, readyPitch: -0.15 },
+  pen: { ready: [0.4, 1.28, 0.92], restPitch: 0.9 },
+  lantern: { ready: [0.46, 1.0, 0.55], restPitch: 0, tilt: [-1.32, 0, 0], offset: [0, 0, 0] },
+  sword: { ready: [0.46, 1.1, 0.6], restPitch: 0.9, readyPitch: -0.85 },
+  spear: { ready: [0.4, 1.45, 0.3], restPitch: -1.15, readyPitch: -0.2, offset: [0, 0, -0.15] },
   quiver: { ready: [0, 0, 0], restPitch: 0 },
-  rifle: { ready: [0.24, 1.26, 0.35], restPitch: 0.55 },
-  claw: { ready: [0.36, 1.08, 0.45], restPitch: 0.6, readyPitch: 0 },
-  shotgun: { ready: [0.3, 1.18, 0.55], restPitch: 0.9 },
+  rifle: { ready: [0.36, 1.32, 0.72], restPitch: 0.55 },
+  claw: { ready: [0.4, 1.08, 0.6], restPitch: 0.6, readyPitch: 0 },
+  shotgun: { ready: [0.4, 1.25, 0.9], restPitch: 0.9 },
 };
 
 const mirror = (v: [number, number, number], side: 0 | 1): [number, number, number] => (side === 0 ? v : [-v[0], v[1], v[2]]);

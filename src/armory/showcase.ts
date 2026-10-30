@@ -116,6 +116,11 @@ function build() {
     labels.appendChild(label);
     shown.push({ node: pivot, slot, label, phase: shown.length * 0.7 });
   }
+  if (params.has('cx')) {
+    camera.target.set(Number(params.get('cx')), Number(params.get('cy') ?? 1.2), 0);
+    camera.radius = Number(params.get('r')) || 3.5;
+    camera.beta = Number(params.get('beta')) || 1.3;
+  }
   if (only) {
     camera.target.set(0, 1, 0);
     camera.radius = Number(params.get('r')) || 1.6;
