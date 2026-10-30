@@ -1,0 +1,16 @@
+Rogue kuralları: YENİ (silik görüntü, dash kopyası, arkaya geçince backstab) · karşı hamle açık · 400 tekrar · 50 m arena
+Build      L3     L5     L7     L9     L12    Toplam
+Scout-pençe72%    68%    64%    78%    75%    72%
+Scout-pet  64%    70%    72%    61%    61%    65%
+Fighter-yakın54%    57%    55%    75%    70%    62%
+Mage-uzak  54%    50%    51%    48%    52%    51%
+Fighter-uzak42%    39%    52%    44%    47%    45%
+Rogue-yakın26%    40%    37%    37%    47%    37%
+Rogue-kopya43%    42%    36%    27%    26%    35%
+Mage-yakın 46%    34%    33%    29%    21%    33%
+Sınıflar: rogue 36% · mage 42% · fighter 54% · scout 69%
+
+Rogue eşleşmeleri (satırdaki build'in kazanma oranı):
+           Rogue-yakınRogue-kopyaMage-yakın Mage-uzak  Fighter-yakınFighter-uzakScout-pençeScout-pet  
+Rogue-yakın-          43%        56%        57%        11%        44%        19%        31%        
+Rogue-kopya57%        -          47%        31%        33%        47%        12%        16%        

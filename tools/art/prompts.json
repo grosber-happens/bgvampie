@@ -1,0 +1,37 @@
+{
+  "style": "Flat-color ink illustration in the manner of Moebius and Kim Jung Gi with a touch of Karl Kopinski: clean confident black ink outlines of even weight, flat cel colors in two or three tones, no gradients and no painterly blur, faint risograph print grain, warm cream paper background, one warm orange light from the upper left, flat deep violet shadow shapes, small hand-drawn imperfections in the line. Limited palette: ink black, cream, sodium amber, sun orange, rose red, teal, violet. Retro-futurist fantasy world under a huge orange sun. Centered object, square composition, generous empty space around it, no text, no letters, no frame, no border.",
+  "items": {
+    "l_head": "Game inventory icon: a light hooded rain cowl made of thin translucent gossamer fabric, folded hood with a soft brim, a few rain drops on it.",
+    "l_chest": "Game inventory icon: a light gossamer jacket with breathing seams stitched by a tailor robot, short collar, thin nano-thread embroidery.",
+    "l_legs": "Game inventory icon: a pair of soft light boots with cat-paw shaped soles and small spring coils at the heels.",
+    "m_head": "Game inventory icon: an inspector's visor, a half-helmet with a curved amber glass visor that reflects tiny faces of old cases.",
+    "m_chest": "Game inventory icon: a vest knitted from shiny nano wire in a chainmail-like weave, brass buttons, one bullet hole politely stitched shut.",
+    "m_legs": "Game inventory icon: sturdy pavement boots with thick treads and metal toe caps, a cobblestone stuck under one sole.",
+    "h_head": "Game inventory icon: a heavy cast iron helm shaped like a small church bell, narrow eye slit, faint humming lines around it.",
+    "h_chest": "Game inventory icon: a heavy bell-metal cuirass cast in a cathedral bell mould, engraved with a sun disc, riveted shoulder plates.",
+    "h_legs": "Game inventory icon: heavy greaves with stake-like spikes at the knees and big iron boots, cracks in the ground under them.",
+    "n_ember": "Game inventory icon: an ember locket, a small round brass locket on a chain, open, holding a tiny living match flame inside.",
+    "n_clock": "Game inventory icon: a pocket watch on a chain whose hand turns backwards, a small koi fish painted on the dial.",
+    "n_halo": "Game inventory icon: a broken stone halo fragment from a saint statue hung on a cord, cracked ring shape, gold leaf flakes.",
+    "n_pulse": "Game inventory icon: a pulse chain necklace, a glass heart pendant with a red essence drop beating inside.",
+    "r_blood": "Game inventory icon: a signet ring of the vampire counts, dark gold with a red essence drop gem engraved with a bat-winged sun.",
+    "r_flint": "Game inventory icon: a flint ring, a rough flint stone set in an iron band with sparks flying off it.",
+    "r_shadow": "Game inventory icon: a shadow loop ring made of polished black metal with a small crescent moon, a long shadow stretching ahead of it.",
+    "r_stitch": "Game inventory icon: a tailor's thimble ring with a curved needle and red thread wrapped around it.",
+    "s_hat": "Game inventory icon: a weathered detective fedora with a wide brim, ribbon band and a small brass recording lens tucked into the band, rain falling from the brim.",
+    "s_coat": "Game inventory icon: a long noir trench coat with the collar turned up, belt tied, an unopened letter peeking from a pocket.",
+    "s_shoes": "Game inventory icon: a pair of quiet oxford shoes, polished, wet, standing on a puddle reflecting an orange sun."
+  },
+  "items2": {
+    "s_ring": "Game inventory icon: a ring made from a melted police badge, star shape still visible, engraved Night Precinct number 7.",
+    "s_locket": "Game inventory icon: a missing person locket, oval silver locket open with a faded photograph of a blurred face inside.",
+    "w_rogue_r": "Game inventory icon: a slim assassin pistol with a long silencer carved like a violin neck with tuning pegs.",
+    "w_rogue_m": "Game inventory icon: twin laser daggers crossed, one blade shaped like a full moon disc, the other like a crescent moon, glowing violet.",
+    "w_mage_r": "Game inventory icon: a laser wand with a cold ice-blue crystal lens at the tip, frost forming on it.",
+    "w_mage_m": "Game inventory icon: a long plumb rod staff with a heavy dark sphere of star dust at its tip, small orbiting particles.",
+    "w_fighter_r": "Game inventory icon: a quiver holding four glowing energy spears tied with oath ribbons.",
+    "w_fighter_m": "Game inventory icon: a long laser sword whose blade is a beam of lighthouse light, ornate brass hilt.",
+    "w_scout_r": "Game inventory icon: a long sniper scope with brass rings and a tiny sparrow perched on top.",
+    "w_scout_m": "Game inventory icon: a pair of hooked metal claw gauntlets shaped like wolf claws, small cables."
+  }
+}
