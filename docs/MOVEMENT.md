@@ -54,14 +54,15 @@ All tuning lives in the `S4` object in `src/main.ts`.
 
 With the melee weapon out, right click is a class special paid with breath (the same bar
 as dashes, so you choose between running and hitting). Defined in `src/specials.ts`.
-Holding left click for a heavy attack was considered and dropped.
+Holding left click for a heavy attack was considered and dropped; the Fighter's right click
+is its heavy attack instead (user's call after review).
 
 | Class | Special | Breath | Cooldown | What it does |
 | --- | --- | --- | --- | --- |
 | Rogue | Saplama (lunge stab) | 25 | 1.2 s | Rushes up to 5 m, stops at the first enemy in reach, stabs (40) |
-| Fighter | Karşı duruş (counter stance) | 30 | 1.4 s | 0.55 s guard; the first hit does 20% and is answered by a 360° swing (35, push, short stun) |
-| Scout | Fırlatan tekme (launch kick) | 25 | 1.2 s | Small hop forward, kick (28), push 2.5 m, 0.6 s stun |
-| Mage | İtme dalgası (push wave) | 30 | 1.4 s | Wave around the body: 18 damage, push 4 m, 40% slow |
+| Fighter | Ağır vuruş (heavy attack) | 30 | 1.4 s | 0.35 s wind-up at half speed, then a wide slash (60, 160°), push 3 m, short stun |
+| Scout | Fırlatan tekme (launch kick) | 25 | 1.2 s | Small hop forward, kick (28) that flings enemies 7 m forward, 0.6 s stun |
+| Mage | Büyü kalkanı (spell shield) | 30 | 3 s | Blocks all damage for 1 s |
 
 ## Test hooks
 

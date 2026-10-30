@@ -1,6 +1,8 @@
-import { G, dealDamage, ringFx, slowUnit, stun } from './core';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { G, dealDamage, ringFx, spawnFx, stun } from './core';
 import { forwardFromYaw } from './actors';
-import { areaFx, enemiesNear, meleeTargets, push, slash, sweep, type ClassId } from './kit';
+import { meleeTargets, push, slash, sweep, type ClassId } from './kit';
 
 /**
  * Right click with the melee weapon out: one special attack per class, paid with breath.
@@ -15,9 +17,11 @@ export type SpecialDef = {
   color: string;
   /** Rush forward this far over this time, then hit (hop: a little jump at the start). */
   lunge?: { dist: number; time: number; hop?: number };
-  /** Stand guard this long; the first hit taken in it is softened and answered with `hit`. */
-  guard?: { time: number; keep: number };
-  /** The strike itself (at the end of the lunge, on a guarded hit, or right away). */
+  /** Wind up this long (slow steps), then hit: a heavy attack. */
+  windup?: number;
+  /** Block all damage for this long (a spell shield); `hit` shows it. */
+  shield?: number;
+  /** The strike itself (at the end of the lunge or wind-up, or right away). */
   hit(): void;
 };
 
@@ -33,25 +37,24 @@ export const SPECIALS: Record<ClassId, SpecialDef> = {
       sweep(2.4, 110, 40, '#ff5a6e');
     },
   },
-  // Fighter: a counter stance. Take a hit for a fifth of its damage and swing back all around.
+  // Fighter: a heavy attack. A short wind-up, then a wide slash that hits hard and knocks back.
   fighter: {
-    name: 'Karşı duruş',
+    name: 'Ağır vuruş',
     cost: 30,
     cd: 1.4,
     color: '#ff9a3b',
-    guard: { time: 0.55, keep: 0.2 },
+    windup: 0.35,
     hit: () => {
       const p = G.player;
-      for (const u of meleeTargets(2.8, 360)) {
-        dealDamage(p, u, 35);
-        push(u, u.pos.subtract(p.pos), 3);
-        stun(u, 0.4);
+      const f = forwardFromYaw(p.yaw);
+      for (const u of sweep(3, 160, 60, '#ff9a3b')) {
+        push(u, f, 3);
+        stun(u, 0.3);
       }
-      slash('#ff9a3b', 2.8, 1);
-      ringFx(p.pos, 2.8, '#ff9a3b', 0.3);
+      slash('#ff9a3b', 3, 0.45, p.yaw, -0.4);
     },
   },
-  // Scout: a hop and a launching kick that knocks back and dazes.
+  // Scout: a hop and a kick that flings enemies far forward and dazes them.
   scout: {
     name: 'Fırlatan tekme',
     cost: 25,
@@ -63,27 +66,23 @@ export const SPECIALS: Record<ClassId, SpecialDef> = {
       const f = forwardFromYaw(p.yaw);
       for (const u of meleeTargets(2.2, 90)) {
         dealDamage(p, u, 28);
-        push(u, f, 2.5);
+        push(u, f, 7);
         stun(u, 0.6);
       }
       slash('#7be36f', 2.2, 0.25, p.yaw, 0.6);
     },
   },
-  // Mage: a push wave around the body that shoves everyone off and slows them.
+  // Mage: a spell shield. For one second nothing gets through.
   mage: {
-    name: 'İtme dalgası',
+    name: 'Büyü kalkanı',
     cost: 30,
-    cd: 1.4,
+    cd: 3,
     color: '#7ad7ff',
+    shield: 1,
     hit: () => {
       const p = G.player;
-      for (const u of enemiesNear(p.pos, 4)) {
-        dealDamage(p, u, 18);
-        push(u, u.pos.subtract(p.pos), 4);
-        slowUnit(u, 0.4, 1.5);
-      }
-      areaFx(p.pos, 4, '#7ad7ff', 0.3, 0.4);
-      ringFx(p.pos, 4, '#7ad7ff', 0.35);
+      spawnFx(MeshBuilder.CreateSphere('spellshield', { diameter: 2.4, segments: 16 }, G.scene), p.pos.add(new Vector3(0, 0.95, 0)), '#7ad7ff', 1, 0, 0.3);
+      ringFx(p.pos, 1.4, '#7ad7ff', 0.3);
     },
   },
 };
