@@ -20,8 +20,13 @@ reference for ratios.
   (125-175 ms), touchdown at 0.365 s, straight back into running. The timing comes from
   frame-by-frame study of the user's own S4 recordings (design/s4-video-analizi-animasyon-spec.md
   in the project files); the class dash keeps its distance and is stretched to that time.
-  Sprinting leans the body about 17 degrees forward. This is a body-level turn for now;
-  hand-keyed limb animation (split legs at the top, gun arm holding aim) comes later.
+  Sprinting leans the body about 17 degrees forward.
+- **Animations:** `tools/hippo_moves_blender.py` hand-keys two new in-place animations on the
+  player's hippo: `cartwheel` (legs open to a full split at the 125-175 ms hang, free arm
+  tucked, reaching one-foot landing) and `sprint` (0.40 s cycle, long low bounding strides,
+  gun forward, free arm straight back). The code turns the whole body; the animation moves
+  the limbs. Keeping the gun arm on target through the turn needs the weapon in the hand
+  (the weapons work in PR #8) and comes after that.
 - **Dash-jump (wave dash):** Space during a dash, or just after it, cancels the slide into a
   long low leap that keeps the dash speed. In the air you can dash again (gear gives air
   dashes), then land and jump-cancel again. It is the fastest way to move and the most

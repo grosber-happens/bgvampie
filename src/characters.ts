@@ -23,7 +23,7 @@ import type { World } from './world';
 /** Kenney "Animated Characters: Survivors" (CC0): one rig, several skins, idle/run/jump. */
 export const SKINS = { maleB, femaleA, zombieA, zombieC };
 export type SkinName = keyof typeof SKINS;
-export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'dash' | 'dash_mage' | 'dash_fighter' | 'dash_scout';
+export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'dash' | 'dash_mage' | 'dash_fighter' | 'dash_scout' | 'cartwheel' | 'sprint';
 
 /**
  * Two rigged kits:
@@ -105,15 +105,16 @@ export function createCharacterBody(scene: Scene, world: World, name: string, sk
     anims[g.name.replace(`${name}-`, '') as Anim] = g;
   }
   let current: Anim | null = null;
-  const play = (wanted: Anim, speed = 1) => {
-    // Survivors have no walk or dash: fall back to run.
-    const a: Anim = anims[wanted] ? wanted : wanted.startsWith('dash') && anims.dash ? 'dash' : wanted === 'walk' || wanted.startsWith('dash') ? 'run' : wanted;
+  const play = (wanted: Anim, speed = 1, restart = false) => {
+    // Survivors have no walk, dash, cartwheel or sprint: fall back to dash or run.
+    const dashy = wanted.startsWith('dash') || wanted === 'cartwheel';
+    const a: Anim = anims[wanted] ? wanted : dashy && anims.dash ? 'dash' : wanted === 'walk' || wanted === 'sprint' || dashy ? 'run' : wanted;
     const g = anims[a];
     if (!g) return;
     g.speedRatio = speed;
-    if (current === a) return;
+    if (current === a && !restart) return;
     if (current) anims[current]?.stop();
-    g.start(a !== 'jump' && !a.startsWith('dash'), speed);
+    g.start(a !== 'jump' && !a.startsWith('dash') && a !== 'cartwheel', speed);
     current = a;
   };
   play('idle');

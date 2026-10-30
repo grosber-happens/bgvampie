@@ -219,6 +219,8 @@ const ctl = {
   dashCd: 0,
   dashDir: new Vector3(),
   dashSpeedMul: 1,
+  /** A new dash began this frame (restart the cartwheel even if one is playing). */
+  dashStarted: false,
   /** Right-click melee special: cooldown, lunge timer and direction, counter stance timer. */
   specialCd: 0,
   lungeT: 0,
@@ -400,6 +402,7 @@ function updatePlayer(dt: number) {
   const doDash = (dir: Vector3) => {
     if (stunned) player.stunT = 0;
     ctl.dashDir = dir;
+    ctl.dashStarted = true;
     ctl.dashT = ctl.dashTotal = dash.time * (1 + S4.slide);
     // Stretch to the cartwheel's time but keep the distance (the Mage's blink stays instant).
     ctl.dashSpeedMul = 1;
@@ -636,11 +639,17 @@ function updatePlayer(dt: number) {
   updateInventory(dt);
   // Player animation: every class has its own dash.
   if (pBody.play) {
-    if (ctl.dashT > 0) pBody.play(dash.anim, 1.5);
+    // Side dash: the cartwheel (timed to its 0.40 s); the Mage keeps its blink pose.
+    if (ctl.dashT > 0) {
+      if (dash.blink) pBody.play(dash.anim, 1.5);
+      else pBody.play('cartwheel', 1, ctl.dashStarted);
+      ctl.dashStarted = false;
+    }
     else if (!ctl.grounded) pBody.play('jump');
     else if (move.lengthSquared() > 0 && !stunned) {
       if (isAiming() || player.slowT > 0 || INV.bandT > 0) pBody.play('walk', 1.2);
-      else pBody.play('run', kit.speedMult() * (ctl.sprinting ? 1.45 : 1));
+      else if (ctl.sprinting) pBody.play('sprint', kit.speedMult());
+      else pBody.play('run', kit.speedMult());
     } else pBody.play('idle');
   }
 }
