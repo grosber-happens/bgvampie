@@ -91,19 +91,35 @@ export function equip(u: Unit, load: Loadout) {
 }
 
 /** Put an item on if it beats what is worn in that slot. */
-export function offer(u: Unit, it: Item) {
+export function offer(u: Unit, it: Item): boolean {
   const g = gearOf(u);
-  if (!g || !GEAR_ON.items) return;
+  if (!g || !GEAR_ON.items) return false;
+  if (upgradeGain(u, it) <= 0) return false;
+  equip(u, { ...g.load, [ITEM[it.id].slot]: it });
+  return true;
+}
+
+/** How much better than the worn piece this item is (0 or less: not worth wearing). */
+export function upgradeGain(u: Unit, it: Item): number {
+  const g = gearOf(u);
+  if (!g) return 0;
   const d = ITEM[it.id];
-  if (!canWear(u.p!.cls, d)) return;
+  if (!canWear(u.p!.cls, d)) return 0;
   const cur = g.load[d.slot];
   // Set pieces are worth more once two or more are worn.
   const bonus = (x: Item | undefined) => (x && ITEM[x.id].set ? g.set * 6 : 0);
-  if (cur && itemScore(cur) + bonus(cur) >= itemScore(it) + bonus(it)) return;
   // Weapons: only the hand this player fights with.
-  if (d.slot === 'weapon' && d.hand !== (u.p!.melee ? 'melee' : 'ranged') && cur) return;
-  equip(u, { ...g.load, [d.slot]: it });
+  if (d.slot === 'weapon' && d.hand !== (u.p!.melee ? 'melee' : 'ranged') && cur) return 0;
+  return itemScore(it) + bonus(it) - (cur ? itemScore(cur) + bonus(cur) : 0);
 }
+
+/** An item not worth wearing goes into the bag to sell at a machine (bag holds 8). */
+function keep(u: Unit, it: Item) {
+  if (!SELL.on || !u.p || u.p.bag.length >= 8) return;
+  u.p.bag.push(SELL.value(it));
+}
+/** Selling at machines (set by sim/shop.ts). */
+export const SELL = { on: false, value: (_it: Item) => 0 };
 
 // ---- Combat hooks (called from core.ts) -------------------------------------------
 const has = (u: Unit | null, id: Unique) => !!u && !!gearOf(u)?.u.has(id);
@@ -183,6 +199,8 @@ export const gearDash = (u: Unit) => {
   if (!g) return 1;
   return (1 + g.s.dashCd) * (g.u.has('twinDash') ? 0.6 : 1);
 };
+/** Breath cost multiplier of dashes and specials (the game's gearDashCost: dash cooldown stats now scale breath). */
+export const gearDashCost = (u: Unit) => 1 + (gearOf(u)?.s.dashCd ?? 0);
 export const gearReach = (u: Unit) => gearOf(u)?.s.reach ?? 0;
 export const gearMag = (u: Unit) => {
   const s = gearOf(u)?.s;
@@ -304,13 +322,14 @@ export function gearDrop(victim: Unit, killer: Unit | null) {
   if (!GEAR_ON.items || !GEAR_ON.drops || !killer?.p) return;
   const cls = killer.p.cls;
   const min = minutes();
-  if (victim.kind === 'mob' && W.rand() < DROPS.mob) offer(killer, rollItem(cls, min, W.rand));
-  if (victim.kind === 'boss') for (let i = 0; i < DROPS.boss; i++) offer(killer, rollItem(cls, min, W.rand, true));
+  const take = (it: Item) => offer(killer, it) || keep(killer, it);
+  if (victim.kind === 'mob' && W.rand() < DROPS.mob) take(rollItem(cls, min, W.rand));
+  if (victim.kind === 'boss') for (let i = 0; i < DROPS.boss; i++) take(rollItem(cls, min, W.rand, true));
   if (victim.kind === 'player') {
     // The killer may take the victim's best piece (if it fits), plus a fresh roll.
     const vg = gearOf(victim);
     for (const it of Object.values(vg?.load ?? {})) if (it) offer(killer, { ...it });
-    for (let i = 0; i < DROPS.player; i++) offer(killer, rollItem(cls, min, W.rand));
+    for (let i = 0; i < DROPS.player; i++) take(rollItem(cls, min, W.rand));
   }
 }
 
@@ -334,4 +353,10 @@ export function kitLoadout(cls: ClassId, weight: 'light' | 'medium' | 'heavy' | 
     out.ring = { id: 's_ring', rarity, xp: jewelXp };
   }
   return out;
+}
+
+/** Sum of item scores worn (a rough gear level for reports). */
+export function gearScoreOf(u: Unit): number {
+  const g = gearOf(u);
+  return g ? Object.values(g.load).reduce((s, it) => s + (it ? itemScore(it) : 0), 0) : 0;
 }

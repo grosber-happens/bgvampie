@@ -2,7 +2,7 @@
  * Balance experiments, picked with VARIANT=a,b,c (applied after tuning.ts).
  *   TUNED=1 VARIANT=s_dmg,r_hp node --experimental-strip-types --no-warnings sim/fade-test.ts 400 user-builds.json
  */
-import { CLASSES, PASSIVES } from './config.ts';
+import { CLASSES, MOVE, PASSIVES, SPECIAL } from './config.ts';
 import { F, M, R, S } from './kits.ts';
 
 export const VARIANTS: Record<string, { name: string; apply: () => void }> = {
@@ -32,6 +32,14 @@ export const VARIANTS: Record<string, { name: string; apply: () => void }> = {
   m_wand: { name: 'Asa hasarı 14 → 13', apply: () => void (CLASSES.mage.ranged.dmg = 13) },
   m_hp: { name: 'Mage can 95 → 105 (+7/seviye)', apply: () => ((CLASSES.mage.hp = 105), (CLASSES.mage.hpPerLevel = 7)) },
   m_lvl: { name: 'Mage seviye başı hasar %6 → %8', apply: () => void (CLASSES.mage.dmgPerLevel = 0.08) },
+  // ---- After the S4 movement (2026-10-30)
+  mv_shield: { name: 'Büyü kalkanı bekleme 3 → 6 sn', apply: () => void (SPECIAL.mage.cd = 6) },
+  mv_shield2: { name: 'Büyü kalkanı 1 → 0.6 sn, nefes 30 → 35', apply: () => ((SPECIAL.mage.shield = 0.6), (SPECIAL.mage.cost = 35)) },
+  mv_spear: { name: 'Mızrak uçuşu 1.5x hızlı (dodge şansı 0.40 → 0.25)', apply: () => void (MOVE.dodge.spear = 0.25) },
+  mv_spear2: { name: 'Mızrak hasarı 45 → 52', apply: () => void (CLASSES.fighter.ranged.dmg = 52) },
+  mv_heavy: { name: 'Ağır vuruş hasarı 60 → 70, hazırlık 0.35 → 0.3 sn', apply: () => ((SPECIAL.fighter.dmg = 70), (SPECIAL.fighter.windup = 0.3)) },
+  mv_sniper: { name: 'Şarjlı sniper mermisi hızlı (dodge şansı 0.45 → 0.3)', apply: () => void (MOVE.dodge.sniper = 0.3) },
+  mv_kick: { name: 'Fırlatan tekme sersemletme 0.6 → 0.8 sn', apply: () => void (SPECIAL.scout.stun = 0.8) },
 };
 void S;
 

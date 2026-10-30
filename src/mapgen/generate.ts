@@ -8,6 +8,7 @@
  * and wobbly; there are no hard region lines.
  */
 import { clamp, fbm, noise2, ridged, rng, smooth } from './noise';
+import { VENDOR, placeVendors, vendorCount } from './vendors.ts';
 
 export const BIOMES = [
   { id: 'kanyon', name: 'Kızıl Kanyon', ground: ['#5d6f8f', '#9fb4c9', '#e8eef2'], accent: '#c8333a' },
@@ -52,6 +53,8 @@ export type Params = {
   biomes: boolean[];
   cathedral: boolean;
   colossus: boolean;
+  /** Kurbağa Loncası vendor machines: 1 = the automatic count for this map size (vendors.ts), 0 = none. */
+  vendors?: number;
 };
 
 export const DEFAULT_PARAMS: Params = {
@@ -75,6 +78,7 @@ export const DEFAULT_PARAMS: Params = {
   biomes: [true, true, true, true, true, true],
   cathedral: true,
   colossus: true,
+  vendors: 1,
 };
 
 export type Category = 'trees' | 'mushrooms' | 'giants' | 'mech' | 'ruins' | 'rocks' | 'dots' | 'landmark';
@@ -113,6 +117,7 @@ export const KINDS = {
   nokta: { name: 'Puantiye', cat: 'dots', aff: [0, 1, 0.1, 0, 0, 0], cell: 3.2, r: 0.6, s: [0.4, 1.6] },
   katedral: { name: 'Kızıl Katedral', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 16, s: [1, 1] },
   dev: { name: 'Düşmüş Dev', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 30, s: [1, 1] },
+  satici: { name: 'Kurbağa Loncası makinesi', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
 } as const satisfies Record<string, { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] }>;
 export type Kind = keyof typeof KINDS;
 export const KIND_LIST = Object.keys(KINDS) as Kind[];
@@ -300,6 +305,26 @@ export function generate(field: Field, p: Params = field.p): Obj[] {
   const occ = new Occupancy();
   for (const o of out) occ.add(o.x, o.z, KINDS[o.k].r * o.s);
   const half = p.size / 2;
+  // Vendor machines: dry, flat spots spread evenly, at least one per landscape (vendors.ts).
+  const vMult = p.vendors ?? 1;
+  if (vMult > 0) {
+    const big = out.map((o) => ({ x: o.x, z: o.z, r: KINDS[o.k].r * o.s + 6 }));
+    const spots = placeVendors({
+      size: p.size,
+      seed: p.seed,
+      count: Math.max(1, Math.round(vendorCount(p.size) * vMult)),
+      symmetry: p.symmetry,
+      ok: (x, z) => field.height(x, z) > p.water + 0.4 && field.slope(x, z) < 0.35 && !big.some((b) => (b.x - x) ** 2 + (b.z - z) ** 2 < b.r * b.r),
+      region: (x, z) => field.biome(x, z),
+      regions: BIOMES.map((_, i) => i).filter((i) => p.biomes[i]),
+    });
+    const vr = rng(p.seed * 53 + 11);
+    for (const v of spots) {
+      // Face the map center, so the screen greets people walking in.
+      out.push({ k: 'satici', x: v.x, z: v.z, s: 1, r: Math.atan2(-v.x, -v.z) + (vr() - 0.5) * 0.6, v: v.id });
+      occ.add(v.x, v.z, VENDOR.r + 2);
+    }
+  }
   const w = new Float32Array(NB);
   // With symmetry, only generate the canonical half/quarter, then mirror.
   const xMax = p.symmetry >= 1 ? 0 : half;

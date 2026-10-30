@@ -1,0 +1,36 @@
+
+== Eski model (hareket yok, dükkan yok) (96 maç)
+   süre 27.6 dk · kazanan: rogue 25% · mage 27% · fighter 44% · scout 4%
+   maç başına oyuncu öldürme 18.5 · kazananın seviyesi 11.7
+   sınıf ortalama sıra: rogue 10.1 · mage 9.6 · fighter 10.0 · scout 12.3
+   para: kazanılan 99 (ilk 5: 261) · harcanan dükkânda 0 (ilk 5: 0) · ölünce cepte kalan 64
+   eşya puanı (ilk 5, maç sonu): 219
+   hareket: oyuncu başına 0.0 dodge, 0.0 sersemlikten kaçış, 0.0 sağ tık özel, 0.0 dk sprint
+
+== Yeni hareket, dükkan yok (96 maç)
+   süre 27.1 dk · kazanan: rogue 29% · mage 26% · fighter 44% · scout 1%
+   maç başına oyuncu öldürme 18.7 · kazananın seviyesi 11.7
+   sınıf ortalama sıra: rogue 10.4 · mage 9.4 · fighter 9.6 · scout 12.6
+   para: kazanılan 100 (ilk 5: 274) · harcanan dükkânda 0 (ilk 5: 0) · ölünce cepte kalan 65
+   eşya puanı (ilk 5, maç sonu): 210
+   hareket: oyuncu başına 0.5 dodge, 0.1 sersemlikten kaçış, 1.1 sağ tık özel, 6.2 dk sprint
+
+== Hareket + dükkan, kapsama 200 m (96 maç, 10 makine)
+   süre 29.5 dk · kazanan: rogue 25% · mage 32% · fighter 40% · scout 3%
+   maç başına oyuncu öldürme 18.6 · kazananın seviyesi 11.6
+   sınıf ortalama sıra: rogue 10.4 · mage 9.1 · fighter 9.8 · scout 12.7
+   para: kazanılan 103 (ilk 5: 277) · harcanan dükkânda 34 (ilk 5: 102) · ölünce cepte kalan 61
+   dükkân: oyuncu başına 1.3 ziyaret, 0.8 eşya (ilk 5: 2.1), makineye yürüme 203 m · en yakın makine ort. 129 m
+   eşya puanı (ilk 5, maç sonu): 256
+   hareket: oyuncu başına 0.5 dodge, 0.1 sersemlikten kaçış, 1.1 sağ tık özel, 6.6 dk sprint
+
+== Hareket + dükkan (200 m) + öneri A (kalkan 0.6 sn, hızlı sniper) (96 maç, 10 makine)
+   süre 29.6 dk · kazanan: rogue 26% · mage 31% · fighter 40% · scout 3%
+   maç başına oyuncu öldürme 18.6 · kazananın seviyesi 11.6
+   sınıf ortalama sıra: rogue 10.4 · mage 9.1 · fighter 9.8 · scout 12.7
+   para: kazanılan 102 (ilk 5: 277) · harcanan dükkânda 35 (ilk 5: 103) · ölünce cepte kalan 60
+   dükkân: oyuncu başına 1.3 ziyaret, 0.8 eşya (ilk 5: 2.1), makineye yürüme 203 m · en yakın makine ort. 129 m
+   eşya puanı (ilk 5, maç sonu): 256
+   hareket: oyuncu başına 0.5 dodge, 0.1 sersemlikten kaçış, 1.1 sağ tık özel, 6.6 dk sprint
+
+150 sn

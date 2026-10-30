@@ -1,0 +1,27 @@
+### MOVE=0
+
+B) eşyasız: rogue 49% · mage 48% · fighter 54% · scout 49% · ortalama düello 11.9 sn
+   Rogue-yakın 59%, Rogue-kopya 40%, Mage-yakın 42%, Mage-uzak 54%, Fighter-yakın 65%, Fighter-uzak 43%, Scout-pençe 49%, Scout-pet 49%
+
+B) doğal destansı: rogue 54% · mage 46% · fighter 54% · scout 45% · ortalama düello 12.2 sn
+   Rogue-yakın 62%, Rogue-kopya 47%, Mage-yakın 43%, Mage-uzak 50%, Fighter-yakın 67%, Fighter-uzak 42%, Scout-pençe 44%, Scout-pet 46%
+
+7 sn
+### MOVE=1
+
+B) eşyasız: rogue 53% · mage 58% · fighter 44% · scout 45% · ortalama düello 10.8 sn
+   Rogue-yakın 52%, Rogue-kopya 54%, Mage-yakın 62%, Mage-uzak 54%, Fighter-yakın 55%, Fighter-uzak 34%, Scout-pençe 46%, Scout-pet 43%
+
+B) doğal destansı: rogue 54% · mage 56% · fighter 47% · scout 44% · ortalama düello 11.1 sn
+   Rogue-yakın 54%, Rogue-kopya 54%, Mage-yakın 59%, Mage-uzak 52%, Fighter-yakın 60%, Fighter-uzak 33%, Scout-pençe 42%, Scout-pet 45%
+
+10 sn
+### MOVE=1 SPECIALS=0
+
+B) eşyasız: rogue 45% · mage 55% · fighter 53% · scout 47% · ortalama düello 11.3 sn
+   Rogue-yakın 46%, Rogue-kopya 44%, Mage-yakın 53%, Mage-uzak 57%, Fighter-yakın 66%, Fighter-uzak 39%, Scout-pençe 43%, Scout-pet 50%
+
+B) doğal destansı: rogue 48% · mage 52% · fighter 54% · scout 46% · ortalama düello 11.6 sn
+   Rogue-yakın 48%, Rogue-kopya 47%, Mage-yakın 51%, Mage-uzak 54%, Fighter-yakın 69%, Fighter-uzak 39%, Scout-pençe 39%, Scout-pet 54%
+
+14 sn

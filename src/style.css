@@ -78,6 +78,19 @@ button { font-family: var(--body); }
 #xp { position: relative; width: min(460px, 80vw); height: 14px; background: var(--ink); border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; }
 #xp-fill { height: 100%; width: 0; background: repeating-linear-gradient(-45deg, #cbb8ff 0 7px, var(--lilac) 7px 14px); }
 #xp-text { position: absolute; inset: 0; font-size: 10px; line-height: 10px; text-align: center; font-weight: 600; text-shadow: 1px 1px 0 var(--ink); }
+#shop-hint { background: var(--paper); color: var(--ink); border: 2.5px solid var(--ink); box-shadow: var(--shadow); padding: 3px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; transform: rotate(1deg); margin-bottom: 6px; }
+#shop-hint b { background: var(--amber); padding: 0 6px; border-radius: 6px; border: 1.5px solid var(--ink); }
+#shop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(21, 19, 26, 0.7); padding: 16px; z-index: 5; }
+#shop.hidden { display: none; }
+.dossier.shop::before { content: 'KURBAĞA LONCASI · RAF'; background: var(--amber); color: var(--ink); }
+#shop .inv-cols { grid-template-columns: 1fr; gap: 6px; }
+#shop-shelf { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
+#shop-bag { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+@media (max-width: 700px) { #shop-bag { grid-template-columns: repeat(4, 1fr); } }
+#shop-money { font-family: var(--display); font-size: 18px; background: var(--amber); border: 2px solid var(--ink); border-radius: 999px; padding: 0 10px; }
+.item .price { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); font-family: var(--display); font-size: 12px; white-space: nowrap; background: var(--amber); border: 2px solid var(--ink); border-radius: 999px; padding: 0 7px; }
+.item.cant .price { background: var(--paper2); color: #8a7f74; }
+.item.sold { opacity: 0.35; cursor: default; }
 #pick-hint { background: var(--amber); color: var(--ink); border: 2.5px solid var(--ink); box-shadow: var(--shadow); padding: 3px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; transform: rotate(-1.5deg); animation: bob 0.9s ease-in-out infinite alternate; }
 @keyframes bob { to { transform: rotate(1deg) translateY(-3px); } }
 #slots { display: flex; gap: 8px; }

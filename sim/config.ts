@@ -241,3 +241,41 @@ export const AI = { kiteSpeed: 0.6, calmUntil: 45, engageAt: 1.2, defendAt: 0.8,
 
 /** How well the simulated players aim (0..1), randomised per player. */
 export const AIM = { min: 0.5, max: 0.8 };
+
+// ---- S4 style movement (src/main.ts `S4`, src/specials.ts) ----------------------------
+/**
+ * The breath bar (SP) pays for side dashes, sprinting and the right-click specials.
+ * MOVE=0 turns it off (old model: class dash on a cooldown, no sprint, no dodge, no specials).
+ * The game numbers are copied; the bot reaction chances are guesses at how well people dodge.
+ */
+export const MOVE = {
+  on: process.env.MOVE !== '0',
+  spMax: 100,
+  spRegen: 32,
+  spDelay: 0.6,
+  dashCost: 20,
+  stunDashCost: 35,
+  winded: 1.1,
+  windedSlow: 0.82,
+  sprintMult: 1.55,
+  sprintDrain: 6,
+  /** Chance a bot sees an attack coming and side-dashes out of it (scaled by its aim/skill). */
+  dodge: { gun: 0.18, wand: 0.1, spear: 0.4, sniper: 0.45, quick: 0.15, melee: 0.2, special: 0.35, skill: 0.2, aoe: 0.3 } as Record<string, number>,
+  /** Breath bots keep for a dodge when they dash in or use a special. */
+  reserve: 20,
+  /** Chance to dash out of a stun (35 SP) when one lands in a player fight. */
+  stunBreak: 0.7,
+  /** Shortest gap between bot dashes (the game allows 0.12 s; bots react slower). */
+  dashGap: 0.5,
+  /** Dodges per second a bot can manage at most (it has to see each attack). */
+  dodgeGap: 0.45,
+};
+
+/** Right-click melee specials (src/specials.ts). */
+export const SPECIAL = {
+  on: process.env.SPECIALS !== '0',
+  rogue: { cost: 25, cd: 1.2, lunge: 5, reach: 2.4, dmg: 40 },
+  fighter: { cost: 30, cd: 1.4, windup: 0.35, reach: 3, dmg: 60, push: 3, stun: 0.3 },
+  scout: { cost: 25, cd: 1.2, lunge: 2.6, reach: 2.2, dmg: 28, push: 7, stun: 0.6 },
+  mage: { cost: 30, cd: 3, shield: 1 },
+};

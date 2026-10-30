@@ -3,7 +3,7 @@
  * 20 simulated players (5 per class) drop at random spots, farm mob camps, hunt bosses,
  * fight each other and follow the shrinking ring. Last one alive wins.
  */
-import { equip, bandaging, gearCd, gearAtk, gearCharge, gearDash, gearHeat, gearMag, gearReach, gearThink, gearTick, ramDash, slamDmg, resetGear, stopBandage } from './gear.ts';
+import { equip, gearDashCost, gearScoreOf, bandaging, gearCd, gearAtk, gearCharge, gearDash, gearHeat, gearMag, gearReach, gearThink, gearTick, ramDash, slamDmg, resetGear, stopBandage } from './gear.ts';
 import type { Loadout } from '../src/gear.ts';
 import {
   AI,
@@ -17,6 +17,7 @@ import {
   MAP_HALF,
   MATCH,
   MAX_SKILLS,
+  MOVE,
   MOBS,
   MOB_NAMES,
   MOB_ROLES,
@@ -63,6 +64,9 @@ import {
   type Unit,
 } from './core.ts';
 import { F, POOL, SKILLS, STYLES, decoysOf, makeDecoy, spawnBeast } from './kits.ts';
+import { spTick, spend, tryDodge, tryStunBreak, trySpecial, wantSprint } from './move.ts';
+import { SHOP_SIM, buildVendors, clearVendors, sampleDistance, shopAt, shopGoal } from './shop.ts';
+import type { VendorSpot } from '../src/mapgen/vendors.ts';
 import './tuning.ts';
 import './variants.ts';
 
@@ -222,6 +226,24 @@ function makePlayer(cls: ClassId, styleIndex: number, x: number, z: number): Uni
     xpBy: { mob: 0, player: 0, boss: 0 },
     skills: [{ id: style.skill, tier: 1, cd: 0, charges: SKILLS[style.skill].charges?.(1) ?? 1 }],
     currency: 0,
+    earned: 0,
+    sp: MOVE.spMax,
+    spIdle: 0,
+    winded: 0,
+    sprinting: false,
+    specialCd: 0,
+    dodgeCd: 0,
+    hurt: 0,
+    stunRolled: false,
+    sprintTime: 0,
+    dodges: 0,
+    stunBreaks: 0,
+    specials: 0,
+    spent: 0,
+    bought: 0,
+    visits: 0,
+    bag: [],
+    shopWalk: 0,
     aim: AIM.min + W.rand() * (AIM.max - AIM.min),
     aggression: 0.3 + W.rand() * 0.6,
     wantRange: style.range,
@@ -323,7 +345,7 @@ const SIGHT_SNIPER = 70;
 
 /** Players know the other builds' plans (KNOW=0 turns the counters off). */
 const KNOW = process.env.KNOW !== '0';
-type Brain = { scanT?: number; blindT: number; seenX: number; seenZ: number; goalCamp: Camp | null; dashT: number; think: number; goal: { x: number; z: number } | null; flee: boolean; gcd: number; lastX: number; lastZ: number; chaseT: number; ignore: Map<Unit, number> };
+type Brain = { shop?: VendorSpot | null; visited?: Set<string>; busyT?: number; scanT?: number; blindT: number; seenX: number; seenZ: number; goalCamp: Camp | null; dashT: number; think: number; goal: { x: number; z: number } | null; flee: boolean; gcd: number; lastX: number; lastZ: number; chaseT: number; ignore: Map<Unit, number> };
 const brains = new Map<Unit, Brain>();
 
 function think(u: Unit) {
@@ -432,6 +454,11 @@ function think(u: Unit) {
     b.goal = { x: goal.x, z: goal.z };
     b.goalCamp = null;
   }
+  else if (!t && !b.flee && (b.shop || (b.shop = shopGoal(u, (b.visited ??= new Set()), (v) => dist(v, goal) < goal.r - 10)))) {
+    // Walking to a vendor machine.
+    b.goal = { x: b.shop.x, z: b.shop.z };
+    b.goalCamp = null;
+  }
   else if (!t) {
     const campDone = b.goalCamp && !b.goalCamp.mobs.some((m) => m.alive);
     if (!b.goal || dist(u, b.goal) < 6 || campDone || (!b.goalCamp && W.rand() < 0.05)) {
@@ -480,6 +507,8 @@ function weaponHit(u: Unit, t: Unit, melee: boolean) {
   }
   const chance = melee ? (t.kind === 'player' ? 0.85 : 0.97) : hitChance(u, t, d, w.range, w.acc ?? 1);
   if (W.rand() > chance) return;
+  // S4 side dash: the target saw it coming and cartwheeled out of the way.
+  if (t.p && tryDodge(t, u, melee ? 'melee' : dodgeKind(p.cls, dmg, w.dmg))) return;
   damage(u, t, dmg, melee ? 'melee' : 'ranged');
   // A thrown spear stays stuck in the target until recalled.
   if (!melee && p.cls === 'fighter') t.spearsIn = Math.min(F.recall.maxSpears, t.spearsIn + 1);
@@ -502,6 +531,14 @@ function weaponHit(u: Unit, t: Unit, melee: boolean) {
   }
   // Scout companion hunts what you hit.
   for (const x of W.units) if (x.alive && x.owner === u && x.kind === 'pet' && (x.name === 'Yoldaş' || x.name === 'Sürü')) x.target = t;
+}
+
+/** Which dodge chance a ranged shot uses (config MOVE.dodge). */
+function dodgeKind(cls: ClassId, dmg: number, full: number): string {
+  if (cls === 'rogue') return 'gun';
+  if (cls === 'mage') return 'wand';
+  if (cls === 'fighter') return 'spear';
+  return dmg >= full * 0.7 ? 'sniper' : 'quick';
 }
 
 // ---- Arena tactics ----------------------------------------------------------
@@ -608,6 +645,8 @@ function playerStep(u: Unit, dt: number) {
   p.fadeCd -= dt;
   b.gcd -= dt;
   gearTick(u, dt);
+  spTick(u, dt);
+  p.sprinting = false;
   const outOfCombat = W.time - u.lastCombat > MATCH.regenDelay;
   if (outOfCombat) heal(u, C.regenPerSec * dt);
   // Passives.
@@ -662,7 +701,22 @@ function playerStep(u: Unit, dt: number) {
   const ring = ringNow();
   if (ring.dps > 0 && dist(u, ring) > ring.r) damage(null, u, ring.dps * dt, 'storm');
   if (!u.alive) return;
-  if (u.stunT > 0) return;
+  if (u.stunT > 0 && !tryStunBreak(u)) return;
+
+  // At a vendor machine: shop, then carry on.
+  if (b.busyT && b.busyT > 0) {
+    b.busyT -= dt;
+    if (!u.target || !u.target.p) return;
+    b.busyT = 0;
+  }
+  if (b.shop && !u.target) {
+    if (dist(u, b.shop) < 3) {
+      b.busyT = shopAt(u, b.shop, b.visited!);
+      b.shop = null;
+      b.goal = null;
+      return;
+    }
+  } else if (b.shop && u.target?.p) b.shop = null;
 
   const t = u.target && u.target.alive ? u.target : null;
   const d = t ? dist(u, t) : Infinity;
@@ -703,22 +757,24 @@ function playerStep(u: Unit, dt: number) {
   // Dash: close in on a melee target, step away from a melee attacker, or run.
   b.dashT -= dt;
   if (t && !wrapping && b.dashT <= 0 && u.stunT <= 0) {
-    const D = { dist: C.dash.dist, cd: C.dash.cd * gearDash(u) };
+    const D = { dist: C.dash.dist, cd: MOVE.on ? MOVE.dashGap : C.dash.cd * gearDash(u) };
+    // With the breath bar a dash costs SP instead of waiting for a cooldown (keep a dodge unless running).
+    const pay = () => !MOVE.on || spend(u, MOVE.dashCost * gearDashCost(u), b.flee ? 0 : MOVE.reserve);
     // Rogue rework: the copy is left where the dash starts.
     if (PASSIVES.rogue2.on && p.cls === 'rogue' && p.trailCd <= 0 && (b.flee || (p.melee && d > C.melee.range + 1 && d < 15) || (!p.melee && t.kind === 'player' && t.p!.melee && d < 4))) {
       makeDecoy(u, PASSIVES.rogue.trailLife);
       p.trailCd = PASSIVES.rogue.trailCd;
     }
-    if (b.flee) {
+    if (b.flee && pay()) {
       moveAway(u, t, 0);
       jump(u, u.x + (u.x - t.x) * 10, u.z + (u.z - t.z) * 10, D.dist);
       b.dashT = D.cd;
-    } else if (p.melee && d > C.melee.range + 1 && d < 15) {
+    } else if (!b.flee && p.melee && d > C.melee.range + 1 && d < 15 && pay()) {
       jump(u, t.x, t.z, D.dist, C.melee.range * 0.7);
       if (ramDash(u) && dist(u, t) < C.melee.range + 1) stun(t, 0.4);
       if (slamDmg(u) > 0 && dist(u, t) < 3.5) aoe(u, u.x, u.z, 3.5, slamDmg(u), 'aoe', (e) => slow(e, 0.4, 1.2), 0.8);
       b.dashT = D.cd;
-    } else if (!p.melee && t.kind === 'player' && t.p!.melee && d < 4 && p.plan !== 'high' && p.plan !== 'ground') {
+    } else if (!b.flee && !p.melee && t.kind === 'player' && t.p!.melee && d < 4 && p.plan !== 'high' && p.plan !== 'ground' && pay()) {
       jump(u, u.x + (u.x - t.x) * 10, u.z + (u.z - t.z) * 10, D.dist);
       b.dashT = D.cd;
     }
@@ -733,6 +789,12 @@ function playerStep(u: Unit, dt: number) {
   }
   // Movement.
   const speedMult = p.vehicle && W.time - u.lastCombat > 3 && !t ? VEHICLE.speedMult : 1;
+  // Sprint (W W): travelling without a vehicle, running away, or closing in on a player.
+  if (!wrapping) {
+    if (b.flee) p.sprinting = wantSprint(u, 'flee');
+    else if (t && t.kind === 'player' && d > (p.melee ? C.melee.range + 3 : p.wantRange + 6)) p.sprinting = wantSprint(u, 'chase');
+    else if (!t && b.goal && speedMult === 1 && dist(u, b.goal) > 25) p.sprinting = wantSprint(u, 'travel');
+  }
   const sneak = PASSIVES.rogue2.on && u.stealthT > 0 && t && t.kind === 'player' && !b.flee && p.melee;
   if (sneak) {
     // Invisible: circle round to the target's back before striking.
@@ -774,6 +836,7 @@ function playerStep(u: Unit, dt: number) {
   u.z = clamp(u.z, -MAP_HALF, MAP_HALF);
   const moved = Math.hypot(u.x - before.x, u.z - before.z);
   p.stillT = moved < 0.05 ? p.stillT + dt : 0;
+  if (b.shop && !t) p.shopWalk += moved;
   // Facing: toward the target, else along the way we moved.
   if (t) {
     const k = Math.max(0.01, d);
@@ -819,6 +882,10 @@ function playerStep(u: Unit, dt: number) {
       u.ammoRegenT = 0;
       u.ammo++;
     }
+  }
+  if (t.kind === 'player' || t.kind === 'boss') {
+    if (b.gcd <= 0 && trySpecial(u, t, d)) b.gcd = 0.3;
+    if (!t.alive) return;
   }
   if (d <= C.melee.range + 0.3 + gearReach(u)) {
     if (u.atkT <= 0) {
@@ -1032,6 +1099,17 @@ export type MatchResult = {
     place: number;
     level: number;
     kills: number;
+    earned: number;
+    spent: number;
+    bought: number;
+    visits: number;
+    left: number;
+    shopWalk: number;
+    dodges: number;
+    stunBreaks: number;
+    specials: number;
+    sprintTime: number;
+    gearScore: number;
     bossKills: number;
     mobKills: number;
     dmgToPlayers: number;
@@ -1089,6 +1167,7 @@ export function runMatch(seed: number, opts: { classes?: ClassId[]; styles?: num
   resetWorld(seed);
   buildCamps();
   buildRing();
+  buildVendors(seed, regionAt);
   const classes = opts.classes ?? CLASS_IDS.flatMap((c) => Array(MATCH.players / CLASS_IDS.length).fill(c) as ClassId[]);
   for (const [i, cls] of classes.entries()) {
     const s = { x: (W.rand() * 2 - 1) * (MAP_HALF - 30), z: (W.rand() * 2 - 1) * (MAP_HALF - 30) };
@@ -1136,6 +1215,7 @@ export function runMatch(seed: number, opts: { classes?: ClassId[]; styles?: num
       for (const u of W.players) {
         if (!u.alive) continue;
         n++;
+        sampleDistance(u);
         for (const m of W.units) {
           if (!m.alive || m.kind !== 'mob') continue;
           const d = dist(u, m);
@@ -1158,6 +1238,17 @@ export function runMatch(seed: number, opts: { classes?: ClassId[]; styles?: num
       place: u.p!.place,
       level: u.p!.level,
       kills: u.p!.kills,
+      earned: u.p!.earned,
+      spent: u.p!.spent,
+      bought: u.p!.bought,
+      visits: u.p!.visits,
+      left: u.p!.currency,
+      shopWalk: u.p!.shopWalk,
+      dodges: u.p!.dodges,
+      stunBreaks: u.p!.stunBreaks,
+      specials: u.p!.specials,
+      sprintTime: u.p!.sprintTime,
+      gearScore: gearScoreOf(u),
       bossKills: u.p!.bossKills,
       mobKills: u.p!.mobKills,
       dmgToPlayers: u.p!.dmgToPlayers,
@@ -1227,6 +1318,7 @@ export function runDuel(
   opts: { builds?: [string[] | null, string[] | null]; plans?: [string | undefined, string | undefined]; arena?: number; gear?: [Loadout | null, Loadout | null] } = {},
 ): { winner: 0 | 1 | -1; time: number } {
   resetWorld(seed);
+  clearVendors();
   camps = [];
   lairs = [];
   circles = [{ x: 0, z: 0, r: 9999 }, ...RING.map(() => ({ x: 0, z: 0, r: 9999 }))];
