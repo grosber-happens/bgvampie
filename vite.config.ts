@@ -15,6 +15,6 @@ export default defineConfig({
     // The single-file build also inlines models so the page needs no other files.
     assetsInlineLimit: process.env.SINGLE ? 20_000_000 : 4096,
     // SINGLE=1 makes one JS file (used to publish a shareable web build).
-    rollupOptions: process.env.SINGLE ? { output: { inlineDynamicImports: true } } : {},
+    rollupOptions: process.env.SINGLE ? { output: { inlineDynamicImports: true } } : { input: { main: 'index.html', armory: 'armory.html' } },
   },
 });

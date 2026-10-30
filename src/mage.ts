@@ -1,6 +1,6 @@
+import { armPlayer } from './armory/rig';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { forwardFromYaw, rightFromYaw } from './actors';
 import { MAGE } from './balance';
@@ -29,7 +29,6 @@ import {
   sweep,
   targetUnderCrosshair,
   updateCooldowns,
-  weaponPart,
   zones,
   type ClassKit,
   type SkillDef,
@@ -546,18 +545,6 @@ function updateVisuals(dt: number) {
   void dt;
 }
 
-function buildWeapons(root: TransformNode) {
-  const ranged = new TransformNode('mage-wand', G.scene);
-  ranged.parent = root;
-  weaponPart('wand', ranged, { w: 0.05, h: 0.05, d: 0.55 }, [0.32, 1.2, 0.62], '#2c2f44', false);
-  weaponPart('wand-tip', ranged, { w: 0.1, h: 0.1, d: 0.1 }, [0.32, 1.2, 0.92], '#7ad7ff');
-  const melee = new TransformNode('mage-rod', G.scene);
-  melee.parent = root;
-  weaponPart('rod', melee, { w: 0.07, h: 1.9, d: 0.07 }, [0.42, 1.05, 0.45], '#3b3550', false, [0.35, 0, 0]);
-  weaponPart('rod-top', melee, { w: 0.18, h: 0.18, d: 0.18 }, [0.42, 1.95, 0.8], '#7ad7ff');
-  return { ranged, melee };
-}
-
 export const MAGE_KIT: ClassKit = {
   id: 'mage',
   name: 'Mage',
@@ -568,7 +555,8 @@ export const MAGE_KIT: ClassKit = {
   passives: ['Büyü kalkanı: savaş dışında 10 sn sonra sıradaki vuruşu engeller', 'Nano küreler: (n) yeteneklerin kaynağı'],
   skills: SKILLS,
   playstyles: PLAYSTYLES,
-  buildWeapons,
+  buildWeapons: (root) => armPlayer(G.scene, root, 'mage'),
+  gauge: () => ({ heat, overheated: overheatT > 0, orbs: P.orbs }),
   reset,
   update,
   attack: (w) => (w === 'ranged' ? zap() : whack()),
