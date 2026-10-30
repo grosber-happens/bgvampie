@@ -66,13 +66,16 @@ const STEP_DOWN = 0.45;
  * S4 League style movement: a breath (stamina) bar pays for chained dashes and sprinting,
  * a jump right after a dash becomes a long dash-jump, everyone has a double jump and can kick off walls.
  * Leg gear adds air jumps, wall running (medium) or a ground slam (heavy).
+ * Costs follow the ratios S4 players documented (a dodge or a wall kick is a fifth of the bar,
+ * sprinting is a slow drain); see docs/MOVEMENT.md. The code and numbers here are our own.
  */
 const S4 = {
   spMax: 100,
   spRegen: 32,
   /** Breath starts coming back this long after the last dash or sprint. */
   spDelay: 0.6,
-  dashCost: 24,
+  /** A fifth of the bar: five dashes back to back empty it. */
+  dashCost: 20,
   /** Shortest gap between two chained dashes: the next dash can cut into the slide of the last one. */
   dashLock: 0.12,
   /** A dash is a burst then a short slide: the slide adds this much time (fraction of the class dash time). */
@@ -81,13 +84,21 @@ const S4 = {
   winded: 1.1,
   windedSlow: 0.82,
   sprintMult: 1.55,
-  sprintDrain: 15,
+  /** Sprinting is cheap per second (about 16 s from full); breath only drains on the ground. */
+  sprintDrain: 6,
+  /** Sprinting in the air (W W after a jump): drop faster and keep sprint speed, for bunny hops. */
+  airSprintGravity: 1.75,
+  airSprintMult: 1.3,
   /** Two W taps within this gap start a sprint that lasts while W is held. */
   doubleTap: 0.3,
   dashJumpWindow: 0.22,
   dashJumpSpeed: 12,
   doubleJump: 8.6,
-  wallKick: { up: 9.5, out: 8, max: 3 },
+  /**
+   * Wall kick: costs breath, only while rising or at the top of a jump (not while falling),
+   * and bounces off the wall like light off a mirror (angle in = angle out).
+   */
+  wallKick: { up: 9.5, out: 8, max: 3, cost: 20, minVelY: -2.5, keep: 0.9 },
   flipTime: 0.42,
 };
 const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
@@ -165,6 +176,7 @@ const ctl = {
   /** Time since the last W press, and whether a W double tap is sprinting. */
   sinceW: 9,
   wSprint: false,
+  airSprint: false,
   sinceDash: 9,
   velH: new Vector3(),
   flipT: 0,
@@ -364,13 +376,16 @@ function updatePlayer(dt: number) {
     if (ctl.sinceW < S4.doubleTap) ctl.wSprint = true;
     ctl.sinceW = 0;
   }
-  if (!input.keys.has('KeyW') || ctl.sp <= 0) ctl.wSprint = false;
+  // Out of breath ends a ground sprint, but an air sprint (fast drop) still works with an empty bar.
+  if (!input.keys.has('KeyW') || (ctl.sp <= 0 && ctl.grounded)) ctl.wSprint = false;
   ctl.sprinting = !stunned && ctl.wSprint && move.lengthSquared() > 0 && ctl.grounded && ctl.sp > 0 && ctl.dashT <= 0 && !isAiming() && INV.bandT <= 0;
+  // In the air a sprint is a fast drop that keeps its speed: cheaper than running, so hopping saves breath.
+  ctl.airSprint = !stunned && ctl.wSprint && !ctl.grounded && ctl.dashT <= 0 && ctl.wallRunT <= 0 && !ctl.slamming && move.lengthSquared() > 0;
   if (ctl.sprinting) {
     ctl.sp = Math.max(0, ctl.sp - S4.sprintDrain * dt);
     if (ctl.sp <= 0) ctl.winded = S4.winded;
     ctl.spIdle = 0;
-  } else if (ctl.dashT <= 0) {
+  } else if (ctl.dashT <= 0 && !ctl.airSprint) {
     ctl.spIdle += dt;
     if (ctl.spIdle > S4.spDelay && ctl.winded <= 0) ctl.sp = Math.min(S4.spMax, ctl.sp + S4.spRegen * dt);
   }
@@ -380,7 +395,9 @@ function updatePlayer(dt: number) {
   if (!stunned && input.consume('Space')) {
     const wn = ctl.grounded ? null : wallNormal();
     const side = input.axis('KeyA', 'KeyD');
-    if (side !== 0 && !(wn && ctl.wallKicks > 0) && ctl.wallRunT <= 0) {
+    const kickCost = S4.wallKick.cost * gearDashCost();
+    const canKick = !!wn && ctl.wallKicks > 0 && player.velY > S4.wallKick.minVelY && ctl.sp >= kickCost;
+    if (side !== 0 && !canKick && ctl.wallRunT <= 0) {
       if (canDash()) doDash(right.scale(side));
     } else if (ctl.wallRunT > 0) {
       player.velY = WALL_RUN.jumpOff;
@@ -401,10 +418,21 @@ function updatePlayer(dt: number) {
       ctl.airJumps = gearAirJumps();
       ctl.airDashes = gearAirDashes();
       ctl.wallKicks = S4.wallKick.max;
-    } else if (wn && ctl.wallKicks > 0) {
+    } else if (wn && canKick) {
       player.velY = S4.wallKick.up;
-      ctl.velH = wn.scale(S4.wallKick.out).add(move.scale(2));
+      // Mirror the incoming horizontal speed off the wall, then make sure it pushes away hard enough.
+      const run = MOVE.speed * kit.speedMult() * gearSpeedMult() * MOVE.airControl;
+      const vin = move.scale(run).add(ctl.velH);
+      vin.y = 0;
+      const into = Vector3.Dot(vin, wn);
+      const vout = vin.subtract(wn.scale(2 * into)).scale(S4.wallKick.keep);
+      const outward = Vector3.Dot(vout, wn);
+      if (outward < S4.wallKick.out) vout.addInPlace(wn.scale(S4.wallKick.out - outward));
+      ctl.velH = vout;
       ctl.wallKicks -= 1;
+      ctl.sp -= kickCost;
+      ctl.spIdle = 0;
+      if (ctl.sp <= 0.5) ctl.winded = S4.winded;
       ringFx(player.pos.add(wn.scale(-0.4)), 0.5, kit.dash.color, 0.25);
       flip(-1);
     } else if (ctl.airJumps > 0) {
@@ -455,11 +483,11 @@ function updatePlayer(dt: number) {
     if (!wallNormal()) ctl.wallRunT = 0;
   } else {
     const slow = player.slowT > 0 ? player.slowMul : 1;
-    const run = (ctl.sprinting ? S4.sprintMult : 1) * (ctl.winded > 0 ? S4.windedSlow : 1);
+    const run = (ctl.sprinting ? S4.sprintMult : ctl.airSprint ? S4.airSprintMult / MOVE.airControl : 1) * (ctl.winded > 0 ? S4.windedSlow : 1);
     const speed = stunned || ctl.slamming ? 0 : MOVE.speed * kit.speedMult() * gearSpeedMult() * run * slow * (ctl.grounded ? 1 : MOVE.airControl) * (isAiming() ? AIM.moveMult : 1);
     player.pos.addInPlace(move.scale(speed * dt)).addInPlace(ctl.velH.scale(dt));
     ctl.velH.scaleInPlace(Math.max(0, 1 - (ctl.grounded ? 10 : 1.2) * dt));
-    player.velY -= MOVE.gravity * dt;
+    player.velY -= MOVE.gravity * (ctl.airSprint && player.velY < 4 ? S4.airSprintGravity : 1) * dt;
   }
   resolveWalls(player.pos, player.radius, player.height, world.boxes);
 
@@ -600,6 +628,8 @@ function poseBody(dt: number) {
   let rz = 0;
   let up = 0;
   let fw = 0;
+  let cartwheel = false;
+  let sd = 0;
   if (ctl.flipT > 0) {
     const k = 1 - ctl.flipT / S4.flipTime;
     // Ease out so the flip snaps and settles.
@@ -613,19 +643,38 @@ function poseBody(dt: number) {
     rz = side > 0 ? -0.42 : 0.42;
   } else if (ctl.slamming) rx = 0.55;
   else if (ctl.sprinting) rx = 0.14;
+  else if (ctl.airSprint) rx = 0.32;
   else if (ctl.dashT > 0) {
     // Lean into the dash; a side dash tips the body sideways, the slide sinks it low.
     const side = Vector3.Dot(ctl.dashDir, rightFromYaw(player.yaw));
     const ahead = Vector3.Dot(ctl.dashDir, forwardFromYaw(player.yaw));
     const k = 1 - ctl.dashT / ctl.dashTotal;
-    rx = 0.3 * ahead + 0.12;
-    rz = -0.55 * side;
-    up = k > 0.6 ? -0.18 * Math.sin(((k - 0.6) / 0.4) * Math.PI) : 0;
+    if (Math.abs(side) > 0.7 && !kit.dash.blink) {
+      // Side dash: a no-hands cartwheel (aerial). One full turn during the burst, a low landing in the slide.
+      cartwheel = true;
+      const t = Math.min(1, k / 0.72);
+      const e = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+      rz = -Math.sign(side) * e * Math.PI * 2;
+      rx = 0.08;
+      // Turn around the hips, not the feet, and lift a little at the top of the wheel.
+      const h = 0.9;
+      up = h * (1 - Math.cos(rz)) + 0.3 * Math.sin(t * Math.PI) - (k > 0.72 ? 0.16 * Math.sin(((k - 0.72) / 0.28) * Math.PI) : 0);
+      sd = h * Math.sin(rz);
+    } else {
+      rx = 0.3 * ahead + 0.12;
+      rz = -0.55 * side;
+      up = k > 0.6 ? -0.18 * Math.sin(((k - 0.6) / 0.4) * Math.PI) : 0;
+    }
   } else if (ctl.winded > 0) rx = 0.2;
   const r = pBody.root;
   r.rotation.x += (rx - r.rotation.x) * (ctl.flipT > 0 ? 1 : Math.min(1, dt * 14));
-  r.rotation.z += (rz - r.rotation.z) * Math.min(1, dt * 12);
-  if (up || fw) r.position.copyFrom(player.pos.add(forwardFromYaw(player.yaw).scale(fw)).addInPlaceFromFloats(0, up, 0));
+  if (cartwheel) r.rotation.z = rz;
+  else {
+    // Unwind any leftover turn from a cartwheel the short way.
+    r.rotation.z = Math.atan2(Math.sin(r.rotation.z), Math.cos(r.rotation.z));
+    r.rotation.z += (rz - r.rotation.z) * Math.min(1, dt * 12);
+  }
+  if (up || fw || sd) r.position.copyFrom(player.pos.add(forwardFromYaw(player.yaw).scale(fw)).add(rightFromYaw(player.yaw).scale(sd)).addInPlaceFromFloats(0, up, 0));
   else r.position.copyFrom(player.pos);
 }
 
@@ -1085,6 +1134,13 @@ window.addEventListener('resize', () => engine.resize());
     player.velY = 0;
   },
   levelUp: () => grantXp(player, xpNeeded(player.level) - player.xp),
+  /** Test hook: the player cannot die (for movement tests and screenshots). */
+  god: () => (player.maxHp = player.hp = 1e9),
+  /** Test hook: draw one frame by hand (use after stopping the render loop to freeze a pose). */
+  frame: (dt = 1 / 60) => {
+    updateCamera(dt);
+    scene.render();
+  },
   spawnBoss: () => spawnBoss(rand),
   money: (n: number) => (PS.currency += n),
   openCards,
@@ -1119,7 +1175,7 @@ window.addEventListener('resize', () => engine.resize());
   setWeapon,
   gear: (w: 'light' | 'medium' | 'heavy' | 'noir', r: 'common' | 'rare' | 'epic' | 'legendary' = 'epic') => debugKit(w, r),
   inv: () => ({ load: INV.load, bag: INV.bag, s: INV.s, set: INV.set, bandT: INV.bandT, bandCd: INV.bandCd }),
-  move: () => ({ sp: ctl.sp, dashT: ctl.dashT, airJumps: ctl.airJumps, wallRunT: ctl.wallRunT, sprinting: ctl.sprinting, grounded: ctl.grounded }),
+  move: () => ({ sp: ctl.sp, dashT: ctl.dashT, airJumps: ctl.airJumps, wallRunT: ctl.wallRunT, sprinting: ctl.sprinting, airSprint: ctl.airSprint, wallKicks: ctl.wallKicks, velY: player.velY, grounded: ctl.grounded }),
   dropItem: (id: string, rarity: 'common' | 'rare' | 'epic' | 'legendary' = 'rare') => spawnDrop({ id, rarity, xp: 0 }, player.pos.add(new Vector3(0, 0, 0.5))),
   orbs: (n: number) => (P.orbs = n),
   /** Hold the player in a pose (for screenshots): plays the animation, then freezes it. */
