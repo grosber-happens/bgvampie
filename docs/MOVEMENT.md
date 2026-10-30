@@ -27,7 +27,16 @@ reference for ratios.
 - **Wall kick** only works while rising or at the top of a jump, never while falling.
   The kick mirrors your incoming speed off the wall (angle in = angle out), so you can
   cross gaps by kicking off a wall at a shallow angle. Max 3 kicks before touching ground.
+- **Dodge out of a stun:** while stunned, A/D + Space still dashes and breaks the stun,
+  for 35 SP instead of 20 (S4 has a separate "dodge after stun" cost).
+- **Direction speeds:** strafing runs at 92% speed and backpedalling at 78% (S4 has
+  separate front, side and back speed rates).
 - **Out of breath (winded):** no regen and slower steps for 1.1 s.
+
+The S4 tuning knobs are listed by name in the open-source NetspherePirates server
+(`ConstantInfoDto.cs`: dodge speed, decel, time and delay, walljump force, delay before
+jump, jump and landing time, fastrun cost and decrement delay, back-hit bonus). We only
+used that list to know which knobs exist; the values are ours.
 
 All tuning lives in the `S4` object in `src/main.ts`.
 

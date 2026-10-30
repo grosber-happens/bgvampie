@@ -76,6 +76,10 @@ const S4 = {
   spDelay: 0.6,
   /** A fifth of the bar: five dashes back to back empty it. */
   dashCost: 20,
+  /** A side dash also breaks a stun (dodge out of it), at a higher price. */
+  stunDashCost: 35,
+  sideRate: 0.92,
+  backRate: 0.78,
   /** Shortest gap between two chained dashes: the next dash can cut into the slide of the last one. */
   dashLock: 0.12,
   /** A dash is a burst then a short slide: the slide adds this much time (fraction of the class dash time). */
@@ -322,8 +326,12 @@ function flip(dir: number) {
 function updatePlayer(dt: number) {
   const fwd = forwardFromYaw(input.yaw);
   const right = rightFromYaw(input.yaw);
-  const move = fwd.scale(input.axis('KeyS', 'KeyW')).add(right.scale(input.axis('KeyA', 'KeyD')));
+  const fb = input.axis('KeyS', 'KeyW');
+  const move = fwd.scale(fb).add(right.scale(input.axis('KeyA', 'KeyD')));
   if (move.lengthSquared() > 0) move.normalize();
+  // Strafing is a bit slower than running forward, backpedalling slower still.
+  if (fb < 0) move.scaleInPlace(S4.backRate);
+  else if (fb === 0) move.scaleInPlace(S4.sideRate);
   ctl.moving = move.lengthSquared() > 0 || ctl.dashT > 0;
   const stunned = player.stunT > 0;
 
@@ -350,9 +358,10 @@ function updatePlayer(dt: number) {
   ctl.dashLock -= dt;
   ctl.winded = Math.max(0, ctl.winded - dt);
   ctl.sinceDash += dt;
-  const cost = S4.dashCost * gearDashCost();
-  const canDash = () => !stunned && ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0);
+  const cost = (stunned ? S4.stunDashCost : S4.dashCost) * gearDashCost();
+  const canDash = () => ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0);
   const doDash = (dir: Vector3) => {
+    if (stunned) player.stunT = 0;
     ctl.dashDir = dir;
     ctl.dashT = ctl.dashTotal = dash.time * (1 + S4.slide);
     ctl.ghostT = 0;
@@ -392,12 +401,15 @@ function updatePlayer(dt: number) {
 
   // Space: with A or D held it is a side dash; otherwise ground jump, dash-jump, wall run jump-off,
   // wall kick (Space again next to a wall) or double jump.
-  if (!stunned && input.consume('Space')) {
-    const wn = ctl.grounded ? null : wallNormal();
+  // While stunned, only a side dash works (it breaks the stun).
+  if (input.consume('Space') && (!stunned || input.axis('KeyA', 'KeyD') !== 0)) {
+    const wn = ctl.grounded || stunned ? null : wallNormal();
     const side = input.axis('KeyA', 'KeyD');
     const kickCost = S4.wallKick.cost * gearDashCost();
-    const canKick = !!wn && ctl.wallKicks > 0 && player.velY > S4.wallKick.minVelY && ctl.sp >= kickCost;
-    if (side !== 0 && !canKick && ctl.wallRunT <= 0) {
+    const canKick = !stunned && !!wn && ctl.wallKicks > 0 && player.velY > S4.wallKick.minVelY && ctl.sp >= kickCost;
+    if (stunned) {
+      if (canDash()) doDash(right.scale(side));
+    } else if (side !== 0 && !canKick && ctl.wallRunT <= 0) {
       if (canDash()) doDash(right.scale(side));
     } else if (ctl.wallRunT > 0) {
       player.velY = WALL_RUN.jumpOff;
