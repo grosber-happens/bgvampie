@@ -342,6 +342,11 @@ function paperPass(camera: Camera) {
   pp.onApply = (e) => e.setFloat2('screenSize', pp.width, pp.height);
 }
 
+/** Use the clay helpers in another scene without the game's sky and paper pass (map planner). */
+export function setLookScene(s: Scene) {
+  scene = s;
+}
+
 /** Set up the look for the scene: sky, softer clay lighting and the paper pass. */
 export function initLook(s: Scene, camera: Camera, shadows?: ShadowGenerator) {
   scene = s;
