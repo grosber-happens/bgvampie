@@ -47,7 +47,8 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { boss, botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
 import { INV, debugKit, spawnDrop, bandageCdShare, bandageShare, dashTouch, gearAfterHit, gearAirDashes, gearAirJumps, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, reelReady, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
 import { SLAM, WALL_RUN } from './gear';
-import { castHooks } from './kit';
+import { SPECIALS } from './specials';
+import { castHooks, meleeTargets } from './kit';
 import { applySkillLanguage, blurb, hud, onLang, t as T } from './i18n';
 import { SETTINGS, initUi, invUi, paintArt, onSettings, renderInventory } from './ui';
 import { loadArtIndex, skillIcon } from './icons';
@@ -197,6 +198,13 @@ const ctl = {
   ghostT: 0,
   dashCd: 0,
   dashDir: new Vector3(),
+  /** Right-click melee special: cooldown, lunge timer and direction, counter stance timer. */
+  specialCd: 0,
+  lungeT: 0,
+  lungeTotal: 0,
+  lungeDir: new Vector3(),
+  guardT: 0,
+  wasRight: false,
   moving: false,
   aimTime: 0,
 };
@@ -292,6 +300,14 @@ MODS.outgoing = (t, d, src, opts) => {
 };
 MODS.incoming = (d, src) => {
   let dmg = kit.incoming ? kit.incoming(d, src) : d;
+  // Fighter counter stance: soften the first hit and swing back.
+  if (ctl.guardT > 0 && src && dmg > 0) {
+    const sp = SPECIALS[kit.id];
+    dmg *= sp.guard?.keep ?? 1;
+    ctl.guardT = 0;
+    sp.hit();
+    addShake(0.15);
+  }
   if (dmg > 0) dmg = gearIncoming(dmg, src);
   if (dmg > 0 && P.shield > 0) {
     const absorbed = Math.min(P.shield, dmg);
@@ -540,6 +556,47 @@ function updatePlayer(dt: number) {
   player.yaw = input.yaw;
 
   ctl.aimTime = isAiming() ? ctl.aimTime + dt : 0;
+  // Right click with the melee weapon: the class special (paid with breath).
+  ctl.specialCd -= dt;
+  ctl.guardT = Math.max(0, ctl.guardT - dt);
+  const rightDown = input.aiming;
+  if (rightDown && !ctl.wasRight && ctl.weapon === 'melee' && running) {
+    const sp = SPECIALS[kit.id];
+    const sCost = sp.cost * gearDashCost();
+    if (stunned || ctl.specialCd > 0 || ctl.lungeT > 0 || ctl.dashT > 0) {
+      // Not ready: ignore.
+    } else if (ctl.sp < sCost) toast(T('noBreath'));
+    else {
+      ctl.sp -= sCost;
+      ctl.spIdle = 0;
+      if (ctl.sp <= 0.5) ctl.winded = S4.winded;
+      ctl.specialCd = sp.cd;
+      stopBandage(true);
+      if (sp.lunge) {
+        ctl.lungeT = ctl.lungeTotal = sp.lunge.time;
+        ctl.lungeDir = fwd.clone();
+        if (sp.lunge.hop) player.velY = Math.max(player.velY, sp.lunge.hop);
+        feel.fovPunch += 0.05;
+      } else if (sp.guard) ctl.guardT = sp.guard.time;
+      else sp.hit();
+      ringFx(player.pos, 0.6, sp.color, 0.2);
+    }
+  }
+  ctl.wasRight = rightDown;
+  if (ctl.lungeT > 0) {
+    const sp = SPECIALS[kit.id];
+    const step = Math.min(dt, ctl.lungeT);
+    ctl.lungeT -= dt;
+    player.pos.addInPlace(ctl.lungeDir.scale(((sp.lunge?.dist ?? 0) / ctl.lungeTotal) * step));
+    resolveWalls(player.pos, player.radius, player.height, world.boxes);
+    // Stop as soon as someone is in reach, so the rush never runs past the target.
+    if (meleeTargets(1.1, 80).length > 0) ctl.lungeT = 0;
+    if (ctl.lungeT <= 0) {
+      ctl.lungeT = 0;
+      sp.hit();
+      addShake(0.1);
+    }
+  }
   ctl.fireCd -= dt;
   if (!stunned && input.firing && ctl.fireCd <= 0) {
     stopBandage(true);
@@ -656,6 +713,11 @@ function poseBody(dt: number) {
   } else if (ctl.slamming) rx = 0.55;
   else if (ctl.sprinting) rx = 0.14;
   else if (ctl.airSprint) rx = 0.32;
+  else if (ctl.lungeT > 0) rx = 0.45;
+  else if (ctl.guardT > 0) {
+    rx = -0.12;
+    up = -0.15;
+  }
   else if (ctl.dashT > 0) {
     // Lean into the dash; a side dash tips the body sideways, the slide sinks it low.
     const side = Vector3.Dot(ctl.dashDir, rightFromYaw(player.yaw));
@@ -1187,7 +1249,7 @@ window.addEventListener('resize', () => engine.resize());
   setWeapon,
   gear: (w: 'light' | 'medium' | 'heavy' | 'noir', r: 'common' | 'rare' | 'epic' | 'legendary' = 'epic') => debugKit(w, r),
   inv: () => ({ load: INV.load, bag: INV.bag, s: INV.s, set: INV.set, bandT: INV.bandT, bandCd: INV.bandCd }),
-  move: () => ({ sp: ctl.sp, dashT: ctl.dashT, airJumps: ctl.airJumps, wallRunT: ctl.wallRunT, sprinting: ctl.sprinting, airSprint: ctl.airSprint, wallKicks: ctl.wallKicks, velY: player.velY, grounded: ctl.grounded }),
+  move: () => ({ sp: ctl.sp, dashT: ctl.dashT, airJumps: ctl.airJumps, wallRunT: ctl.wallRunT, sprinting: ctl.sprinting, airSprint: ctl.airSprint, lungeT: ctl.lungeT, guardT: ctl.guardT, specialCd: ctl.specialCd, wallKicks: ctl.wallKicks, velY: player.velY, grounded: ctl.grounded }),
   dropItem: (id: string, rarity: 'common' | 'rare' | 'epic' | 'legendary' = 'rare') => spawnDrop({ id, rarity, xp: 0 }, player.pos.add(new Vector3(0, 0, 0.5))),
   orbs: (n: number) => (P.orbs = n),
   /** Hold the player in a pose (for screenshots): plays the animation, then freezes it. */

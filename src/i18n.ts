@@ -107,6 +107,7 @@ const UI: Dict = {
   jewelLv: ['Sv {l}', 'Lv {l}'],
   reelReady: ['Son Kare hazır (G)', 'Last Reel ready (G)'],
   reel: ['Son Kare', 'Last Reel'],
+  noBreath: ['Nefes yetmiyor', 'Out of breath'],
   boss: ['Zombi Devi', 'Zombie Giant'],
   you: ['Sen', 'You'],
   poison: ['Zehir', 'Poison'],
@@ -114,8 +115,8 @@ const UI: Dict = {
   city: ['Şehir', 'City'],
   newCity: ['N: yeni şehir', 'N: new city'],
   hint: [
-    'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (havada tekrar: çift zıplama, duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab kart · Esc duraklat',
-    'WASD move · W W sprint · A/D + Space side dash · Space jump (again in the air: double jump, Space Space at a wall: wall kick) · Left click fire · Right click aim · F weapon · R reload · Q E 1 2 3 skills · X bandage · I bag · G set skill · Tab cards · Esc pause',
+    'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (havada tekrar: çift zıplama, duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan (yakın silahla: özel saldırı) · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab kart · Esc duraklat',
+    'WASD move · W W sprint · A/D + Space side dash · Space jump (again in the air: double jump, Space Space at a wall: wall kick) · Left click fire · Right click aim (melee: special attack) · F weapon · R reload · Q E 1 2 3 skills · X bandage · I bag · G set skill · Tab cards · Esc pause',
   ],
   credits: ['Bir Moebius rüyası, Kim Jung Gi çizgisi, Kopinski tozu.', 'A Moebius dream, a Kim Jung Gi line, Kopinski dust.'],
   postcard: ['Ufuk-i Kehribar’dan selamlar', 'Greetings from Ufuk-i Kehribar'],

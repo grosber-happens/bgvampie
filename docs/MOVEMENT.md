@@ -40,6 +40,19 @@ used that list to know which knobs exist; the values are ours.
 
 All tuning lives in the `S4` object in `src/main.ts`.
 
+## Melee special (right click)
+
+With the melee weapon out, right click is a class special paid with breath (the same bar
+as dashes, so you choose between running and hitting). Defined in `src/specials.ts`.
+Holding left click for a heavy attack was considered and dropped.
+
+| Class | Special | Breath | Cooldown | What it does |
+| --- | --- | --- | --- | --- |
+| Rogue | Saplama (lunge stab) | 25 | 1.2 s | Rushes up to 5 m, stops at the first enemy in reach, stabs (40) |
+| Fighter | Karşı duruş (counter stance) | 30 | 1.4 s | 0.55 s guard; the first hit does 20% and is answered by a 360° swing (35, push, short stun) |
+| Scout | Fırlatan tekme (launch kick) | 25 | 1.2 s | Small hop forward, kick (28), push 2.5 m, 0.6 s stun |
+| Mage | İtme dalgası (push wave) | 30 | 1.4 s | Wave around the body: 18 damage, push 4 m, 40% slow |
+
 ## Test hooks
 
 `__game.move()` reports breath, dash, sprint, air sprint, wall kicks and vertical speed.
