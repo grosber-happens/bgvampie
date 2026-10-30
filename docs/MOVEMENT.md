@@ -15,8 +15,13 @@ reference for ratios.
 
 ## Rules
 
-- **Dash** is a burst then a slide. A side dash is a no-hands cartwheel (one full turn
-  around the hips during the burst, a low landing in the slide). Forward/back dashes lean.
+- **Dash** is a burst then a slide. A side dash is a no-hands cartwheel: one full turn
+  around the hips in 0.40 s with no wind-up, upside down at 0.1 s, a short hang at the top
+  (125-175 ms), touchdown at 0.365 s, straight back into running. The timing comes from
+  frame-by-frame study of the user's own S4 recordings (design/s4-video-analizi-animasyon-spec.md
+  in the project files); the class dash keeps its distance and is stretched to that time.
+  Sprinting leans the body about 17 degrees forward. This is a body-level turn for now;
+  hand-keyed limb animation (split legs at the top, gun arm holding aim) comes later.
 - **Dash-jump (wave dash):** Space during a dash, or just after it, cancels the slide into a
   long low leap that keeps the dash speed. In the air you can dash again (gear gives air
   dashes), then land and jump-cancel again. It is the fastest way to move and the most

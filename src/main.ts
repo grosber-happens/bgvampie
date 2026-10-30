@@ -105,6 +105,26 @@ const S4 = {
    */
   wallKick: { up: 9.5, out: 8, max: 3, cost: 20, minVelY: -2.5, keep: 0.9 },
   flipTime: 0.42,
+  /**
+   * The side dash cartwheel lasts this long (timed from the user's own S4 recordings, 120 fps):
+   * push-off with no wind-up, upside down at 0.1 s, a hang at the top, touchdown at 0.365 s.
+   * The class dash keeps its distance; only its time is stretched to match.
+   */
+  cartwheelTime: 0.4,
+  /** Body turn (degrees) at each time (ms) of the cartwheel: fast start, hang at the top, fast finish. */
+  cartwheelKeys: [
+    [0, 20],
+    [25, 70],
+    [75, 135],
+    [100, 180],
+    [125, 200],
+    [175, 225],
+    [200, 250],
+    [250, 290],
+    [325, 350],
+    [365, 360],
+    [400, 360],
+  ] as [number, number][],
 };
 const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
 // Right-click aim: closer over-the-shoulder view with zoom and slower movement.
@@ -198,6 +218,7 @@ const ctl = {
   ghostT: 0,
   dashCd: 0,
   dashDir: new Vector3(),
+  dashSpeedMul: 1,
   /** Right-click melee special: cooldown, lunge timer and direction, counter stance timer. */
   specialCd: 0,
   lungeT: 0,
@@ -380,6 +401,12 @@ function updatePlayer(dt: number) {
     if (stunned) player.stunT = 0;
     ctl.dashDir = dir;
     ctl.dashT = ctl.dashTotal = dash.time * (1 + S4.slide);
+    // Stretch to the cartwheel's time but keep the distance (the Mage's blink stays instant).
+    ctl.dashSpeedMul = 1;
+    if (!dash.blink) {
+      ctl.dashSpeedMul = ctl.dashTotal / S4.cartwheelTime;
+      ctl.dashT = ctl.dashTotal = S4.cartwheelTime;
+    }
     ctl.ghostT = 0;
     feel.fovPunch += 0.07;
     ctl.dashLock = S4.dashLock;
@@ -494,7 +521,7 @@ function updatePlayer(dt: number) {
     const k = 1 - Math.max(0, ctl.dashT) / ctl.dashTotal;
     const burst = 0.7;
     const f = k < burst ? 1.3 - 0.5 * (k / burst) : 0.45 * (1 - (k - burst) / (1 - burst));
-    player.pos.addInPlace(ctl.dashDir.scale(dash.speed * f * dt));
+    player.pos.addInPlace(ctl.dashDir.scale(dash.speed * ctl.dashSpeedMul * f * dt));
     ctl.ghostT -= dt;
     if (k < burst && ctl.ghostT <= 0 && !dash.blink) {
       ctl.ghostT = 0.035;
@@ -690,6 +717,20 @@ function updateCamera(dt: number) {
   if (weaponNodes) for (const n of Object.values(weaponNodes)) for (const m of n.getChildMeshes()) m.visibility = fade;
 }
 
+/** Cartwheel body turn in degrees at a time in ms, eased between the keys. */
+function cartwheelAngle(ms: number): number {
+  const keys = S4.cartwheelKeys;
+  for (let i = 1; i < keys.length; i++) {
+    const [t1, a1] = keys[i];
+    if (ms <= t1) {
+      const [t0, a0] = keys[i - 1];
+      const u = (ms - t0) / (t1 - t0);
+      return a0 + (a1 - a0) * (u * u * (3 - 2 * u));
+    }
+  }
+  return keys[keys.length - 1][1];
+}
+
 /** Flips, wall-run lean, sprint lean and slam dive on top of the body animation. */
 function poseBody(dt: number) {
   ctl.flipT = Math.max(0, ctl.flipT - dt);
@@ -711,7 +752,8 @@ function poseBody(dt: number) {
     const side = Vector3.Dot(ctl.wallN, rightFromYaw(player.yaw));
     rz = side > 0 ? -0.42 : 0.42;
   } else if (ctl.slamming) rx = 0.55;
-  else if (ctl.sprinting) rx = 0.14;
+  // Sprint: body 15-20 degrees forward (from the recordings).
+  else if (ctl.sprinting) rx = 0.3;
   else if (ctl.airSprint) rx = 0.32;
   else if (ctl.lungeT > 0) rx = 0.45;
   else if (ctl.guardT > 0) {
@@ -726,13 +768,14 @@ function poseBody(dt: number) {
     if (Math.abs(side) > 0.7 && !kit.dash.blink) {
       // Side dash: a no-hands cartwheel (aerial). One full turn during the burst, a low landing in the slide.
       cartwheel = true;
-      const t = Math.min(1, k / 0.72);
-      const e = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
-      rz = -Math.sign(side) * e * Math.PI * 2;
+      const ms = k * S4.cartwheelTime * 1000;
+      const deg = cartwheelAngle(ms);
+      rz = (-Math.sign(side) * deg * Math.PI) / 180;
       rx = 0.08;
-      // Turn around the hips, not the feet, and lift a little at the top of the wheel.
+      // Turn around the hips, not the feet; the hips rise a little, most at the hang (~150 ms).
       const h = 0.9;
-      up = h * (1 - Math.cos(rz)) + 0.3 * Math.sin(t * Math.PI) - (k > 0.72 ? 0.16 * Math.sin(((k - 0.72) / 0.28) * Math.PI) : 0);
+      const air = Math.max(0, Math.min(1, ms / 365));
+      up = h * (1 - Math.cos(rz)) + 0.35 * Math.sin(air * Math.PI);
       sd = h * Math.sin(rz);
     } else {
       rx = 0.3 * ahead + 0.12;
