@@ -1,0 +1,41 @@
+96 maç, ort. 29.8 dk
+
+## Maç sonu takılı eşyaların nadirliği (6 yuva)
+  kazanan  boş 1% · sıradan 7% · nadir 16% · destansı 38% · efsanevi 39% · en az 1 efsanevi: 97% · 6 yuva destansı+: 16%
+  ilk 5    boş 19% · sıradan 14% · nadir 24% · destansı 25% · efsanevi 18% · en az 1 efsanevi: 59% · 6 yuva destansı+: 4%
+  6-10     boş 54% · sıradan 17% · nadir 16% · destansı 9% · efsanevi 3% · en az 1 efsanevi: 16% · 6 yuva destansı+: 0%
+  herkes   boş 56% · sıradan 14% · nadir 14% · destansı 10% · efsanevi 6% · en az 1 efsanevi: 23% · 6 yuva destansı+: 1%
+
+## Yuvaya göre (kazanan, maç sonu)
+  weapon   boş 3% · sıradan 29% · nadir 30% · destansı 29% · efsanevi 8%
+  head     boş 0% · sıradan 2% · nadir 11% · destansı 21% · efsanevi 66%
+  chest    boş 0% · sıradan 1% · nadir 2% · destansı 49% · efsanevi 48%
+  legs     boş 0% · sıradan 1% · nadir 9% · destansı 48% · efsanevi 42%
+  necklace boş 0% · sıradan 5% · nadir 26% · destansı 31% · efsanevi 38%
+  ring     boş 0% · sıradan 4% · nadir 15% · destansı 49% · efsanevi 32%
+
+## Ne zaman, nereden (ilk 5, takılan eşyalar)
+   0- 5 dk: oyuncu başına 1.46 eşya · sıradan 56% · nadir 32% · destansı 8% · efsanevi 4% · (mob 617, boss 0, oyuncu 14, leşten 4, dükkân 67)
+   5-10 dk: oyuncu başına 2.35 eşya · sıradan 45% · nadir 32% · destansı 16% · efsanevi 7% · (mob 399, boss 217, oyuncu 93, leşten 70, dükkân 349)
+  10-15 dk: oyuncu başına 2.44 eşya · sıradan 19% · nadir 38% · destansı 31% · efsanevi 11% · (mob 217, boss 183, oyuncu 174, leşten 290, dükkân 307)
+  15-20 dk: oyuncu başına 1.85 eşya · sıradan 9% · nadir 33% · destansı 32% · efsanevi 26% · (mob 110, boss 140, oyuncu 70, leşten 363, dükkân 203)
+  20-25 dk: oyuncu başına 0.43 eşya · sıradan 3% · nadir 18% · destansı 46% · efsanevi 32% · (mob 15, boss 26, oyuncu 12, leşten 100, dükkân 55)
+  25-30 dk: oyuncu başına 0.04 eşya · sıradan 0% · nadir 10% · destansı 45% · efsanevi 45% · (mob 3, boss 0, oyuncu 0, leşten 16, dükkân 1)
+  30-   dk: oyuncu başına 0.13 eşya · sıradan 2% · nadir 15% · destansı 30% · efsanevi 54% · (mob 0, boss 0, oyuncu 3, leşten 58, dükkân 0)
+
+## Kaynağa göre (ilk 5)
+  mob     2.84/oyuncu · ort. 6.9. dk · sıradan 40% · nadir 35% · destansı 17% · efsanevi 8%
+  boss    1.18/oyuncu · ort. 11.7. dk · sıradan 8% · nadir 34% · destansı 41% · efsanevi 17%
+  oyuncu  0.76/oyuncu · ort. 12.3. dk · sıradan 19% · nadir 27% · destansı 33% · efsanevi 21%
+  leşten  1.88/oyuncu · ort. 16.7. dk · sıradan 16% · nadir 32% · destansı 29% · efsanevi 23%
+  dükkân  2.05/oyuncu · ort. 11.6. dk · sıradan 42% · nadir 32% · destansı 17% · efsanevi 9% · ort. fiyat 48
+
+## İlk destansı / efsanevi eşya ne zaman takıldı (ilk 5)
+  destansı+: oyuncuların 85%'i · ort. 9.5. dk
+  efsanevi+: oyuncuların 60%'i · ort. 12.7. dk
+
+## Sınıfa göre (ilk 5, maç sonu)
+  rogue   118 oyuncu · takılı: sıradan 13% · nadir 29% · destansı 21% · efsanevi 12% · dükkândan 2.0 eşya
+  mage    147 oyuncu · takılı: sıradan 14% · nadir 21% · destansı 28% · efsanevi 18% · dükkândan 1.8 eşya
+  fighter 169 oyuncu · takılı: sıradan 15% · nadir 21% · destansı 26% · efsanevi 24% · dükkândan 2.4 eşya
+  scout   46 oyuncu · takılı: sıradan 17% · nadir 27% · destansı 20% · efsanevi 12% · dükkândan 1.7 eşya

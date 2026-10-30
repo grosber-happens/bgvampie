@@ -96,10 +96,34 @@ Proposal A (tested, not applied to the game): spell shield 1 s → 0.6 s and 30 
 
 Fighter ranged needs its own fix. Faster spears alone (+2 points) and more damage (+1) do little. Spear regen 2.2 → 1.5 s with 4 spears brings it to 37–41%, but also lifts Fighter close to 62%.
 
+## Applied on 2026-10-30 (user's call)
+
+- **Proposal A for Mage** is now in the game: the spell shield lasts 0.6 s and costs 35 breath (`src/specials.ts`). The sim also assumes the charged sniper shot is harder to dodge (30%); in the game it is already an instant hitscan shot, so nothing there changed.
+- **Fighter health and weapon buff:** health 125 → 135 (+9 per level instead of +8), spear damage 45 → 50, a spear comes back every 1.8 s instead of 2.2 s (`src/balance.ts`; `f_buff` in the sim package).
+
+| | Fighter close | Fighter ranged | Fighter class (duels) | Fighter full-match wins |
+| --- | --- | --- | --- | --- |
+| Before the buff | 59–61% | 34% | 46–48% | 40% |
+| After the buff | 64–66% | 37–41% | 51–54% | 57% |
+| Spear damage 50 only | 59–62% | 35% | | 42% |
+
+Fighter already won the most full matches, so the buff mostly makes the close build and the class in big matches stronger. Ranged rises a little; its weak spot is that most of its damage comes from dodgeable skills, not from the spear itself. Full-match numbers move about ±5 points between 96-match runs.
+
+## Item progression (who gets what, and when)
+
+`sim/items-test.ts` logs every item a player puts on: minute, source (mob, boss, player kill, looted from a victim, shop), slot, rarity, price. 96 matches with the final setup (`sim/results/shop/items.txt`):
+
+- **Winners end with top-tier gear:** 97% wear at least one legendary, and 39% of their slots are legendary and 38% epic. Only 16% have all six slots at epic or better.
+- **Top 5:** 59% get a legendary. The first epic comes at about minute 9.5 and the first legendary at about minute 12.7.
+- **When:** most items come in minutes 5–20 (about 2.4 per player per 5 minutes). After minute 20 players pick up almost nothing new except what they loot from kills, and that is mostly epic or legendary.
+- **Sources for the top 5:** mobs 2.8 items (early, mostly common/rare), shop 2.0 (around minute 12, average price 48), loot from victims 1.9 (around minute 17, the best pieces), bosses 1.2, fresh drops from player kills 0.8.
+- **Weapons lag behind:** only 8% of winners end with a legendary weapon (armor: 42–66%). Weapons only count for the hand the bot fights with, so far fewer of them fit.
+
 ## How to run
 
 ```
 TUNED=1 node --experimental-strip-types --no-warnings sim/shop-test.ts 96            # full matches: old / movement / machines
+TUNED=1 node --experimental-strip-types --no-warnings sim/items-test.ts 96            # item progression
 TUNED=1 SETUPS=c300,c200,c150,c100 node ... sim/shop-test.ts 48                       # coverage sweep
 MOVE=0 SHOP=0 ONLY=b TUNED=1 node ... sim/gear-test.ts 150                            # duels, old model
 MOVE=1 SHOP=0 ONLY=b TUNED=1 VARIANT=mv_shield2,mv_sniper node ... sim/gear-test.ts 150   # duels with proposal A

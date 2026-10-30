@@ -3,7 +3,7 @@
  * 20 simulated players (5 per class) drop at random spots, farm mob camps, hunt bosses,
  * fight each other and follow the shrinking ring. Last one alive wins.
  */
-import { equip, gearDashCost, gearScoreOf, bandaging, gearCd, gearAtk, gearCharge, gearDash, gearHeat, gearMag, gearReach, gearThink, gearTick, ramDash, slamDmg, resetGear, stopBandage } from './gear.ts';
+import { equip, gearDashCost, gearReport, gearScoreOf, bandaging, gearCd, gearAtk, gearCharge, gearDash, gearHeat, gearMag, gearReach, gearThink, gearTick, ramDash, slamDmg, resetGear, stopBandage } from './gear.ts';
 import type { Loadout } from '../src/gear.ts';
 import {
   AI,
@@ -1110,6 +1110,7 @@ export type MatchResult = {
     specials: number;
     sprintTime: number;
     gearScore: number;
+    gear: ReturnType<typeof gearReport>;
     bossKills: number;
     mobKills: number;
     dmgToPlayers: number;
@@ -1249,6 +1250,7 @@ export function runMatch(seed: number, opts: { classes?: ClassId[]; styles?: num
       specials: u.p!.specials,
       sprintTime: u.p!.sprintTime,
       gearScore: gearScoreOf(u),
+      gear: gearReport(u),
       bossKills: u.p!.bossKills,
       mobKills: u.p!.mobKills,
       dmgToPlayers: u.p!.dmgToPlayers,

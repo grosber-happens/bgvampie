@@ -260,7 +260,7 @@ export const MOVE = {
   sprintMult: 1.55,
   sprintDrain: 6,
   /** Chance a bot sees an attack coming and side-dashes out of it (scaled by its aim/skill). */
-  dodge: { gun: 0.18, wand: 0.1, spear: 0.4, sniper: 0.45, quick: 0.15, melee: 0.2, special: 0.35, skill: 0.2, aoe: 0.3 } as Record<string, number>,
+  dodge: { gun: 0.18, wand: 0.1, spear: 0.4, sniper: 0.3, quick: 0.15, melee: 0.2, special: 0.35, skill: 0.2, aoe: 0.3 } as Record<string, number>,
   /** Breath bots keep for a dodge when they dash in or use a special. */
   reserve: 20,
   /** Chance to dash out of a stun (35 SP) when one lands in a player fight. */
@@ -277,5 +277,5 @@ export const SPECIAL = {
   rogue: { cost: 25, cd: 1.2, lunge: 5, reach: 2.4, dmg: 40 },
   fighter: { cost: 30, cd: 1.4, windup: 0.35, reach: 3, dmg: 60, push: 3, stun: 0.3 },
   scout: { cost: 25, cd: 1.2, lunge: 2.6, reach: 2.2, dmg: 28, push: 7, stun: 0.6 },
-  mage: { cost: 30, cd: 3, shield: 1 },
+  mage: { cost: 35, cd: 3, shield: 0.6 },
 };

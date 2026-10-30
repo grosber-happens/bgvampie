@@ -14,7 +14,7 @@ import { SHOP, itemPrice, sellPrice, shopStock } from '../src/shop.ts';
 import { placeVendors, vendorCount, type VendorSpot } from '../src/mapgen/vendors.ts';
 import { MAP_HALF, TOKEN_PRICE } from './config.ts';
 import { W, dist, type Unit } from './core.ts';
-import { GEAR_ON, SELL, equip, gearOf, upgradeGain } from './gear.ts';
+import { GEAR_ON, SELL, gearOf, offer, upgradeGain } from './gear.ts';
 
 export const SHOP_SIM = {
   on: process.env.SHOP !== '0',
@@ -117,7 +117,7 @@ export function shopAt(u: Unit, v: VendorSpot, visited: Set<string>): number {
     p.bought++;
     shelf.splice(shelf.indexOf(best), 1);
     const old = g.load[ITEM[best.id].slot];
-    equip(u, { ...g.load, [ITEM[best.id].slot]: best });
+    offer(u, best, 'shop', price);
     if (old) p.currency += sellPrice(old);
   }
   return SHOP_SIM.time;

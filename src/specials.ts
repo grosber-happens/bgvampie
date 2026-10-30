@@ -72,13 +72,13 @@ export const SPECIALS: Record<ClassId, SpecialDef> = {
       slash('#7be36f', 2.2, 0.25, p.yaw, 0.6);
     },
   },
-  // Mage: a spell shield. For one second nothing gets through.
+  // Mage: a spell shield. For 0.6 s nothing gets through (proposal A, 2026-10-30).
   mage: {
     name: 'Büyü kalkanı',
-    cost: 30,
+    cost: 35,
     cd: 3,
     color: '#7ad7ff',
-    shield: 1,
+    shield: 0.6,
     hit: () => {
       const p = G.player;
       spawnFx(MeshBuilder.CreateSphere('spellshield', { diameter: 2.4, segments: 16 }, G.scene), p.pos.add(new Vector3(0, 0.95, 0)), '#7ad7ff', 1, 0, 0.3);

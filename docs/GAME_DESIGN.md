@@ -371,6 +371,7 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
   - Rogue: HP 125, Backstab 1.8×, Detonate 4.5/5.5 m for 70 damage, 4 copies.
   - Mage: HP 105, wand 13, stronger Nano arms and Nano armor scaled by tier.
   - Fighter: spear 45; spears stick in targets, and Piercing spear pins to walls based on distance.
+- **2026-10-30 (owner approved):** Mage spell shield 0.6 s for 35 breath. Fighter HP 135 (+9/level), spear 50 damage, a spear returns every 1.8 s. The Fighter buff lifts Fighter's full-match win share in the sim from ~40% to ~57%, so watch it in playtests (docs/SHOP.md).
 - **Rule:** after changing numbers, playtest or re-run the simulator; don't eyeball it.
 
 ## 13. Open questions and proposals waiting for the owner
