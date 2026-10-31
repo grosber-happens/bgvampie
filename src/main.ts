@@ -1340,6 +1340,7 @@ window.addEventListener('resize', () => engine.resize());
     return !!m;
   },
   openCards,
+  openInventory: () => invUi.open(),
   choose,
   learn,
   resetSkills: () => resetKit(),
