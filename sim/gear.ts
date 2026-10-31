@@ -268,13 +268,12 @@ export function gearTick(u: Unit, dt: number) {
   g.windCd -= dt;
   g.windT -= dt;
   if (g.bandT > 0) {
-    const total = channelTime(g);
-    const amount = (u.maxHp * BANDAGE.healPct * (1 + g.s.bandageHeal) * Math.min(dt, g.bandT)) / total;
-    const before = u.hp;
-    heal(u, amount);
-    g.bandHeal += u.hp - before;
+    // Pills: the heal lands at the end of the cast.
     g.bandT -= dt;
     if (g.bandT <= 0) {
+      const before = u.hp;
+      heal(u, u.maxHp * BANDAGE.healPct * (1 + g.s.bandageHeal));
+      g.bandHeal += u.hp - before;
       g.bandT = 0.0001;
       stopBandage(u, false);
       if (g.u.has('stitchedLining')) u.shield = Math.max(u.shield, 25);

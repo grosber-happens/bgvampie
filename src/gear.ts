@@ -117,7 +117,7 @@ export type Unique =
   | 'stitchedLining' // medium chest: the bandage also gives 25 shield
   | 'bulwark' // heavy chest: 15% less damage from the front... modelled as 6% DR
   | 'clearSight' // light head: see faded and invisible enemies within 10 m
-  | 'nurse' // medium head: bandage channel 40% faster
+  | 'nurse' // medium head: pills cast 40% faster
   | 'ironCrown' // heavy head: the guard shield is twice as big
   | 'lastBullet' // rogue gun: the last shot of a magazine deals double
   | 'moonCut' // rogue daggers: backstabs slow 40% for 1 s
@@ -185,14 +185,14 @@ export const ARMOR: ItemDef[] = [
     name: { tr: 'Müfettiş Vizörü', en: "Inspector's Visor" },
     lore: { tr: 'Camında eski davaların yansıması kalmış. Bazen biri el sallıyor.', en: 'Old cases still reflect in the glass. Sometimes one of them waves.' },
     stats: { armor: 5, hp: 8, bandageCd: -0.15, bandageHeal: 0.1 },
-    unique: { id: 'nurse', text: { tr: 'Bandaj %40 daha hızlı sarılır', en: 'Bandaging is 40% faster' } },
+    unique: { id: 'nurse', text: { tr: 'Pills %40 daha hızlı içilir', en: 'Pills cast 40% faster' } },
   },
   {
     id: 'm_chest', slot: 'chest', weight: 'medium', icon: 'vest',
     name: { tr: 'Örgü Yelek', en: 'Weave Vest' },
     lore: { tr: 'Nano tellerle örüldü. Kurşun girer, ama kibarca geri çıkması rica edilir.', en: 'Knitted from nano wire. Bullets get in, then are politely asked to leave.' },
     stats: { armor: 8, hp: 12, cdr: 0.06 },
-    unique: { id: 'stitchedLining', text: { tr: 'Bandaj ayrıca 25 kalkan verir', en: 'The bandage also gives 25 shield' } },
+    unique: { id: 'stitchedLining', text: { tr: 'Pills ayrıca 25 kalkan verir', en: 'Pills also give 25 shield' } },
   },
   {
     id: 'm_legs', slot: 'legs', weight: 'medium', icon: 'boots_medium',
@@ -402,7 +402,8 @@ export const NOIR_SET = {
  * You walk at `moveMult` speed. Attacking, a skill, a dash or one hit of `breakAt` max health stops it
  * (the healing done so far stays, and the cooldown is `cancelCd` of the full one).
  */
-export const BANDAGE = { key: 'KeyX', channel: 3, healPct: 0.3, cd: 35, cancelCd: 0.5, moveMult: 0.6, breakAt: 0.08 };
+/** Pills (X): a 0.5 s cast, then heal at once. Taking a big hit during the cast breaks it. */
+export const BANDAGE = { key: 'KeyX', channel: 0.5, healPct: 0.2, cd: 35, cancelCd: 0.5, moveMult: 0.6, breakAt: 0.08 };
 
 // ---- Lookup and math ---------------------------------------------------------------------
 export const ALL_ITEMS: ItemDef[] = [...ARMOR, ...JEWELS, ...WEAPONS, ...NOIR];
@@ -526,8 +527,8 @@ export function statLines(it: Item, lang: Lang): string[] {
   add(s.aoe !== 0, `${pct(s.aoe)} alan`, `${pct(s.aoe)} area`);
   add(s.lifesteal !== 0, `%${(s.lifesteal * 100).toFixed(1)} can çalma`, `${(s.lifesteal * 100).toFixed(1)}% lifesteal`);
   add(s.tenacity !== 0, `${pct(-s.tenacity)} sersemlik ve yavaşlama süresi`, `${pct(-s.tenacity)} stun and slow time`);
-  add(s.bandageCd !== 0, `${pct(s.bandageCd)} bandaj bekleme`, `${pct(s.bandageCd)} bandage cooldown`);
-  add(s.bandageHeal !== 0, `${pct(s.bandageHeal)} bandaj iyileştirme`, `${pct(s.bandageHeal)} bandage healing`);
+  add(s.bandageCd !== 0, `${pct(s.bandageCd)} pills bekleme`, `${pct(s.bandageCd)} pills cooldown`);
+  add(s.bandageHeal !== 0, `${pct(s.bandageHeal)} pills iyileştirme`, `${pct(s.bandageHeal)} pills healing`);
   add(s.regenEvery > 0, `${s.regenEvery} sn'de bir canının %${Math.round(s.regenPct * 100)}'i kadar iyileşirsin`, `Heal ${Math.round(s.regenPct * 100)}% of max health every ${s.regenEvery} s`);
   add(s.guardEvery > 0, `${s.guardEvery} sn'de bir canının %${Math.round(s.guardPct * 100)}'i kadar kalkan`, `A shield of ${Math.round(s.guardPct * 100)}% max health every ${s.guardEvery} s`);
   add(s.mag > 0, `+${s.mag} şarjör`, `+${s.mag} magazine`);
