@@ -52,7 +52,8 @@ import { rigHooks, rigReparent, rigSwing, updateRig } from './armory/rig';
 import { SPECIES, SPECIES_IDS, getSpecies, setSpecies, type SpeciesId } from './armory/species';
 import { castHooks, meleeTargets } from './kit';
 import { applySkillLanguage, blurb, getLang, hud, onLang, t as T } from './i18n';
-import { SETTINGS, initUi, invUi, paintArt, onSettings, renderInventory } from './ui';
+import { SETTINGS, initUi, invUi, paintArt, onSettings, renderInventory, renderShop, shopUi } from './ui';
+import { MACHINES, buildVendors, nearMachine } from './vendor';
 import { loadArtIndex, skillIcon } from './icons';
 import { killLog, xpLog, cardText, currentOffer, grantXp, pickCard, prog, resetProgression, rewardKill, tier3Open, xpNeeded } from './progression';
 
@@ -155,6 +156,7 @@ const cardsEl = $('cards');
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
 const world = buildWorld(scene, seed, { houseModel: true });
+buildVendors(scene, world, seed);
 const input = new Input(canvas);
 placeHouses(scene, world)
   .then(clayifyScene)
@@ -955,6 +957,9 @@ function updateHud(dt: number) {
   $('xp-text').textContent = need ? `${Math.floor(player.xp)} / ${need} XP` : T('maxLevel');
   $('timer').textContent = fmtTime(G.time);
   $('pick-hint').classList.toggle('hidden', prog.pending <= 0);
+  const atShop = running && !shopUi.isOpen() && !!nearMachine(player.pos);
+  $('shop-hint').classList.toggle('hidden', !atShop);
+  if (atShop) $('shop-hint').innerHTML = T('shopHint');
   $('pick-hint').innerHTML = `${T('levelUp')} <b>Tab</b> ${prog.pending > 1 ? `${prog.pending} ${T('cards')}` : T('card')} ${T('pickCards')}`;
   crosshair.classList.toggle('hit', hitMarkerT > 0);
   crosshair.classList.toggle('kill', killMarkerT > 0);
@@ -1043,6 +1048,25 @@ invUi.close = () => {
   $('inventory').classList.add('hidden');
   input.lock();
 };
+// ---- Vendor machine (V) ---------------------------------------------------------------------
+shopUi.ctx = () => ({ cls: kit.id as ClassId, seconds: G.time });
+shopUi.message = (text) => toast(text);
+shopUi.open = (m) => {
+  $('shop').classList.remove('hidden');
+  renderShop(m);
+  if (document.pointerLockElement) document.exitPointerLock();
+};
+shopUi.close = () => {
+  if (!shopUi.isOpen()) return;
+  $('shop').classList.add('hidden');
+  input.lock();
+};
+$('shop-close').addEventListener('click', () => shopUi.close());
+window.addEventListener('keydown', (e) => {
+  if (!shopUi.isOpen()) return;
+  if (e.code === 'KeyV' || e.code === 'Escape' || e.code === 'Tab') shopUi.close();
+  input.consume(e.code);
+});
 window.addEventListener('keydown', (e) => {
   if (!invUi.isOpen()) return;
   if (e.code === 'KeyI' || e.code === 'Escape' || e.code === 'Tab') invUi.close();
@@ -1262,9 +1286,13 @@ function simStep(dt: number) {
 
 engine.runRenderLoop(() => {
   const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
-  if (running && !cardsOpen && !invUi.isOpen() && input.consume('Tab') && prog.pending > 0) openCards();
-  if (running && !cardsOpen && !invUi.isOpen() && input.consume('KeyI')) invUi.open();
-  const live = running && !cardsOpen && !invUi.isOpen();
+  if (running && !cardsOpen && !invUi.isOpen() && !shopUi.isOpen() && input.consume('Tab') && prog.pending > 0) openCards();
+  if (running && !cardsOpen && !invUi.isOpen() && !shopUi.isOpen() && input.consume('KeyI')) invUi.open();
+  if (running && !cardsOpen && !invUi.isOpen() && !shopUi.isOpen() && input.consume('KeyV')) {
+    const m = nearMachine(player.pos);
+    if (m) shopUi.open(m);
+  }
+  const live = running && !cardsOpen && !invUi.isOpen() && !shopUi.isOpen();
   if (live) {
     if (input.consume('KeyN')) {
       location.search = '';
@@ -1305,6 +1333,12 @@ window.addEventListener('resize', () => engine.resize());
   },
   spawnBoss: () => spawnBoss(rand),
   money: (n: number) => (PS.currency += n),
+  vendors: () => MACHINES.map((m) => ({ id: m.id, x: m.pos.x, z: m.pos.z, yaw: m.yaw })),
+  openShop: () => {
+    const m = nearMachine(player.pos);
+    if (m) shopUi.open(m);
+    return !!m;
+  },
   openCards,
   choose,
   learn,

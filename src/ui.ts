@@ -6,6 +6,9 @@ import { ITEM, NOIR_SET, RARITY_COLOR, RARITY_NAME, SLOTS, SLOT_NAME, WEIGHT_NAM
 import { artUrl, itemIcon } from './icons';
 import { getLang, onLang, setLang, t } from './i18n';
 import { INV, dropFromBag, equipFromBag, invHooks, unequip, wearable } from './inventory';
+import { PS } from './core';
+import { sellPrice } from './shop.ts';
+import { buy, restockIn, sell, shelf, type Machine } from './vendor';
 import { LOOK } from './look';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -101,6 +104,7 @@ export function initUi() {
   document.querySelectorAll<HTMLElement>('.modal').forEach((m) => m.addEventListener('click', (e) => e.target === m && m.classList.add('hidden')));
   $('inv-close').addEventListener('click', () => invUi.close());
   invHooks.changed = () => {
+    if (shopUi.isOpen()) renderShop();
     if (!$('inventory').classList.contains('hidden')) renderInventory();
   };
 }
@@ -132,8 +136,8 @@ function itemCard(it: Item | undefined, label: string, bad = false) {
   return `<div class="item${bad ? ' bad' : ''}"><span class="rar" style="background:${RARITY_COLOR[it.rarity]}"></span>${lv}<div class="icon">${itemIcon(it.id, d.icon, RARITY_COLOR[it.rarity] === '#c9c2b2' ? '#6b6258' : RARITY_COLOR[it.rarity])}</div><span class="lbl">${d.name[getLang()]}</span></div>`;
 }
 
-function info(it: Item | undefined) {
-  const box = $('inv-info');
+function info(it: Item | undefined, boxId = 'inv-info') {
+  const box = $(boxId);
   if (!it) {
     box.innerHTML = '';
     return;
@@ -175,4 +179,59 @@ export function renderInventory() {
   const n = INV.set;
   $('inv-set').textContent = n ? `${NOIR_SET.name[l]} ${n}/5 · ${[2, 3, 5].filter((k) => n >= k).map((k) => NOIR_SET.text[k][l].split(':')[0]).join(', ')}` : '';
   if (selected?.where === 'slot') info(INV.load[selected.key as Slot]);
+}
+
+// ---- Vendor machine (V) --------------------------------------------------------------------
+export const shopUi = {
+  open: (_m: Machine) => {},
+  close: () => {},
+  isOpen: () => !$('shop').classList.contains('hidden'),
+  /** Set by main.ts: class id and match seconds. */
+  ctx: () => ({ cls: 'rogue' as Parameters<typeof shelf>[1], seconds: 0 }),
+  message: (_t: string) => {},
+};
+let shopAt: Machine | null = null;
+
+export function renderShop(m: Machine | null = shopAt) {
+  shopAt = m;
+  if (!m) return;
+  const { cls, seconds } = shopUi.ctx();
+  const items = shelf(m, cls, seconds);
+  $('shop-money').textContent = `${t('money')} ${PS.currency}`;
+  const row = $('shop-shelf');
+  row.innerHTML = items
+    .map((s) => {
+      const card = itemCard(s.it, '', !wearable(s.it));
+      const cls2 = s.sold ? ' sold' : PS.currency < s.price ? ' cant' : '';
+      const price = `<span class="price">${s.sold ? t('shopSold') : t('shopBuy', { c: s.price })}</span>`;
+      return card.replace('<div class="item', `<div class="item${cls2}`).replace(/<\/div>$/, `${price}</div>`);
+    })
+    .join('');
+  [...row.children].forEach((el, i) => {
+    el.addEventListener('mouseenter', () => info(items[i].it, 'shop-info'));
+    el.addEventListener('click', () => {
+      const err = buy(items[i]);
+      shopUi.message(err ? t(err) : t('shopBought', { n: ITEM[items[i].it.id].name[getLang()] }));
+      renderShop();
+    });
+  });
+  const bag = $('shop-bag');
+  const cells: string[] = [];
+  for (let i = 0; i < 8; i++) {
+    const it = INV.bag[i];
+    cells.push(it ? itemCard(it, '').replace(/<\/div>$/, `<span class="price">${t('shopBuy', { c: sellPrice(it) })}</span></div>`) : itemCard(undefined, ''));
+  }
+  bag.innerHTML = cells.join('');
+  [...bag.children].forEach((el, i) => {
+    el.addEventListener('mouseenter', () => {
+      info(INV.bag[i], 'shop-info');
+      if (INV.bag[i]) $('shop-info').insertAdjacentHTML('beforeend', `<div><b>${t('shopSellFor', { c: sellPrice(INV.bag[i]) })}</b></div>`);
+    });
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      sell(i);
+      renderShop();
+    });
+  });
+  $('shop-restock').textContent = t('shopRestock', { s: restockIn(seconds) });
 }

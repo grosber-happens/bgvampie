@@ -50,12 +50,15 @@ export type GearState = {
   bandHeal: number;
   bandUses: number;
   bandBroken: number;
+  /** Every item put on, for reports: minute, where it came from, slot, rarity, price paid. */
+  log: GearPick[];
 };
+export type GearPick = { t: number; src: 'mob' | 'boss' | 'player' | 'loot' | 'shop'; slot: string; rarity: Item['rarity']; price: number };
 
 const state = new Map<Unit, GearState>();
 /** Bandage totals across matches (for reports). */
 export const BAND_TOTALS = { uses: 0, broken: 0, heal: 0, players: 0 };
-const empty = (): GearState => ({ load: {}, s: { ...ZERO }, u: new Set(), set: 0, bandCd: 0, bandT: 0, regenT: 0, guardT: 0, reelT: 0, reelCd: 0, windCd: 0, windT: 0, meleeHits: 0, rangedHits: 0, bandHeal: 0, bandUses: 0, bandBroken: 0 });
+const empty = (): GearState => ({ load: {}, s: { ...ZERO }, u: new Set(), set: 0, bandCd: 0, bandT: 0, regenT: 0, guardT: 0, reelT: 0, reelCd: 0, windCd: 0, windT: 0, meleeHits: 0, rangedHits: 0, bandHeal: 0, bandUses: 0, bandBroken: 0, log: [] });
 
 export function resetGear() {
   for (const [u, g] of state) if (u.p) (BAND_TOTALS.uses += g.bandUses), (BAND_TOTALS.broken += g.bandBroken), (BAND_TOTALS.heal += g.bandHeal), BAND_TOTALS.players++;
@@ -91,19 +94,42 @@ export function equip(u: Unit, load: Loadout) {
 }
 
 /** Put an item on if it beats what is worn in that slot. */
-export function offer(u: Unit, it: Item) {
+export function offer(u: Unit, it: Item, src: GearPick['src'] = 'mob', price = 0): boolean {
   const g = gearOf(u);
-  if (!g || !GEAR_ON.items) return;
+  if (!g || !GEAR_ON.items) return false;
+  if (src !== 'shop' && upgradeGain(u, it) <= 0) return false;
+  equip(u, { ...g.load, [ITEM[it.id].slot]: it });
+  g.log.push({ t: minutes(), src, slot: ITEM[it.id].slot, rarity: it.rarity, price });
+  return true;
+}
+
+/** Final loadout rarities and the pick log (for reports). */
+export function gearReport(u: Unit) {
+  const g = gearOf(u);
+  return { load: Object.fromEntries(Object.entries(g?.load ?? {}).map(([k, v]) => [k, v?.rarity])), log: g?.log ?? [] };
+}
+
+/** How much better than the worn piece this item is (0 or less: not worth wearing). */
+export function upgradeGain(u: Unit, it: Item): number {
+  const g = gearOf(u);
+  if (!g) return 0;
   const d = ITEM[it.id];
-  if (!canWear(u.p!.cls, d)) return;
+  if (!canWear(u.p!.cls, d)) return 0;
   const cur = g.load[d.slot];
   // Set pieces are worth more once two or more are worn.
   const bonus = (x: Item | undefined) => (x && ITEM[x.id].set ? g.set * 6 : 0);
-  if (cur && itemScore(cur) + bonus(cur) >= itemScore(it) + bonus(it)) return;
   // Weapons: only the hand this player fights with.
-  if (d.slot === 'weapon' && d.hand !== (u.p!.melee ? 'melee' : 'ranged') && cur) return;
-  equip(u, { ...g.load, [d.slot]: it });
+  if (d.slot === 'weapon' && d.hand !== (u.p!.melee ? 'melee' : 'ranged') && cur) return 0;
+  return itemScore(it) + bonus(it) - (cur ? itemScore(cur) + bonus(cur) : 0);
 }
+
+/** An item not worth wearing goes into the bag to sell at a machine (bag holds 8). */
+function keep(u: Unit, it: Item) {
+  if (!SELL.on || !u.p || u.p.bag.length >= 8) return;
+  u.p.bag.push(SELL.value(it));
+}
+/** Selling at machines (set by sim/shop.ts). */
+export const SELL = { on: false, value: (_it: Item) => 0 };
 
 // ---- Combat hooks (called from core.ts) -------------------------------------------
 const has = (u: Unit | null, id: Unique) => !!u && !!gearOf(u)?.u.has(id);
@@ -183,6 +209,8 @@ export const gearDash = (u: Unit) => {
   if (!g) return 1;
   return (1 + g.s.dashCd) * (g.u.has('twinDash') ? 0.6 : 1);
 };
+/** Breath cost multiplier of dashes and specials (the game's gearDashCost: dash cooldown stats now scale breath). */
+export const gearDashCost = (u: Unit) => 1 + (gearOf(u)?.s.dashCd ?? 0);
 export const gearReach = (u: Unit) => gearOf(u)?.s.reach ?? 0;
 export const gearMag = (u: Unit) => {
   const s = gearOf(u)?.s;
@@ -304,13 +332,14 @@ export function gearDrop(victim: Unit, killer: Unit | null) {
   if (!GEAR_ON.items || !GEAR_ON.drops || !killer?.p) return;
   const cls = killer.p.cls;
   const min = minutes();
-  if (victim.kind === 'mob' && W.rand() < DROPS.mob) offer(killer, rollItem(cls, min, W.rand));
-  if (victim.kind === 'boss') for (let i = 0; i < DROPS.boss; i++) offer(killer, rollItem(cls, min, W.rand, true));
+  const take = (it: Item, src: GearPick['src']) => offer(killer, it, src) || keep(killer, it);
+  if (victim.kind === 'mob' && W.rand() < DROPS.mob) take(rollItem(cls, min, W.rand), 'mob');
+  if (victim.kind === 'boss') for (let i = 0; i < DROPS.boss; i++) take(rollItem(cls, min, W.rand, true), 'boss');
   if (victim.kind === 'player') {
     // The killer may take the victim's best piece (if it fits), plus a fresh roll.
     const vg = gearOf(victim);
-    for (const it of Object.values(vg?.load ?? {})) if (it) offer(killer, { ...it });
-    for (let i = 0; i < DROPS.player; i++) offer(killer, rollItem(cls, min, W.rand));
+    for (const it of Object.values(vg?.load ?? {})) if (it) offer(killer, { ...it }, 'loot');
+    for (let i = 0; i < DROPS.player; i++) take(rollItem(cls, min, W.rand), 'player');
   }
 }
 
@@ -334,4 +363,10 @@ export function kitLoadout(cls: ClassId, weight: 'light' | 'medium' | 'heavy' | 
     out.ring = { id: 's_ring', rarity, xp: jewelXp };
   }
   return out;
+}
+
+/** Sum of item scores worn (a rough gear level for reports). */
+export function gearScoreOf(u: Unit): number {
+  const g = gearOf(u);
+  return g ? Object.values(g.load).reduce((s, it) => s + (it ? itemScore(it) : 0), 0) : 0;
 }

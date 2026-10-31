@@ -2,7 +2,7 @@
  * Balance experiments, picked with VARIANT=a,b,c (applied after tuning.ts).
  *   TUNED=1 VARIANT=s_dmg,r_hp node --experimental-strip-types --no-warnings sim/fade-test.ts 400 user-builds.json
  */
-import { CLASSES, PASSIVES } from './config.ts';
+import { CLASSES, MOVE, PASSIVES, SPECIAL } from './config.ts';
 import { F, M, R, S } from './kits.ts';
 
 export const VARIANTS: Record<string, { name: string; apply: () => void }> = {
@@ -32,12 +32,30 @@ export const VARIANTS: Record<string, { name: string; apply: () => void }> = {
   m_wand: { name: 'Asa hasarı 14 → 13', apply: () => void (CLASSES.mage.ranged.dmg = 13) },
   m_hp: { name: 'Mage can 95 → 105 (+7/seviye)', apply: () => ((CLASSES.mage.hp = 105), (CLASSES.mage.hpPerLevel = 7)) },
   m_lvl: { name: 'Mage seviye başı hasar %6 → %8', apply: () => void (CLASSES.mage.dmgPerLevel = 0.08) },
+  // ---- After the S4 movement (2026-10-30)
+  mv_shield: { name: 'Büyü kalkanı bekleme 3 → 6 sn', apply: () => void (SPECIAL.mage.cd = 6) },
+  mv_shield2: { name: 'Büyü kalkanı 1 → 0.6 sn, nefes 30 → 35', apply: () => ((SPECIAL.mage.shield = 0.6), (SPECIAL.mage.cost = 35)) },
+  mv_spear: { name: 'Mızrak uçuşu 1.5x hızlı (dodge şansı 0.40 → 0.25)', apply: () => void (MOVE.dodge.spear = 0.25) },
+  mv_spear2: { name: 'Mızrak hasarı 45 → 52', apply: () => void (CLASSES.fighter.ranged.dmg = 52) },
+  mv_heavy: { name: 'Ağır vuruş hasarı 60 → 70, hazırlık 0.35 → 0.3 sn', apply: () => ((SPECIAL.fighter.dmg = 70), (SPECIAL.fighter.windup = 0.3)) },
+  mv_sniper: { name: 'Şarjlı sniper mermisi hızlı (dodge şansı 0.45 → 0.3)', apply: () => void (MOVE.dodge.sniper = 0.3) },
+  f_hp10: { name: 'Fighter can +10 (seviye başı +1)', apply: () => ((CLASSES.fighter.hp += 10), (CLASSES.fighter.hpPerLevel += 1)) },
+  f_hp15: { name: 'Fighter can +15', apply: () => void (CLASSES.fighter.hp += 15) },
+  f_buff: { name: 'Fighter can +10 (seviye başı +1), mızrak 45 → 50, yenilenme 2.2 → 1.8 sn (2026-10-30 onaylı)', apply: () => ((CLASSES.fighter.hp += 10), (CLASSES.fighter.hpPerLevel += 1), (CLASSES.fighter.ranged.dmg = 50), (CLASSES.fighter.ranged.ammoRegen = 1.8)) },
+  f_hp5: { name: 'Fighter can +5 (seviye başı +1)', apply: () => ((CLASSES.fighter.hp += 5), (CLASSES.fighter.hpPerLevel += 1)) },
+  f_spear60: { name: 'Mızrak hasarı 45 → 60', apply: () => void (CLASSES.fighter.ranged.dmg = 60) },
+  f_spear50: { name: 'Mızrak hasarı 45 → 50', apply: () => void (CLASSES.fighter.ranged.dmg = 50) },
+  f_spear55: { name: 'Mızrak hasarı 45 → 55', apply: () => void (CLASSES.fighter.ranged.dmg = 55) },
+  f_spear_regen: { name: 'Mızrak yenilenmesi 2.2 → 1.8 sn', apply: () => void (CLASSES.fighter.ranged.ammoRegen = 1.8) },
+  f_sword32: { name: 'Kılıç hasarı 30 → 32', apply: () => void (CLASSES.fighter.melee.dmg = 32) },
+  mv_kick: { name: 'Fırlatan tekme sersemletme 0.6 → 0.8 sn', apply: () => void (SPECIAL.scout.stun = 0.8) },
 };
 void S;
 
-/** Changes the user approved on 2026-10-29, applied with TUNED=1 (PACKAGE=0 leaves them out). */
-export const PACKAGE = ['s_dmg', 's_hp', 's_charge', 'r_hp', 'r_back', 'r_clone', 'm_hp', 'm_arms', 'm_armor2', 'm_armor_tier', 'm_arms3b', 'm_wand', 'f_spear'];
-const picked = [...(process.env.TUNED === '1' && process.env.PACKAGE !== '0' ? PACKAGE : []), ...(process.env.VARIANT ?? '').split(',').filter(Boolean)];
+/** Changes the user approved (2026-10-29; f_buff 2026-10-30), applied with TUNED=1 (PACKAGE=0 leaves them out, SKIP=id,id drops some). */
+export const PACKAGE = ['s_dmg', 's_hp', 's_charge', 'r_hp', 'r_back', 'r_clone', 'm_hp', 'm_arms', 'm_armor2', 'm_armor_tier', 'm_arms3b', 'm_wand', 'f_spear', 'f_buff'];
+const skip = (process.env.SKIP ?? '').split(',');
+const picked = [...(process.env.TUNED === '1' && process.env.PACKAGE !== '0' ? PACKAGE.filter((id) => !skip.includes(id)) : []), ...(process.env.VARIANT ?? '').split(',').filter(Boolean)];
 for (const id of picked) {
   if (!VARIANTS[id]) throw new Error(`unknown variant ${id}`);
   VARIANTS[id].apply();

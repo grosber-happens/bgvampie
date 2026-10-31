@@ -356,3 +356,8 @@ export function findOpenSpot(boxes: Box[], rand: () => number, radius = 0.6): Ve
   }
   return new Vector3(0, 0.25, 0);
 }
+
+/** True when nothing taller than a curb stands within `r` of the point. */
+export function spotIsOpen(boxes: Box[], x: number, z: number, r: number): boolean {
+  return near(boxes, x, z, r).every((b) => b.y1 <= 0.3 || !overlapsFootprint(b, x, z, r));
+}

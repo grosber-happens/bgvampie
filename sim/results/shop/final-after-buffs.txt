@@ -1,0 +1,11 @@
+
+== Hareket + dükkan, kapsama 200 m (96 maç, 10 makine)
+   süre 29.8 dk · kazanan: rogue 15% · mage 25% · fighter 57% · scout 3%
+   maç başına oyuncu öldürme 18.6 · kazananın seviyesi 11.7
+   sınıf ortalama sıra: rogue 10.2 · mage 9.4 · fighter 8.9 · scout 13.5
+   para: kazanılan 105 (ilk 5: 277) · harcanan dükkânda 35 (ilk 5: 99) · ölünce cepte kalan 62
+   dükkân: oyuncu başına 1.4 ziyaret, 0.8 eşya (ilk 5: 2.0), makineye yürüme 229 m · en yakın makine ort. 128 m
+   eşya puanı (ilk 5, maç sonu): 252
+   hareket: oyuncu başına 0.5 dodge, 0.1 sersemlikten kaçış, 1.1 sağ tık özel, 6.6 dk sprint
+
+43 sn

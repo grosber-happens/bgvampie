@@ -1,0 +1,58 @@
+
+== Eski model (hareket yok, dükkan yok) (48 maç)
+   süre 27.9 dk · kazanan: rogue 25% · mage 31% · fighter 42% · scout 2%
+   maç başına oyuncu öldürme 18.4 · kazananın seviyesi 11.6
+   sınıf ortalama sıra: rogue 10.5 · mage 9.4 · fighter 9.9 · scout 12.2
+   para: kazanılan 98 (ilk 5: 252) · harcanan dükkânda 0 (ilk 5: 0) · ölünce cepte kalan 63
+   eşya puanı (ilk 5, maç sonu): 219
+   hareket: oyuncu başına 0.0 dodge, 0.0 sersemlikten kaçış, 0.0 sağ tık özel, 0.0 dk sprint
+
+== Yeni hareket, dükkan yok (48 maç)
+   süre 26.3 dk · kazanan: rogue 23% · mage 35% · fighter 42% · scout 0%
+   maç başına oyuncu öldürme 18.7 · kazananın seviyesi 11.8
+   sınıf ortalama sıra: rogue 10.5 · mage 9.0 · fighter 9.8 · scout 12.7
+   para: kazanılan 99 (ilk 5: 265) · harcanan dükkânda 0 (ilk 5: 0) · ölünce cepte kalan 65
+   eşya puanı (ilk 5, maç sonu): 203
+   hareket: oyuncu başına 0.4 dodge, 0.1 sersemlikten kaçış, 0.9 sağ tık özel, 6.2 dk sprint
+
+== Yeni hareket ama sağ tık özel yok, dükkan yok (48 maç)
+   süre 24.5 dk · kazanan: rogue 19% · mage 29% · fighter 48% · scout 4%
+   maç başına oyuncu öldürme 18.8 · kazananın seviyesi 11.6
+   sınıf ortalama sıra: rogue 9.8 · mage 9.2 · fighter 9.9 · scout 13.0
+   para: kazanılan 99 (ilk 5: 266) · harcanan dükkânda 0 (ilk 5: 0) · ölünce cepte kalan 65
+   eşya puanı (ilk 5, maç sonu): 211
+   hareket: oyuncu başına 0.4 dodge, 0.1 sersemlikten kaçış, 0.0 sağ tık özel, 6.2 dk sprint
+
+== Hareket + dükkan, kapsama 300 m (48 maç)
+   süre 29.5 dk · kazanan: rogue 21% · mage 40% · fighter 40% · scout 0%
+   maç başına oyuncu öldürme 18.7 · kazananın seviyesi 11.6
+   sınıf ortalama sıra: rogue 10.3 · mage 8.3 · fighter 10.3 · scout 13.1
+   para: kazanılan 104 (ilk 5: 276) · harcanan dükkânda 31 (ilk 5: 91) · ölünce cepte kalan 69
+   eşya puanı (ilk 5, maç sonu): 245
+   hareket: oyuncu başına 0.5 dodge, 0.1 sersemlikten kaçış, 0.9 sağ tık özel, 6.6 dk sprint
+
+== Hareket + dükkan, kapsama 200 m (48 maç)
+   süre 30.8 dk · kazanan: rogue 19% · mage 27% · fighter 48% · scout 6%
+   maç başına oyuncu öldürme 18.5 · kazananın seviyesi 11.6
+   sınıf ortalama sıra: rogue 10.3 · mage 8.8 · fighter 10.0 · scout 12.8
+   para: kazanılan 104 (ilk 5: 269) · harcanan dükkânda 39 (ilk 5: 103) · ölünce cepte kalan 64
+   eşya puanı (ilk 5, maç sonu): 257
+   hareket: oyuncu başına 0.5 dodge, 0.1 sersemlikten kaçış, 1.2 sağ tık özel, 6.8 dk sprint
+
+== Hareket + dükkan, kapsama 150 m (48 maç)
+   süre 32.7 dk · kazanan: rogue 25% · mage 27% · fighter 44% · scout 4%
+   maç başına oyuncu öldürme 18.5 · kazananın seviyesi 11.5
+   sınıf ortalama sıra: rogue 9.9 · mage 9.0 · fighter 9.8 · scout 13.3
+   para: kazanılan 106 (ilk 5: 273) · harcanan dükkânda 42 (ilk 5: 115) · ölünce cepte kalan 60
+   eşya puanı (ilk 5, maç sonu): 270
+   hareket: oyuncu başına 0.5 dodge, 0.1 sersemlikten kaçış, 1.2 sağ tık özel, 7.1 dk sprint
+
+== Hareket + dükkan, kapsama 100 m (48 maç)
+   süre 33.0 dk · kazanan: rogue 31% · mage 35% · fighter 31% · scout 2%
+   maç başına oyuncu öldürme 18.4 · kazananın seviyesi 11.3
+   sınıf ortalama sıra: rogue 9.5 · mage 8.6 · fighter 10.7 · scout 13.2
+   para: kazanılan 105 (ilk 5: 250) · harcanan dükkânda 47 (ilk 5: 118) · ölünce cepte kalan 55
+   eşya puanı (ilk 5, maç sonu): 262
+   hareket: oyuncu başına 0.5 dodge, 0.1 sersemlikten kaçış, 1.1 sağ tık özel, 7.2 dk sprint
+
+180 sn

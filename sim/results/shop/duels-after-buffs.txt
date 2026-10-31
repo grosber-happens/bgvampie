@@ -1,0 +1,5 @@
+B) eşyasız: rogue 52% · mage 51% · fighter 51% · scout 46% · ortalama düello 10.8 sn
+   Rogue-yakın 53%, Rogue-kopya 52%, Mage-yakın 49%, Mage-uzak 53%, Fighter-yakın 64%, Fighter-uzak 37%, Scout-pençe 47%, Scout-pet 44%
+B) doğal destansı: rogue 53% · mage 49% · fighter 54% · scout 43% · ortalama düello 11.0 sn
+   Rogue-yakın 53%, Rogue-kopya 53%, Mage-yakın 50%, Mage-uzak 48%, Fighter-yakın 66%, Fighter-uzak 41%, Scout-pençe 42%, Scout-pet 45%
+15 sn

@@ -1,0 +1,27 @@
+### eski (MOVE=0)
+   Rogue-yakın 59%, Rogue-kopya 40%, Mage-yakın 42%, Mage-uzak 56%, Fighter-yakın 64%, Fighter-uzak 44%, Scout-pençe 48%, Scout-pet 48%
+   Rogue-yakın 63%, Rogue-kopya 44%, Mage-yakın 42%, Mage-uzak 49%, Fighter-yakın 65%, Fighter-uzak 44%, Scout-pençe 44%, Scout-pet 47%
+### yeni hareket
+   Rogue-yakın 53%, Rogue-kopya 54%, Mage-yakın 60%, Mage-uzak 54%, Fighter-yakın 56%, Fighter-uzak 33%, Scout-pençe 46%, Scout-pet 45%
+   Rogue-yakın 55%, Rogue-kopya 54%, Mage-yakın 60%, Mage-uzak 53%, Fighter-yakın 60%, Fighter-uzak 34%, Scout-pençe 40%, Scout-pet 45%
+### mv_shield
+   Rogue-yakın 53%, Rogue-kopya 54%, Mage-yakın 60%, Mage-uzak 54%, Fighter-yakın 56%, Fighter-uzak 33%, Scout-pençe 46%, Scout-pet 45%
+   Rogue-yakın 55%, Rogue-kopya 54%, Mage-yakın 60%, Mage-uzak 52%, Fighter-yakın 60%, Fighter-uzak 34%, Scout-pençe 40%, Scout-pet 45%
+### mv_shield2
+   Rogue-yakın 55%, Rogue-kopya 55%, Mage-yakın 51%, Mage-uzak 54%, Fighter-yakın 59%, Fighter-uzak 34%, Scout-pençe 47%, Scout-pet 46%
+   Rogue-yakın 55%, Rogue-kopya 55%, Mage-yakın 52%, Mage-uzak 53%, Fighter-yakın 62%, Fighter-uzak 34%, Scout-pençe 41%, Scout-pet 47%
+### mv_spear
+   Rogue-yakın 53%, Rogue-kopya 53%, Mage-yakın 60%, Mage-uzak 53%, Fighter-yakın 57%, Fighter-uzak 35%, Scout-pençe 44%, Scout-pet 44%
+   Rogue-yakın 54%, Rogue-kopya 54%, Mage-yakın 59%, Mage-uzak 52%, Fighter-yakın 61%, Fighter-uzak 37%, Scout-pençe 40%, Scout-pet 44%
+### mv_spear2
+   Rogue-yakın 53%, Rogue-kopya 54%, Mage-yakın 60%, Mage-uzak 54%, Fighter-yakın 57%, Fighter-uzak 35%, Scout-pençe 44%, Scout-pet 44%
+   Rogue-yakın 54%, Rogue-kopya 54%, Mage-yakın 59%, Mage-uzak 52%, Fighter-yakın 60%, Fighter-uzak 35%, Scout-pençe 40%, Scout-pet 45%
+### mv_heavy
+   Rogue-yakın 53%, Rogue-kopya 54%, Mage-yakın 60%, Mage-uzak 54%, Fighter-yakın 56%, Fighter-uzak 34%, Scout-pençe 46%, Scout-pet 44%
+   Rogue-yakın 54%, Rogue-kopya 54%, Mage-yakın 59%, Mage-uzak 53%, Fighter-yakın 60%, Fighter-uzak 34%, Scout-pençe 40%, Scout-pet 45%
+### mv_sniper
+   Rogue-yakın 52%, Rogue-kopya 53%, Mage-yakın 60%, Mage-uzak 53%, Fighter-yakın 55%, Fighter-uzak 33%, Scout-pençe 49%, Scout-pet 45%
+   Rogue-yakın 54%, Rogue-kopya 54%, Mage-yakın 59%, Mage-uzak 51%, Fighter-yakın 60%, Fighter-uzak 33%, Scout-pençe 44%, Scout-pet 45%
+### mv_kick
+   Rogue-yakın 53%, Rogue-kopya 54%, Mage-yakın 60%, Mage-uzak 54%, Fighter-yakın 56%, Fighter-uzak 33%, Scout-pençe 46%, Scout-pet 45%
+   Rogue-yakın 55%, Rogue-kopya 54%, Mage-yakın 59%, Mage-uzak 53%, Fighter-yakın 60%, Fighter-uzak 34%, Scout-pençe 41%, Scout-pet 45%

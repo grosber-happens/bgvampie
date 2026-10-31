@@ -18,7 +18,7 @@ import '@babylonjs/core/Meshes/thinInstanceMesh';
 const hex = (h: string) => Color3.FromHexString(h);
 const BIOME_COLORS = BIOMES.map((b) => b.ground.map(hex));
 
-function baseShape(scene: Scene, shape: Shape): Mesh {
+export function baseShape(scene: Scene, shape: Shape): Mesh {
   let m: Mesh;
   const up = Matrix.Translation(0, 0.5, 0);
   switch (shape) {

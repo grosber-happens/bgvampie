@@ -19,6 +19,7 @@ import { setLookScene } from '../look';
 import { BIOMES, DEFAULT_PARAMS, Field, KINDS, KIND_LIST, NB, applyOps, generate, type Category, type Kind, type MapFile, type Obj, type Op, type Params } from '../mapgen/generate';
 import { Atmosphere, DEFAULT_ATMOS, PRESETS, type Atmos, type PresetId } from './atmos';
 import { MapView } from './build';
+import { vendorCount } from '../mapgen/vendors.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('view');
@@ -100,7 +101,7 @@ function rebuild(terrain = true) {
   camera.upperRadiusLimit = S.gen.size * 2;
   drawMinimap();
   mirrorLines();
-  $('stat-count').textContent = `${objs.length} nesne`;
+  $('stat-count').textContent = `${objs.length} nesne · ${objs.filter((o) => o.k === 'satici').length} satıcı`;
   $('stat-time').textContent = `${Math.round(performance.now() - t0)} ms`;
   save();
 }
@@ -133,6 +134,7 @@ const GEN_SLIDERS: [string, Slider[]][] = [
     { key: 'rocks', label: 'Kaya ve yosun', min: 0, max: 2.5, step: 0.05 },
     { key: 'dots', label: 'Puantiye', min: 0, max: 2.5, step: 0.05 },
     { key: 'scale', label: 'Nesne boyu', min: 0.6, max: 1.8, step: 0.05 },
+    { key: 'vendors', label: 'Satıcı makineleri', min: 0, max: 2, step: 0.25, fmt: (v) => (v ? `${Math.max(Math.round(vendorCount(S.gen.size) * v), S.gen.symmetry ? 1 : S.gen.biomes.filter(Boolean).length)} hedef` : 'yok') },
   ]],
 ];
 const ATMOS_SLIDERS: Slider[] = [
@@ -662,6 +664,17 @@ function drawMinimap() {
     ctx.beginPath();
     ctx.arc(((o.x + size / 2) / size) * N, ((size / 2 - o.z) / size) * N, r, 0, Math.PI * 2);
     ctx.fill();
+  }
+  // Vendor machines: amber dots with an ink rim.
+  for (const o of objs) {
+    if (o.k !== 'satici') continue;
+    ctx.beginPath();
+    ctx.arc(((o.x + size / 2) / size) * N, ((size / 2 - o.z) / size) * N, 2.6, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffb347';
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#15131a';
+    ctx.stroke();
   }
   // The sun is always west: mark it on the rim.
   const az = (S.atmos.sunAz * Math.PI) / 180;

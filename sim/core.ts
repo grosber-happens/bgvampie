@@ -12,6 +12,7 @@ import {
   XP_REWARD,
   XP_TO_NEXT,
   BOSS,
+  MOVE,
   type ClassId,
   type MobRole,
   type RegionId,
@@ -34,6 +35,30 @@ export type PlayerState = {
   xpBy: { mob: number; player: number; boss: number };
   skills: OwnedSkill[];
   currency: number;
+  /** Coins earned this match (before spending). */
+  earned: number;
+  // Breath bar and S4 style movement (sim/move.ts).
+  sp: number;
+  spIdle: number;
+  winded: number;
+  sprinting: boolean;
+  specialCd: number;
+  dodgeCd: number;
+  /** Recent damage taken (decays over about a second). */
+  hurt: number;
+  stunRolled: boolean;
+  sprintTime: number;
+  dodges: number;
+  stunBreaks: number;
+  specials: number;
+  // Vendor machines (sim/shop.ts).
+  spent: number;
+  bought: number;
+  visits: number;
+  /** Sell value of items carried in the bag. */
+  bag: number[];
+  /** Meters walked toward machines. */
+  shopWalk: number;
   aim: number;
   aggression: number;
   /** Preferred fighting distance (0 = melee). */
@@ -362,9 +387,13 @@ export function powerMult(u: Unit): number {
   return c.dmgMult * (1 + c.dmgPerLevel * (p.level - 1)) * (1 + (u.dmgBuffT > 0 ? u.dmgBuffAmt : 0));
 }
 
+/** Player-to-player damage by type (reports). */
+export const DMG_BY: Record<string, number> = {};
 export function damage(src: Unit | null, dst: Unit, raw: number, type: DmgType): number {
   if (!dst.alive || raw <= 0) return 0;
   const owner = master(src);
+  // A targeted skill shot can be dodged too.
+  if (type === 'skill' && dst.p && src && owner?.p && owner !== dst && hooks.dodge(dst, src, 'skill')) return 0;
   let dmg = raw;
   if (src && src.p && type !== 'dot') {
     dmg *= powerMult(src);
@@ -410,6 +439,8 @@ export function damage(src: Unit | null, dst: Unit, raw: number, type: DmgType):
   if (dmg > 0 && type !== 'storm') dst.fadeT = 0;
   if (owner) owner.fadeT = 0;
   dst.hp -= dmg;
+  if (dp && type !== 'storm') dp.hurt += dmg;
+  if (dp && owner?.p && owner !== dst) DMG_BY[type] = (DMG_BY[type] ?? 0) + dmg;
   // Copies die to two hits, whatever the damage.
   if (dst.kind === 'decoy' && dmg > 0 && ++dst.hitsTaken >= 2) dst.hp = Math.min(dst.hp, 0);
   const now = W.time;
@@ -451,6 +482,8 @@ export function aoe(src: Unit, x: number, z: number, r: number, dmg: number, typ
     if (Math.hypot(u.x - x, u.z - z) > r * gearAoe(master(src))) continue;
     // Players dodge ground effects sometimes; mobs never.
     if (u.kind === 'player' && W.rand() > chance) continue;
+    // ...or side-dash out of them (S4 movement, sim/move.ts).
+    if (u.kind === 'player' && hooks.dodge(u, src, 'aoe')) continue;
     n++;
     damage(src, u, dmg, type);
     if (each && u.alive) each(u);
@@ -506,7 +539,11 @@ export function speedOf(u: Unit): number {
   let s = u.speed;
   if (u.slowT > 0) s *= 1 - u.slowAmt;
   if (u.speedT > 0) s *= u.speedAmt;
-  if (u.p) s *= gearSpeed(u);
+  if (u.p) {
+    s *= gearSpeed(u);
+    if (u.p.sprinting) s *= MOVE.sprintMult;
+    else if (u.p.winded > 0 && MOVE.on) s *= MOVE.windedSlow;
+  }
   return s;
 }
 
@@ -521,6 +558,8 @@ export const xpNeeded = (level: number) => XP_TO_NEXT[level - 1] ?? Infinity;
 export const hooks = {
   levelUp: (_u: Unit) => {},
   death: (_u: Unit, _killer: Unit | null) => {},
+  /** Side-dash out of an attack (sim/move.ts sets it). */
+  dodge: (_dst: Unit, _src: Unit, _kind: string): boolean => false,
 };
 
 export function grantXp(u: Unit, amount: number, source: 'mob' | 'player' | 'boss') {
@@ -554,7 +593,7 @@ export function kill(victim: Unit, src: Unit | null) {
   if (victim.kind === 'mob' && killer?.p) {
     grantXp(killer, Math.round(XP_REWARD.mob(min) * victim.xpMult), 'mob');
     killer.p.mobKills++;
-    if (W.rand() < CURRENCY.mobChance) killer.p.currency += CURRENCY.mob;
+    if (W.rand() < CURRENCY.mobChance) (killer.p.currency += CURRENCY.mob), (killer.p.earned += CURRENCY.mob);
   }
   if (victim.kind === 'boss') {
     const xp = Math.round(XP_REWARD.boss(min) * victim.xpMult);
@@ -562,6 +601,7 @@ export function kill(victim: Unit, src: Unit | null) {
       grantXp(killer, xp, 'boss');
       killer.p.bossKills++;
       killer.p.currency += CURRENCY.boss;
+      killer.p.earned += CURRENCY.boss;
     }
     if (XP_REWARD.bossAssist > 0 && victim.bossDamage) {
       for (const [u, d] of victim.bossDamage) if (u !== killer && u.alive && d >= victim.maxHp * 0.1) grantXp(u, Math.round(xp * XP_REWARD.bossAssist), 'boss');
@@ -573,6 +613,7 @@ export function kill(victim: Unit, src: Unit | null) {
       grantXp(killer, XP_REWARD.player(victim.p!.level), 'player');
       killer.p.kills++;
       killer.p.currency += CURRENCY.player;
+      killer.p.earned += CURRENCY.player;
     }
     victim.p!.killedBy = killer?.p ? killer.p.cls : src ? src.kind : 'storm';
     for (const u of W.units) if (u.owner === victim) u.alive = false;

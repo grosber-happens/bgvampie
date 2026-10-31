@@ -9,6 +9,8 @@ node --experimental-strip-types --no-warnings sim/quick.ts 200 100     # short s
 TUNED=1 node --experimental-strip-types --no-warnings sim/quick.ts     # same, with the proposed changes in tuning.ts
 node --experimental-strip-types --no-warnings sim/solo.ts 12           # one player alone: farming speed per playstyle
 node --experimental-strip-types --no-warnings sim/skills-report.ts     # placement of players per owned skill
+TUNED=1 node --experimental-strip-types --no-warnings sim/shop-test.ts 96   # vendor machines, prices and S4 movement in full matches
+TUNED=1 node --experimental-strip-types --no-warnings sim/items-test.ts 96  # which items players get, from where, and when
 ```
 
 ## What is modelled
@@ -31,7 +33,12 @@ node --experimental-strip-types --no-warnings sim/skills-report.ts     # placeme
 - No aiming: each shot rolls a hit chance from the bot's aim (0.5-0.8), the weapon and the distance.
 - Bot behaviour (when to fight, flee, farm, take a boss) is a guess at how people play. Match length
   depends mostly on how aggressive players are (`AI.calmUntil` in config.ts), not on map size or health.
-- No items, shops or vehicles beyond a simple speed bonus.
+- Vehicles are only a speed bonus. Items come from drops and from vendor machines (`shop.ts`, using the game's
+  placement and prices). Bots walk to a machine within 120 m when they have 50+ coins and nothing to fight.
+- S4 movement (`move.ts`, `MOVE=0` turns it off): the breath bar pays for dashes, sprinting and the
+  right-click specials. A dodge is a dice roll (the world is flat): a bot that sees an attack coming spends
+  20 SP and the hit misses; slow or telegraphed attacks are easier to dodge than lasers. Double jumps,
+  wall kicks and wall runs are not modelled.
 
 ## Files
 
@@ -40,4 +47,6 @@ node --experimental-strip-types --no-warnings sim/skills-report.ts     # placeme
 - `kits.ts`: the 40 skills and the playstyles.
 - `core.ts`: units, damage, XP and kills.
 - `match.ts`: map, camps, bosses, ring, bot behaviour, duels.
+- `move.ts`: breath bar, dodges, dashing out of stuns, sprint, right-click specials.
+- `shop.ts`: vendor machines and the bots' shopping.
 - `results/`: saved reports.

@@ -52,10 +52,10 @@ export const MAGE = {
 
 // ---- Fighter ---------------------------------------------------------------
 export const FIGHTER = {
-  stats: { maxHp: 125, hpPerLevel: 8, damagePerLevel: 0.035, regenDelay: 5, regenPerSec: 5 },
+  stats: { maxHp: 135, hpPerLevel: 9, damagePerLevel: 0.035, regenDelay: 5, regenPerSec: 5 },
   sword: { rate: 0.42, damage: 28, range: 2.9, arcDeg: 120 },
   /** Thrown energy spears: 3 in hand, each comes back after a while. */
-  spear: { rate: 0.6, damage: 45, speed: 48, range: 40, count: 3, regen: 2.2 },
+  spear: { rate: 0.6, damage: 50, speed: 48, range: 40, count: 3, regen: 1.8 },
   /** Passive 1: shield points every few seconds, up to a cap. */
   shieldEvery: 10,
   shieldAmount: 20,

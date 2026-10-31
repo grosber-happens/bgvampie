@@ -82,7 +82,7 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
   - Every skill has 3 tiers, and a new skill starts at tier 1.
   - Maxing 5 skills would cost 15 points, but only 12 exist, so you always have to choose.
   - Tier 3 only unlocks once **at least 3 skills are at tier 2**, and each tier-3 upgrade also needs a **token** bought with currency.
-  - In the prototype there is no shop yet, so the card buys the token directly for 40 currency.
+  - In the prototype the card still buys the token directly for 40 currency (vendor machines sell items; see §5).
 - **XP [Decided]:**
   - XP comes from mobs (worth more as the match goes on), other players and bosses.
   - XP to the next level: `[130, 190, 240, 340, 450, 550, 660, 920, 1150, 1450, 1800]`, 7880 in total.
@@ -95,6 +95,7 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
   - You earn **x** per player kill and **y** per boss kill, and each mob kill has a **z%** chance to drop currency. The prototype uses x=30, y=80, z=20% for 5.
   - Currency is spent at **exchange or shop zones** on the map, on vehicles, items and tier-3 tokens.
   - [Proposal] Exchanging takes a few seconds, so shop zones become risky hot spots.
+- **Vendor machines (Kurbağa Loncası) [Built, numbers tuned with the sim]:** frog-guild kiosks spread over the map, about one per 0.1 km² (10 on a 1 km map, at least one per landscape). Walk up and press **V**. Each machine shows a personal shelf of 4 items your class can wear; the shelf rolls again every 150 s and gets rarer as the match goes on (epic from minute 8, legendary from minute 16). Sell bag items back for 30% of their price. Prices and the sim results are in `docs/SHOP.md`.
 - **Items, 6 slots [Decided]:**
 
   | Slot | Effect | Variants |
@@ -370,6 +371,7 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
   - Rogue: HP 125, Backstab 1.8×, Detonate 4.5/5.5 m for 70 damage, 4 copies.
   - Mage: HP 105, wand 13, stronger Nano arms and Nano armor scaled by tier.
   - Fighter: spear 45; spears stick in targets, and Piercing spear pins to walls based on distance.
+- **2026-10-30 (owner approved):** Mage spell shield 0.6 s for 35 breath. Fighter HP 135 (+9/level), spear 50 damage, a spear returns every 1.8 s. The Fighter buff lifts Fighter's full-match win share in the sim from ~40% to ~57%, so watch it in playtests (docs/SHOP.md).
 - **Rule:** after changing numbers, playtest or re-run the simulator; don't eyeball it.
 
 ## 13. Open questions and proposals waiting for the owner
