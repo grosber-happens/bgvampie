@@ -66,7 +66,9 @@ for cls, ids in SKILL_SHEETS.items():
         tile.save(OUT / 'skills' / f'{id_}.webp', quality=88)
         index.append(f'skills/{id_}')
 
-poster = Image.open(SHEETS / 'poster.jpg').convert('RGB')
+# The hand-drawn poster (tools/art/hand/figures.py) wins over the old Artlist one.
+hand_poster = ROOT / 'tools/art/hand/pages/poster.png'
+poster = Image.open(hand_poster if hand_poster.exists() else SHEETS / 'poster.jpg').convert('RGB')
 poster.save(OUT / 'ui' / 'poster.webp', quality=90)
 index.append('ui/poster')
 
