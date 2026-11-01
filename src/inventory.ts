@@ -31,6 +31,7 @@ import {
   type Unique,
 } from './gear';
 import { getLang, t } from './i18n';
+import { random } from './random';
 const getLangSafe = () => getLang();
 import { AOE, CDR, P, enemiesNear, host, kit, type ClassId } from './kit';
 
@@ -153,7 +154,7 @@ export function unequip(slot: Slot) {
 
 export function dropFromBag(i: number) {
   const it = INV.bag.splice(i, 1)[0];
-  if (it) spawnDrop(it, G.player.pos.add(new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).scale(2)), 4);
+  if (it) spawnDrop(it, G.player.pos.add(new Vector3(random() - 0.5, 0, random() - 0.5).scale(2)), 4);
   invHooks.changed();
 }
 
@@ -212,8 +213,8 @@ export function onKill(killer: Unit | null, victim: Unit) {
   if (credit !== G.player || victim === G.player) return;
   const min = minutes();
   const at = victim.pos;
-  const roll = (boss = false) => rollItem(cls(), min, Math.random, boss);
-  if (victim.kind === 'mob' && Math.random() < 0.08) spawnDrop(roll(), at);
+  const roll = (boss = false) => rollItem(cls(), min, random, boss);
+  if (victim.kind === 'mob' && random() < 0.08) spawnDrop(roll(), at);
   if (victim.kind === 'boss') for (let i = 0; i < 2; i++) spawnDrop(roll(true), at.add(new Vector3(i * 1.2 - 0.6, 0, 0)));
   if (victim.kind === 'bot') spawnDrop(roll(), at);
 }

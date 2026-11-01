@@ -1,0 +1,52 @@
+{
+ "v": 1,
+ "gen": {
+  "seed": 47216,
+  "size": 300,
+  "relief": 1,
+  "roughness": 1,
+  "water": 0,
+  "canyon": 1,
+  "warp": 0.4,
+  "core": 0.16,
+  "trees": 1,
+  "mushrooms": 1,
+  "giants": 1,
+  "mech": 1,
+  "ruins": 1,
+  "rocks": 1,
+  "dots": 1,
+  "scale": 1,
+  "symmetry": 0,
+  "biomes": [
+   true,
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  "cathedral": true,
+  "colossus": true,
+  "vendors": 1
+ },
+ "ops": [],
+ "atmos": {
+  "preset": "tutulma",
+  "fog": 1.3,
+  "fogHeight": 7,
+  "haze": 0.6,
+  "sunAz": 262,
+  "sunEl": 5,
+  "sunSize": 1.3,
+  "warmth": 0.3,
+  "exposure": 0.9,
+  "bloom": 1.2,
+  "rays": 0.35,
+  "ink": 0.6,
+  "spores": 1,
+  "koi": 2,
+  "grain": 0.4,
+  "ring": false
+ }
+}

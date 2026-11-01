@@ -6,6 +6,7 @@ import { forwardFromYaw } from './actors';
 import { FIGHTER } from './balance';
 import { G, chest, dealDamage, fireBullet, flatDist, glowMat, hostile, slowUnit, stun, type Unit } from './core';
 import { addShake, kick, sfx } from './feel';
+import { visualRandom } from './random';
 import {
   P,
   addZone,
@@ -458,7 +459,7 @@ function update(dt: number) {
       chargeLeft = 0;
     }
     if (blocked) chargeLeft = 0;
-    if (Math.random() < 0.5) puff(G.player.pos, '#ff9a3b', 0.5);
+    if (visualRandom() < 0.5) puff(G.player.pos, '#ff9a3b', 0.5);
   }
 
   // Jet leap: fly to the point, slam on landing.

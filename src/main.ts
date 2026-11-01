@@ -1,5 +1,5 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
-import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Ray } from '@babylonjs/core/Culling/ray';
@@ -10,31 +10,28 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Culling/ray';
 import './style.css';
 import { Input } from './input';
-import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, sparksAt, unlockAudio, updateFeel } from './feel';
+import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, unlockAudio, updateFeel } from './feel';
 import { createHippoBody, loadCharacterKits } from './characters';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
 import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
-import { MAX_LEVEL, TOKEN_PRICE } from './balance';
-import { G, MODS, PS, chest, glowMat, inCombat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
+
+import { G, MODS, PS, chest, glowMat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
 import {
   P,
   allKits,
-  blockedReason,
   castSlot,
   def,
   kit,
   learn,
-  maxCharges,
   playerFaded,
   playerVisibility,
   resetKit,
   setHost,
   setKit,
   skills,
-  targetUnderCrosshair,
   updateZones,
   type ClassId,
   type Weapon,
@@ -44,18 +41,23 @@ import './mage';
 import './fighter';
 import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import { boss, botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
-import { INV, debugKit, spawnDrop, bandageCdShare, bandageShare, dashTouch, gearAfterHit, gearAirDashes, gearAirJumps, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, reelReady, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
+import { botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
+import { INV, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAirDashes, gearAirJumps, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
 import { ITEM, RARITY_COLOR, SLAM, WALL_RUN } from './gear';
 import { SPECIALS } from './specials';
 import { rigHooks, rigReparent, rigSwing, updateRig } from './armory/rig';
 import { SPECIES, SPECIES_IDS, getSpecies, setSpecies, type SpeciesId } from './armory/species';
 import { castHooks, meleeTargets } from './kit';
-import { applySkillLanguage, blurb, getLang, hud, onLang, t as T } from './i18n';
+import { applySkillLanguage, blurb, getLang, onLang, t as T } from './i18n';
 import { SETTINGS, initUi, invUi, paintArt, onSettings, renderInventory, renderShop, shopUi } from './ui';
 import { MACHINES, buildVendors, nearMachine } from './vendor';
-import { loadArtIndex, skillIcon } from './icons';
-import { killLog, xpLog, cardText, currentOffer, grantXp, pickCard, prog, resetProgression, rewardKill, tier3Open, xpNeeded } from './progression';
+import { loadArtIndex } from './icons';
+import { killLog, xpLog, currentOffer, grantXp, prog, resetProgression, rewardKill, xpNeeded } from './progression';
+import { random, setRandomSeed, visualRandom } from './random';
+import { createLevelUpUi } from './level-up-ui';
+import { createGameHud, fmtTime, SKILL_KEYS } from './game-hud';
+import bundledMapRaw from './assets/maps/harita-47216.json?raw';
+import type { MapFile } from './mapgen/generate';
 
 // ---- Tuning (movement and camera) -------------------------------------------
 const MOVE = {
@@ -132,19 +134,18 @@ const S4 = {
 const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
 // Right-click aim: closer over-the-shoulder view with zoom and slower movement.
 const AIM = { distance: 2.8, shoulder: 1.15, fov: 0.55, moveMult: 0.55, blendSpeed: 12 };
-const SKILL_KEYS = [
-  { code: 'KeyQ', label: 'Q' },
-  { code: 'KeyE', label: 'E' },
-  { code: 'Digit1', label: '1' },
-  { code: 'Digit2', label: '2' },
-  { code: 'Digit3', label: '3' },
-];
 
 const params = new URLSearchParams(location.search);
-const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1e6) + 1;
+const bundledMap = JSON.parse(bundledMapRaw) as MapFile;
+const playingMap = ['47216', 'harita-47216'].includes(params.get('map') ?? '') ? bundledMap : undefined;
+const seed = Number(params.get('seed')) || playingMap?.gen.seed || Math.floor(Math.random() * 1e6) + 1;
+setRandomSeed(seed);
 const DEBUG = params.has('debug');
 
 const $ = (id: string) => document.getElementById(id)!;
+let gameHud: ReturnType<typeof createGameHud>;
+function toast(text: string, time = 1.6) { gameHud.toast(text, time); }
+function feed(text: string) { gameHud.feed(text); }
 const canvas = $('game') as HTMLCanvasElement;
 const overlay = $('overlay');
 const overlayText = $('overlay-text');
@@ -155,16 +156,17 @@ const cardsEl = $('cards');
 
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
-const world = buildWorld(scene, seed, { houseModel: true });
+const world = buildWorld(scene, seed, { houseModel: true, mapFile: playingMap });
 buildVendors(scene, world, seed);
 const input = new Input(canvas);
+const levelUpUi = createLevelUpUi(input);
 placeHouses(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('House model failed to load', e));
 placeProps(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('Street props failed to load', e));
-const seedText = () => ($('seed').textContent = `${T('city')} #${seed} · ${T('newCity')}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
+const seedText = () => ($('seed').textContent = `${playingMap ? 'Harita #47216' : `${T('city')} #${seed} · ${T('newCity')}`}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
 seedText();
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
@@ -177,12 +179,8 @@ initLook(scene, camera, world.shadows);
 clayifyScene();
 initFeel(scene);
 
-// A tiny seeded random for spawns so a seed replays the same opening.
-let rs = seed;
-const rand = () => {
-  rs = (rs * 16807) % 2147483647;
-  return (rs - 1) / 2147483646;
-};
+// Match randomness is shared so the seed replays the same decisions and drops.
+const rand = random;
 
 // ---- Player -----------------------------------------------------------------
 const playerColors = { body: '#7a1f2b', head: '#e9d6c0', weapon: '#ffd27a' };
@@ -650,7 +648,7 @@ function updatePlayer(dt: number) {
   if (!stunned && input.firing && ctl.fireCd <= 0) {
     stopBandage(true);
     ctl.fireCd = kit.attack(ctl.weapon) / gearAtkMult();
-    if (ctl.weapon === 'ranged') crosshairKick = 1;
+    if (ctl.weapon === 'ranged') gameHud.kickCrosshair();
     else rigSwing();
   }
   // Health comes back out of combat.
@@ -689,7 +687,7 @@ function dashFx(begin: boolean) {
     // Dust kicked up where the dash starts, behind the feet.
     for (let i = 0; i < 4; i++) {
       const puff = MeshBuilder.CreateSphere('dust', { diameter: 0.35, segments: 6 }, scene);
-      const off = ctl.dashDir.scale(-0.4 - Math.random() * 0.4).add(new Vector3((Math.random() - 0.5) * 0.6, 0.15, (Math.random() - 0.5) * 0.6));
+      const off = ctl.dashDir.scale(-0.4 - visualRandom() * 0.4).add(new Vector3((visualRandom() - 0.5) * 0.6, 0.15, (visualRandom() - 0.5) * 0.6));
       spawnFx(puff, player.pos.add(off), '#d8cbb0', 0.35, 2.2, 0.5);
     }
   }
@@ -826,217 +824,6 @@ function poseBody(dt: number) {
   else r.position.copyFrom(player.pos);
 }
 
-// ---- HUD ---------------------------------------------------------------------------
-let hitMarkerT = 0;
-let toastT = 0;
-let crosshairKick = 0;
-let killMarkerT = 0;
-G.hooks.hitMarker = (crit) => {
-  hitMarkerT = 0.12;
-  sfx.hit(crit);
-};
-G.hooks.impact = (p, color) => {
-  sparksAt(scene, p, color, 5, 5);
-  if (Vector3.Distance(p, player.pos) < 25) sfx.impact();
-};
-G.hooks.shot = (from) => {
-  const d = Vector3.Distance(from, player.pos);
-  if (d < 60) sfx.farShot(d);
-};
-G.hooks.playerHurt = (dmg) => {
-  feel.hurt = Math.min(1, feel.hurt + dmg / 40);
-  addShake(Math.min(0.5, dmg / 60));
-  sfx.hurt();
-};
-
-function toast(text: string, time = 1.6) {
-  $('toast').textContent = text;
-  $('toast').style.opacity = '1';
-  toastT = time;
-}
-
-function feed(text: string) {
-  const el = document.createElement('div');
-  el.textContent = text;
-  $('feed').prepend(el);
-  setTimeout(() => el.remove(), 6000);
-  while ($('feed').children.length > 6) $('feed').lastElementChild?.remove();
-}
-
-// Floating damage numbers.
-type Num = { el: HTMLDivElement; pos: Vector3; t: number };
-let nums: Num[] = [];
-G.hooks.number = (pos, amount, style) => {
-  if (!SETTINGS.numbers) return;
-  if (style === 'hit' && amount < 0.5) return;
-  const el = document.createElement('div');
-  el.className = `num ${style}`;
-  el.textContent = style === 'block' ? (T('level') === 'Sv' ? 'BLOK' : 'BLOCK') : style === 'crit' ? `${Math.round(amount)}!` : `${Math.round(amount)}`;
-  $('numbers').appendChild(el);
-  nums.push({ el, pos: pos.add(new Vector3((Math.random() - 0.5) * 0.4, 0.3, 0)), t: 0.9 });
-};
-
-function updateNumbers(dt: number) {
-  const w = engine.getRenderWidth();
-  const h = engine.getRenderHeight();
-  const scale = canvas.clientWidth / w;
-  const vp = camera.viewport.toGlobal(w, h);
-  const tm = scene.getTransformMatrix();
-  const aim = aimDirection();
-  nums = nums.filter((n) => {
-    n.t -= dt;
-    n.pos.y += dt * 1.2;
-    const p = Vector3.Project(n.pos, Matrix.Identity(), tm, vp);
-    const behind = Vector3.Dot(n.pos.subtract(camera.position), aim) < 0;
-    n.el.style.left = `${p.x * scale}px`;
-    n.el.style.top = `${p.y * scale}px`;
-    n.el.style.opacity = behind ? '0' : `${Math.min(1, n.t * 2)}`;
-    if (n.t <= 0) n.el.remove();
-    return n.t > 0;
-  });
-}
-
-let slotKey = '';
-function renderSlots() {
-  const key = skills.map((s) => `${s.id}${s.tier}`).join(',');
-  if (key === slotKey && slotsEl.children.length) return;
-  slotKey = key;
-  slotsEl.innerHTML = '';
-  SKILL_KEYS.forEach((k, i) => {
-    const s = skills[i];
-    const el = document.createElement('div');
-    el.className = `slot${s ? '' : ' empty'}`;
-    el.innerHTML = s
-      ? `<div class="icon">${skillIcon(s.id, def(s.id).name, kit.id)}</div><div class="cd"></div><span class="charges"></span><span class="cdtext"></span><span class="key">${k.label}</span><span class="name">${def(s.id).name}</span><span class="pips">${[1, 2, 3].map((t) => `<i class="${t <= s.tier ? 'on' : ''}"></i>`).join('')}</span>`
-      : `<span class="key">${k.label}</span><span class="name">${T('empty')}</span>`;
-    slotsEl.appendChild(el);
-  });
-}
-
-function updateSlots() {
-  renderSlots();
-  skills.forEach((s, i) => {
-    const el = slotsEl.children[i] as HTMLElement;
-    const max = maxCharges(s);
-    const frac = s.charges >= max ? 0 : Math.max(0, s.cd / def(s.id).cooldown(s.tier));
-    (el.querySelector('.cd') as HTMLElement).style.height = s.charges > 0 ? '0' : `${frac * 100}%`;
-    (el.querySelector('.cdtext') as HTMLElement).textContent = s.charges < max && s.cd > 0 ? `${Math.ceil(s.cd)}` : '';
-    (el.querySelector('.charges') as HTMLElement).textContent = max > 1 ? `${s.charges}` : '';
-    // Kopya stays lit during its cooldown when a swap is possible.
-    const swapReady = s.id === 'decoy' && G.units.some((u) => u.kind === 'decoy');
-    el.classList.toggle('blocked', !!blockedReason(s) || (s.charges <= 0 && !swapReady));
-  });
-}
-
-function fmtTime(t: number) {
-  const m = Math.floor(t / 60);
-  const s = Math.floor(t % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-function updateHud(dt: number) {
-  $('hp-fill').style.width = `${(Math.max(0, player.hp) / player.maxHp) * 100}%`;
-  $('hp-text').textContent = `${Math.ceil(Math.max(0, player.hp))} / ${player.maxHp}`;
-  $('weapon').textContent = `${hud(kit.weaponText(ctl.weapon))} (F)`;
-  $('sp-fill').style.width = `${(ctl.sp / S4.spMax) * 100}%`;
-  $('sp-fill').parentElement!.classList.toggle('low', ctl.sp < S4.dashCost * gearDashCost());
-  $('sp-fill').parentElement!.classList.toggle('winded', ctl.winded > 0);
-  const band = bandageShare();
-  ($('band-ring').firstElementChild as SVGCircleElement).style.strokeDasharray = `${band * 119.4} 200`;
-  const bcd = bandageCdShare();
-  $('band').classList.toggle('cool', bcd > 0);
-  $('band-cd').textContent = bcd > 0 ? `${Math.ceil(INV.bandCd)}` : '';
-  $('reel').classList.toggle('hidden', INV.set < 5);
-  $('reel').classList.toggle('ready', reelReady());
-  $('reel-cd').textContent = INV.reelCd > 0 ? `${Math.ceil(INV.reelCd)}` : '';
-  $('level').textContent = `${T('level')} ${player.level}${player.level >= MAX_LEVEL ? ` (${T('max')})` : ''}`;
-  $('money').textContent = `${T('money')} ${PS.currency}`;
-  $('kills').textContent = `${PS.kills} ${T('kills')}`;
-  const need = xpNeeded(player.level);
-  $('xp-fill').style.width = need ? `${(player.xp / need) * 100}%` : '100%';
-  $('xp-text').textContent = need ? `${Math.floor(player.xp)} / ${need} XP` : T('maxLevel');
-  $('timer').textContent = fmtTime(G.time);
-  $('pick-hint').classList.toggle('hidden', prog.pending <= 0);
-  const atShop = running && !shopUi.isOpen() && !!nearMachine(player.pos);
-  $('shop-hint').classList.toggle('hidden', !atShop);
-  if (atShop) $('shop-hint').innerHTML = T('shopHint');
-  $('pick-hint').innerHTML = `${T('levelUp')} <b>Tab</b> ${prog.pending > 1 ? `${prog.pending} ${T('cards')}` : T('card')} ${T('pickCards')}`;
-  crosshair.classList.toggle('hit', hitMarkerT > 0);
-  crosshair.classList.toggle('kill', killMarkerT > 0);
-  crosshairKick = Math.max(0, crosshairKick - dt * 6);
-  killMarkerT -= dt;
-  crosshair.style.transform = `scale(${1 + crosshairKick * 0.5})`;
-  $('hurt').style.opacity = `${feel.hurt}`;
-  crosshair.classList.toggle('aim', aimBlend > 0.5);
-
-  const buffs: string[] = kit.buffs();
-  if (P.shield > 0) buffs.push(`${T('shield')} ${Math.ceil(P.shield)}`);
-  if (player.stunT > 0) buffs.push(T('stunned'));
-  if (inCombat(player)) buffs.push(T('inCombat'));
-  if (INV.bandT > 0) buffs.push(T('bandaging'));
-  $('buffs').textContent = hud(buffs.join(' · '));
-
-  if (boss?.alive) {
-    $('boss').classList.remove('hidden');
-    $('boss-fill').style.width = `${(boss.hp / boss.maxHp) * 100}%`;
-  } else $('boss').classList.add('hidden');
-
-  const t = targetUnderCrosshair(70, 4, (u) => u !== player);
-  $('target').textContent = t ? (t.kind === 'decoy' ? `${T('yourCopy')} (${t.name})` : t.kind === 'pet' ? t.name : t.kind === 'mob' || t.kind === 'boss' ? t.name : `${t.name} · ${T('level')} ${t.level}`) : '';
-
-  toastT -= dt;
-  if (toastT <= 0) $('toast').style.opacity = '0';
-  updateSlots();
-  updateNumbers(dt);
-}
-
-// ---- Cards -------------------------------------------------------------------------
-let cardsOpen = false;
-
-function openCards() {
-  const offer = currentOffer();
-  if (!offer) return;
-  cardsOpen = true;
-  cardsEl.classList.remove('hidden');
-  if (document.pointerLockElement) document.exitPointerLock();
-  const row = $('card-row');
-  row.innerHTML = '';
-  offer.forEach((c, i) => {
-    const txt = cardText(c);
-    const el = document.createElement('div');
-    el.className = `card${c.locked ? ' locked' : ''}`;
-    el.innerHTML = `
-      <div class="seal-wrap">${skillIcon(c.id, txt.name, kit.id)}</div>
-      <div class="tag ${c.isNew ? 'new' : ''}">${c.isNew ? T('newSkill') : `${T('tier')} ${c.tier}`}</div>
-      <h3>${txt.name}</h3>
-      ${c.isNew ? `<div class="desc">${txt.desc}</div>` : ''}
-      <div class="tier">${T('tier')} ${c.tier}: ${txt.tier}</div>
-      ${c.cost ? `<div class="cost">${T('token', { c: c.cost })}${c.locked ? ` (${T('youHave', { c: PS.currency })})` : ''}</div>` : ''}
-      <div class="key">${c.locked ? c.locked : T('pickKey', { n: i + 1 })}</div>`;
-    el.addEventListener('click', () => choose(i));
-    row.appendChild(el);
-  });
-  if (!offer.length) row.innerHTML = `<p>${T('allMax')}</p>`;
-  $('tier-rule').textContent = tier3Open()
-    ? T('tier3Open', { c: TOKEN_PRICE })
-    : T('tier3Rule', { n: skills.filter((s) => s.tier >= 2).length });
-}
-
-function closeCards() {
-  if (!cardsOpen) return;
-  cardsOpen = false;
-  cardsEl.classList.add('hidden');
-  input.lock();
-}
-
-function choose(i: number) {
-  if (!pickCard(i)) return;
-  if (prog.pending > 0) openCards();
-  else closeCards();
-}
-
-$('card-close').addEventListener('click', closeCards);
-
 // ---- Bag (I) ---------------------------------------------------------------------------
 invUi.open = () => {
   $('inventory').classList.remove('hidden');
@@ -1078,7 +865,7 @@ initUi();
 applySkillLanguage(allKits());
 onLang(() => {
   applySkillLanguage(allKits());
-  slotKey = '';
+  gameHud.invalidateSlots();
   seedText();
   if (!started) buildStyles();
   if (!running && !dead) playBtn.textContent = !ready ? T('loading') : started ? T('resume') : T('play');
@@ -1088,19 +875,10 @@ onSettings(() => {
   CAMERA.fov = SETTINGS.fov;
 });
 loadArtIndex().then(() => {
-  slotKey = '';
+  gameHud.invalidateSlots();
   paintArt();
 });
-window.addEventListener('keydown', (e) => {
-  if (!cardsOpen) return;
-  if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3') choose(Number(e.code.slice(5)) - 1);
-  else if (e.code === 'Escape') closeCards();
-  input.consume(e.code);
-});
-// The cards stay up only while Tab is held.
-window.addEventListener('keyup', (e) => {
-  if (e.code === 'Tab' && cardsOpen) closeCards();
-});
+
 
 // ---- Kills -------------------------------------------------------------------------
 G.hooks.kill = (killer, victim) => {
@@ -1108,8 +886,8 @@ G.hooks.kill = (killer, victim) => {
   gearOnKill(killer, victim);
   const credit = killer?.kind === 'decoy' || killer?.kind === 'pet' ? killer.owner : killer;
   if (credit === player && victim !== player && victim.kind !== 'decoy' && victim.kind !== 'pet') {
-    killMarkerT = 0.35;
-    sfx.kill();
+    gameHud.markKill();
+
   }
   if (victim.kind === 'bot') botDied(victim);
   if (victim === player) return die(killer);
@@ -1124,6 +902,10 @@ let running = false;
 let started = false;
 let dead = false;
 let styleIndex = 0;
+
+gameHud = createGameHud({ engine, scene, camera, canvas, ctl, running: () => running, aimBlend: () => aimBlend, aimDirection, spMax: S4.spMax, dashCost: S4.dashCost });
+
+
 
 function levelLog() {
   const lines = prog.levelTimes.map((l) => `${T('level')} ${l.level}: ${fmtTime(l.t)}`);
@@ -1198,6 +980,7 @@ function buildStyles() {
 buildStyles();
 
 function resetMatch() {
+  setRandomSeed(seed);
   for (const u of [...G.units]) if (u !== player) u.body.root.dispose(false, true);
   G.units = [player];
   for (const b of G.bullets) b.mesh.dispose();
@@ -1208,7 +991,8 @@ function resetMatch() {
   ctl.sp = S4.spMax;
   MODS.damagePerLevel = kit.stats.damagePerLevel;
   Object.assign(PS, { kills: 0, currency: 0 });
-  player.pos.set(0, groundHeight(new Vector3(0, 0.3, 0), player.radius, world.boxes), 0);
+  const spawn = world.spawn ?? new Vector3(0, 0, 0);
+  player.pos.set(spawn.x, groundHeight(new Vector3(spawn.x, spawn.y + 0.3, spawn.z), player.radius, world.boxes), spawn.z);
   resolveWalls(player.pos, player.radius, player.height, world.boxes);
   player.velY = 0;
   player.level = 1;
@@ -1249,7 +1033,7 @@ playBtn.addEventListener('click', () => {
   input.lock();
 });
 
-const panelOpen = () => cardsOpen || invUi.isOpen() || shopUi.isOpen();
+const panelOpen = () => levelUpUi.isOpen() || invUi.isOpen() || shopUi.isOpen();
 function pause() {
   running = false;
   overlayText.textContent = T('paused');
@@ -1296,18 +1080,18 @@ function simStep(dt: number) {
   updateFx(dt);
   updateZones(dt);
   updateFeel(dt);
-  hitMarkerT -= dt;
+  gameHud.step(dt);
 }
 
 engine.runRenderLoop(() => {
   const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
-  if (running && !cardsOpen && !invUi.isOpen() && !shopUi.isOpen() && input.consume('Tab') && prog.pending > 0) openCards();
-  if (running && !cardsOpen && !invUi.isOpen() && !shopUi.isOpen() && input.consume('KeyI')) invUi.open();
-  if (running && !cardsOpen && !invUi.isOpen() && !shopUi.isOpen() && input.consume('KeyV')) {
+  if (running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen() && input.consume('Tab') && prog.pending > 0) levelUpUi.open();
+  if (running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen() && input.consume('KeyI')) invUi.open();
+  if (running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen() && input.consume('KeyV')) {
     const m = nearMachine(player.pos);
     if (m) shopUi.open(m);
   }
-  const live = running && !cardsOpen && !invUi.isOpen() && !shopUi.isOpen();
+  const live = running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen();
   if (live) {
     if (input.consume('KeyN')) {
       location.search = '';
@@ -1322,7 +1106,7 @@ engine.runRenderLoop(() => {
   }
   input.endFrame();
   updateCamera(dt);
-  updateHud(live ? dt : 0);
+  gameHud.update(live ? dt : 0);
   scene.render();
 });
 
@@ -1354,9 +1138,9 @@ window.addEventListener('resize', () => engine.resize());
     if (m) shopUi.open(m);
     return !!m;
   },
-  openCards,
+  openCards: levelUpUi.open,
   openInventory: () => invUi.open(),
-  choose,
+  choose: levelUpUi.choose,
   learn,
   resetSkills: () => resetKit(),
   setClass: (id: ClassId) => {

@@ -6,6 +6,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { glowMat } from './core';
 import { clayLook, splatPlane, watercolorFxMaterial } from './look';
+import { visualRandom } from './random';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 
 /**
@@ -55,7 +56,7 @@ export function updateFeel(dt: number) {
 /** Random camera offset for the current shake. */
 export function shakeOffset(): Vector3 {
   const s = feel.shake * feel.shake * 0.18;
-  return new Vector3((Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
+  return new Vector3((visualRandom() - 0.5) * s, (visualRandom() - 0.5) * s, (visualRandom() - 0.5) * s);
 }
 
 // ---- Muzzle flash ----------------------------------------------------------------------
@@ -87,8 +88,8 @@ export function muzzleFlash(at: Vector3, color = '#ffc46a') {
   light.diffuse = Color3.FromHexString(color);
   light.intensity = 2.2;
   flashMesh.position.copyFrom(at);
-  if (!clayLook) flashMesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-  flashMesh.scaling.setAll(0.8 + Math.random() * 0.6);
+  if (!clayLook) flashMesh.rotation.set(visualRandom() * 3, visualRandom() * 3, visualRandom() * 3);
+  flashMesh.scaling.setAll(0.8 + visualRandom() * 0.6);
   flashMesh.isVisible = true;
   flashT = 0.05;
 }
@@ -111,8 +112,8 @@ export function sparksAt(scene: Scene, at: Vector3, color: string, count = 6, sp
     m.material = clayLook ? splatMat(color) : glowMat(color);
     m.isPickable = false;
     m.position.copyFrom(at);
-    const v = new Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).normalize().scale(speed * (0.4 + Math.random() * 0.6));
-    sparks.push({ mesh: m, vel: v, t: 0.25 + Math.random() * 0.2 });
+    const v = new Vector3(visualRandom() - 0.5, visualRandom() * 0.8, visualRandom() - 0.5).normalize().scale(speed * (0.4 + visualRandom() * 0.6));
+    sparks.push({ mesh: m, vel: v, t: 0.25 + visualRandom() * 0.2 });
   }
 }
 
@@ -148,7 +149,7 @@ function audio(): AudioContext | null {
       master.connect(ctx.destination);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      for (let i = 0; i < d.length; i++) d[i] = visualRandom() * 2 - 1;
     }
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
@@ -176,7 +177,7 @@ function noise(dur: number, freq: number, q: number, gain: number, type: BiquadF
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
   src.connect(f).connect(g).connect(master);
-  src.start(t, Math.random() * 0.3, dur + 0.05);
+  src.start(t, visualRandom() * 0.3, dur + 0.05);
 }
 
 function tone(dur: number, f0: number, f1: number, gain: number, type: OscillatorType = 'sine', at = 0) {

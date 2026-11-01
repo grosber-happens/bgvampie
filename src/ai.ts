@@ -23,6 +23,7 @@ import {
 import { hiddenByZone, playerFaded, playerVisibility } from './kit';
 import { findOpenSpot } from './world';
 import { addShake, sfx } from './feel';
+import { random } from './random';
 
 /** Rival players. Two Kenney survivor skins, tinted so each bot is easy to tell apart. */
 export const BOT_LOOKS: { name: string; body: string; head: string; weapon: string; skin: SkinName; tint: string }[] = [
@@ -158,7 +159,7 @@ function steer(u: Unit, want: Vector3, speed: number, dt: number) {
     else ai.stuck = Math.max(0, ai.stuck - dt);
     if (ai.stuck > 0.4) {
       ai.stuck = 0;
-      const side = rightFromYaw(Math.atan2(want.x, want.z)).scale(Math.random() < 0.5 ? 1 : -1);
+      const side = rightFromYaw(Math.atan2(want.x, want.z)).scale(random() < 0.5 ? 1 : -1);
       ai.detour = side.add(want.normalizeToNew().scale(-0.3));
       ai.detourT = 0.8;
     }
@@ -174,8 +175,8 @@ function findCover(u: Unit, threat: Unit): Vector3 | null {
   let best: Vector3 | null = null;
   let bestScore = -Infinity;
   for (let i = 0; i < 14; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = 6 + Math.random() * 9;
+    const a = random() * Math.PI * 2;
+    const r = 6 + random() * 9;
     const p = u.pos.add(new Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
     p.y = u.pos.y;
     if (lineOfSight(chest(threat), p.add(new Vector3(0, 1.2, 0)))) continue;
