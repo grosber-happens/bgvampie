@@ -65,7 +65,7 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
 | A or D + Space | Side dash left or right |
 | Space | Jump; again in the air for a double jump; against a wall for a wall kick (up to 3) |
 | Ctrl or C in the air | Ground slam (heavy legs only) |
-| X | Bandage: free, 3 s channel, heals 30%, 35 s cooldown; a big hit breaks it |
+| X | Pills (was Bandage): free, 0.5 s cast, then heals 20% at once, 35 s cooldown; a big hit during the cast breaks it |
 | I | Bag (equip, unequip, drop) |
 | G | Last Reel (5-piece Noir set) |
 | Tab | Open the level-up cards; pick with 1, 2 or 3 |

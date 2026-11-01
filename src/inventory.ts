@@ -411,13 +411,12 @@ export function updateInventory(dt: number) {
     recomputeHp();
   }
   if (!p.alive) return;
-  // Bandage: heal over the wrap; attacking, a skill or a dash stops it (main.ts calls stopBandage).
+  // Pills: a short cast, then the heal lands at once; attacking, a skill or a dash stops it (main.ts calls stopBandage).
   if (INV.bandT > 0) {
-    const total = channelTime();
-    p.hp = Math.min(p.maxHp, p.hp + (p.maxHp * BANDAGE.healPct * (1 + INV.s.bandageHeal) * Math.min(dt, INV.bandT)) / total);
     INV.bandT -= dt;
-    if (Math.floor((INV.bandT + dt) * 3) !== Math.floor(INV.bandT * 3)) ringFx(p.pos, 0.8, '#f4efe2', 0.3);
     if (INV.bandT <= 0) {
+      p.hp = Math.min(p.maxHp, p.hp + p.maxHp * BANDAGE.healPct * (1 + INV.s.bandageHeal));
+      ringFx(p.pos, 0.8, '#f4efe2', 0.3);
       INV.bandT = 0.0001;
       stopBandage(false);
       if (has('stitchedLining')) P.shield = Math.max(P.shield, 25);

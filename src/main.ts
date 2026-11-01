@@ -1094,8 +1094,12 @@ loadArtIndex().then(() => {
 window.addEventListener('keydown', (e) => {
   if (!cardsOpen) return;
   if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3') choose(Number(e.code.slice(5)) - 1);
-  else if (e.code === 'Tab') closeCards();
+  else if (e.code === 'Escape') closeCards();
   input.consume(e.code);
+});
+// The cards stay up only while Tab is held.
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Tab' && cardsOpen) closeCards();
 });
 
 // ---- Kills -------------------------------------------------------------------------
@@ -1245,15 +1249,26 @@ playBtn.addEventListener('click', () => {
   input.lock();
 });
 
+const panelOpen = () => cardsOpen || invUi.isOpen() || shopUi.isOpen();
+function pause() {
+  running = false;
+  overlayText.textContent = T('paused');
+  playBtn.textContent = T('resume');
+  overlay.classList.add('paused');
+  $('summary').textContent = levelLog();
+  overlay.classList.remove('hidden');
+}
 document.addEventListener('pointerlockchange', () => {
-  if (!input.locked && running && !cardsOpen && !invUi.isOpen() && !dead) {
-    running = false;
-    overlayText.textContent = T('paused');
-    playBtn.textContent = T('resume');
-    overlay.classList.add('paused');
-    $('summary').textContent = levelLog();
-    overlay.classList.remove('hidden');
-  }
+  if (!input.locked && running && !panelOpen() && !dead) pause();
+});
+// Closing a panel with Esc (or after a long Tab hold) is not a click, so the browser may refuse
+// to lock the mouse again. Then show the pause screen instead of leaving the game without a mouse.
+document.addEventListener('pointerlockerror', () => {
+  if (running && !panelOpen() && !dead) pause();
+});
+// A click on the game also takes the mouse back.
+canvas.addEventListener('click', () => {
+  if (running && !input.locked && !panelOpen() && !dead) input.lock();
 });
 
 // Characters (Kenney survivors and zombies) load first; the match is set up once they are in.
