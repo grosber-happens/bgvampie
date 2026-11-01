@@ -27,11 +27,12 @@ const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: 
 const scene = new Scene(engine);
 setLookScene(scene);
 
+const MIN_ORBIT_RADIUS = 2;
 const camera = new ArcRotateCamera('cam', -Math.PI / 2 + 0.6, 1.05, 230, new Vector3(0, 0, 0), scene);
 camera.minZ = 0.3;
 camera.maxZ = 3000;
 camera.fov = 0.9;
-camera.lowerRadiusLimit = 8;
+camera.lowerRadiusLimit = MIN_ORBIT_RADIUS;
 camera.upperRadiusLimit = 600;
 camera.upperBetaLimit = 1.5;
 camera.wheelDeltaPercentage = 0.02;
@@ -388,7 +389,7 @@ function syncToolbar() {
   $('palette-wrap').classList.toggle('hidden', tool !== 'place');
   $('brush').classList.toggle('hidden', !['erase', 'raise', 'lower', 'place'].includes(tool));
   const hints: Record<Tool, string> = {
-    view: 'Sol tık sürükle: döndür · sağ tık: kaydır · tekerlek: yakınlaş',
+    view: 'WASD: kamerayı kaydır · Shift: hızlı · sol tık sürükle: döndür · sağ tık: kaydır · tekerlek: yakınlaş',
     place: `${KINDS[placeKind].name}: tıkla ya da sürükleyerek dağıt · sağ tık: döndür`,
     erase: 'Sürükleyerek sil · sağ tık: döndür',
     raise: 'Sürükleyerek araziyi yükselt',
@@ -567,7 +568,7 @@ function enterWalk() {
   document.body.classList.add('walking');
 }
 function exitWalk() {
-  camera.lowerRadiusLimit = 8;
+  camera.lowerRadiusLimit = MIN_ORBIT_RADIUS;
   camera.upperRadiusLimit = S.gen.size * 2;
   camera.upperBetaLimit = 1.5;
   camera.panningSensibility = 40;
@@ -582,7 +583,7 @@ function exitWalk() {
   document.body.classList.remove('walking');
 }
 scene.onBeforeRenderObservable.add(() => {
-  if (tool !== 'walk') return;
+  if (tool !== 'walk' && tool !== 'view') return;
   const dt = engine.getDeltaTime() / 1000;
   const fwd = camera.getForwardRay(1).direction;
   fwd.y = 0;
@@ -593,18 +594,26 @@ scene.onBeforeRenderObservable.add(() => {
   if (keys.has('KeyS')) v.subtractInPlace(fwd);
   if (keys.has('KeyD')) v.addInPlace(right);
   if (keys.has('KeyA')) v.subtractInPlace(right);
-  if (v.lengthSquared() > 0) v.normalize().scaleInPlace((keys.has('ShiftLeft') ? 22 : 9) * dt);
+  if (v.lengthSquared() === 0) return;
+  const fast = keys.has('ShiftLeft') || keys.has('ShiftRight');
+  const speed = tool === 'walk' ? (fast ? 22 : 9) : Math.max(4, Math.min(100, camera.radius * 0.2)) * (fast ? 2.5 : 1);
+  v.normalize().scaleInPlace(speed * dt);
   const t = camera.target.add(v);
   const ground = Math.max(field.height(t.x, t.z), S.gen.water - 1);
-  t.y += (ground + 1.7 - t.y) * Math.min(1, dt * 10);
+  const targetHeight = ground + (tool === 'walk' ? 1.7 : 0.5);
+  t.y += (targetHeight - t.y) * Math.min(1, dt * 10);
   camera.target = t;
 });
 
 // ---- Keyboard -----------------------------------------------------------------------------
 window.addEventListener('keydown', (e) => {
-  if ((e.target as HTMLElement).tagName === 'INPUT' && (e.target as HTMLInputElement).type !== 'range') return;
+  const target = e.target as HTMLElement;
+  if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
   keys.add(e.code);
-  if (tool === 'walk' && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) return;
+  if ((tool === 'walk' || tool === 'view') && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+    e.preventDefault();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
     e.preventDefault();
     e.shiftKey ? doRedo() : doUndo();
@@ -625,6 +634,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'KeyR') randomSeed();
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
+window.addEventListener('blur', () => keys.clear());
 
 // ---- Minimap ------------------------------------------------------------------------------
 const mini = $<HTMLCanvasElement>('minimap');
