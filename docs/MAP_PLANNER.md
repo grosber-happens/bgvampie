@@ -14,7 +14,7 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 
 ## Editor
 
-- Tools (left): view, place (pick a kind), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo, walk (WASD, Shift to run), photo, hide UI.
+- Tools (left): view (WASD pans the camera, Shift moves faster), place (pick a kind), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo, walk (WASD, Shift to run), photo, hide UI.
 - Panel (right): seed and dice, symmetry for fair maps, landscape toggles, terrain sliders, density sliders, atmosphere presets (Altın Saat, Koi Tutulması, Kızıl Sis, Spor Sabahı) and sliders for fog, sun, bloom, god rays, ink lines, spores, koi and paper grain.
 - Keys: 1–5 tools, M mirror, Y walk, P photo, H hide UI, R new seed, Ctrl+Z / Ctrl+Y.
 - The map autosaves in the browser. Export / import writes a JSON `MapFile` (`{ v, gen, ops, atmos }`): the generator settings plus the ordered hand edits, so files stay small.
