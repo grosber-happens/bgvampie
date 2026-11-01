@@ -19,7 +19,7 @@ def hatch(d):
     """Shade an area with diagonal hatching (clipped to the shape)."""
     return f'<path d="{d}" fill="url(#hatch)" stroke="none"/>'
 
-def line(d, w=1.4, c=K, o=1):
+def line(d, w=1.1, c=K, o=1):
     return f'<path d="{d}" fill="none" stroke="{c}" stroke-width="{w}" stroke-linecap="round" stroke-linejoin="round" opacity="{o}"/>'
 
 def wash(color, cx=32, cy=34, r=24):
@@ -105,32 +105,68 @@ I['r_stitch'] = wash(C['rose']) + ink('M20 54 C20 40 22 22 32 20 C42 22 44 40 44
     ink('M20 54 H44') + ink('M10 12 C20 10 26 16 30 22', 'none', 1.8) + line('M30 22 C40 14 50 20 52 30 C54 40 48 48 44 50', 1.8, C['red']) + \
     '<circle cx="10" cy="12" r="1.6" fill="none" stroke="#1d1a22" stroke-width="1.4"/>'
 
-# ---- Weapons ---------------------------------------------------------------------------------
-I['w_rogue_r'] = wash(C['lilac']) + ink('M8 22 H40 V30 H8 Z', C['iron']) + ink('M40 20 H58 V32 H40 Z', C['night']) + \
-    line('M44 20 V32 M48 20 V32 M52 20 V32', 1.2, C['steel']) + ink('M14 30 H30 L28 36 H22 L18 54 H8 L12 36 Z', C['leather']) + \
-    hatch('M8 26 H40 V30 H8 Z') + ink('M22 36 C24 40 28 40 28 36', 'none', 1.6) + line('M10 24 H36', 1.2, C['white'], .7)
-I['w_rogue_m'] = wash(C['lilac']) + \
-    ink('M14 52 C14 34 24 16 42 8 C32 20 26 34 24 50 Z', C['white']) + ink('M50 52 C50 34 40 16 22 8 C32 20 38 34 40 50 Z', C['amber']) + \
-    ink('M10 50 L28 54', 'none', 3) + ink('M36 54 L54 50', 'none', 3) + ink('M16 52 L14 60 M48 52 L50 60', 'none', 3.4) + \
-    line('M20 44 C22 32 28 22 36 14', 1.2, C['lilac']) + line('M44 44 C42 32 36 22 30 15', 1.2, C['white'])
-I['w_mage_r'] = wash(C['teal']) + ink('M8 52 L36 24', 'none', 5) + line('M8 52 L36 24', 2.4, C['leather']) + \
-    ink('M44 20 A10 10 0 1 0 44.01 20 Z', C['glass']) + line('M40 12 c3 -2 7 -1 9 2', 1.6, C['white']) + \
-    ink('M36 24 L40 22 L42 28 Z', C['brass'], 1.6) + line('M54 10 l4 -4 M56 18 h5 M46 4 v-3', 1.6, C['teal'])
-I['w_mage_m'] = wash(C['night']) + ink('M14 58 L44 14', 'none', 5) + line('M14 58 L44 14', 2.6, C['brass']) + \
-    ink('M48 12 A7 7 0 1 0 48.01 12 Z', C['night']) + '<circle cx="46" cy="10" r="1.6" fill="#fffaf0"/><circle cx="51" cy="14" r="1" fill="#fffaf0"/>' + \
-    ink('M20 46 h6 M24 40 h6', 'none', 2) + line('M38 6 C34 8 32 12 33 16 M58 22 C56 26 52 28 48 27', 1.4, C['lilac'])
-I['w_fighter_r'] = wash(C['amber']) + ink('M18 20 L24 58 H38 L44 20 Z', C['leather']) + hatch('M18 20 L24 58 H28 L24 20 Z') + \
-    ink('M24 20 L20 4 M31 20 V2 M38 20 L42 4', 'none', 2.2) + \
-    ink('M18 6 l2 -4 l2 4 Z M29 4 l2 -4 l2 4 Z M40 6 l2 -4 l2 4 Z', C['teal'], 1.4) + ink('M16 30 H46', 'none', 2.4) + line('M20 40 H42', 1.2, C['paper'])
-I['w_fighter_m'] = wash(C['amber']) + ink('M30 4 L36 10 V40 H28 V10 Z', C['glass']) + line('M32 8 V38', 2, C['white']) + \
-    ink('M18 40 H46 V44 H18 Z', C['brass']) + ink('M29 44 H35 V56 H29 Z', C['leather']) + ink('M27 56 H37 V60 H27 Z', C['brass']) + \
-    line('M40 6 l6 -3 M42 14 h7 M22 8 l-6 -3', 1.6, C['amber'])
-I['w_scout_r'] = wash(C['leaf']) + ink('M6 26 H44 V34 H6 Z', C['steel2']) + ink('M44 24 L56 20 V40 L44 36 Z', C['night']) + \
-    ink('M16 26 V18 H32 V26', C['iron']) + ink('M24 18 V12', 'none', 2) + '<circle cx="52" cy="30" r="3" fill="#bfe3e6" stroke="#1d1a22" stroke-width="1.4"/>' + \
-    hatch('M6 30 H44 V34 H6 Z') + line('M10 28 H40', 1.2, C['white'], .7)
-I['w_scout_m'] = wash(C['leaf']) + ink('M10 50 H40 V58 H10 Z', C['leather']) + \
-    ''.join(ink(f'M{x} 50 C{x+2} 36 {x+6} 24 {x+14} 14 C{x+10} 26 {x+8} 38 {x+8} 50 Z', C['steel']) for x in (12, 20, 28)) + \
-    line('M30 20 l2 -2 M38 18 l2 -2', 1.2, C['white'])
+# ---- Weapons (drawn from the 3D designs in src/armory/designs.ts, so the icon matches what is in your hand) ----
+GLOW_R, GLOW_O, GLOW_B = '#ff5a6e', '#ff9a3c', '#8fe3f0'
+# Rogue ranged: Wet Street Pistol: curved grip with a ball pommel, banded silencer, ammo lights.
+I['w_rogue_r'] = wash(C['lilac']) + ink('M8 22 H34 V30 H8 Z', C['iron']) + ink('M34 23 H58 V29 H34 Z', C['night']) + \
+    line('M40 23 V29 M46 23 V29 M52 23 V29', 1, C['steel']) + ink('M12 30 H26 L24 36 C22 44 20 50 16 54', 'none', 2.4) + \
+    ink('M12 30 H26 L24 36 C22 44 20 50 16 54 L10 52 C14 46 16 40 16 34 Z', C['leather']) + '<circle cx="13" cy="54" r="3" fill="#c99a3b" stroke="#1d1a22" stroke-width="1.6"/>' + \
+    ink('M24 34 C26 40 30 40 30 34', 'none', 1.4) + ''.join(f'<circle cx="{x}" cy="26" r="1.2" fill="{GLOW_R}"/>' for x in (12, 16, 20, 24, 28)) + hatch('M8 27 H34 V30 H8 Z')
+# Rogue melee: Moonshard Daggers: a pair, each a forked emitter holding a jagged red shard.
+def shard(x, flip):
+    t = f'transform="translate({x} 0) scale({-1 if flip else 1} 1)"'
+    return f'<g {t}>' + ink('M-4 60 L-2 46 H4 L6 60 Z', C['leather']) + line('M-3 50 h8 M-3 55 h8', 1, C['brass']) + \
+        ink('M-6 46 H8 L6 42 H-4 Z', C['iron'], 1.8) + ink('M-3 42 L-6 30 M5 42 L8 30', 'none', 1.8) + \
+        ink('M1 42 L-3 30 L0 22 L-2 12 L3 4 L5 16 L3 24 L6 32 Z', GLOW_R, 1.6) + line('M1 38 L0 26 L2 12', 1, C['white']) + '</g>'
+I['w_rogue_m'] = wash(C['rose']) + shard(22, False) + shard(42, True)
+# Mage ranged: Light Pen: a pen body with a clip, heat vents and a three-prong cage around a blue crystal.
+I['w_mage_r'] = wash(C['teal']) + '<g transform="rotate(-40 32 32)">' + ink('M4 28 H40 V36 H4 Z', C['cloth']) + ink('M4 28 C2 28 2 36 4 36', 'none', 2) + \
+    ink('M10 26 H26 V28 H10 Z', C['brass'], 1.4) + line('M30 28 V36 M33 28 V36 M36 28 V36', 1, C['iron']) + ink('M40 29 H44 V35 H40 Z', C['iron'], 1.6) + \
+    ink('M44 29 C52 24 56 28 58 32 M44 35 C52 40 56 36 58 32 M44 32 H58', 'none', 1.6) + ink('M48 32 L52 27 L57 32 L52 37 Z', GLOW_B, 1.4) + \
+    line('M51 30 l1 -1', 1, C['white']) + hatch('M4 32 H40 V36 H4 Z') + '</g>'
+# Mage melee: Lantern Staff: a long staff crowned with a caged lantern and gyroscope rings.
+I['w_mage_m'] = wash(C['teal']) + ink('M12 60 L38 26', 'none', 4.4) + line('M12 60 L38 26', 2.2, C['leather']) + line('M20 50 l3 2 M26 42 l3 2', 1.4, C['brass']) + \
+    ink('M46 18 m-8 0 a8 8 0 1 0 16 0 a8 8 0 1 0 -16 0', GLOW_B, 2) + ink('M46 10 V26 M38 18 H54', 'none', 1.2) + \
+    ink('M46 18 m-13 0 a13 6 30 1 0 26 0 a13 6 30 1 0 -26 0', 'none', 1.6) + line('M46 18 m-6 -11 a6 13 30 1 0 12 22', 1.2, C['rose']) + \
+    ink('M36 26 L40 22 L42 28 Z', C['iron'], 1.4) + '<circle cx="46" cy="4" r="2" fill="#555c66" stroke="#1d1a22" stroke-width="1.2"/>'
+# Fighter ranged: Lightning Spears: a leather quiver on a strap, spear heads with glowing tips.
+I['w_fighter_r'] = wash(C['amber']) + '<g transform="rotate(-30 32 34)">' + \
+    ''.join(ink(f'M{x} 22 V6', 'none', 1.8) + ink(f'M{x} 2 l-3 6 h6 Z', C['steel'], 1.4) + f'<circle cx="{x}" cy="1.5" r="1.6" fill="{GLOW_O}"/>' for x in (24, 30, 36, 42)) + \
+    ink('M18 20 H48 L46 58 H20 Z', C['leather']) + line('M18 28 H48 M19 48 H47', 1.6, C['white']) + line('M18 24 H48', 1, C['rose']) + hatch('M18 20 H24 L25 58 H20 Z') + '</g>' + \
+    line('M12 52 C20 60 40 60 52 50', 1.6, C['cloth2'])
+# Fighter melee: Dawn Blade: wrapped hilt, a sunrise-finned emitter and an orange light blade.
+I['w_fighter_m'] = wash(C['orange']) + '<g transform="rotate(-45 32 32)">' + ink('M28 40 H36 V58 H28 Z', C['cloth']) + \
+    line('M28 44 H36 M28 48 H36 M28 52 H36', 1.2, C['red']) + ink('M29 58 L32 62 L35 58', C['iron'], 1.4) + \
+    ink('M24 40 C24 34 28 32 32 32 C36 32 40 34 40 40 Z', C['iron']) + ink('M24 38 L18 32 M40 38 L46 32', 'none', 2) + \
+    ink('M29 32 L28 6 L32 0 L36 6 L35 32 Z', GLOW_O, 1.6) + line('M32 30 V6', 1.2, C['white']) + '</g>'
+# Scout ranged: Far Eye: sniper rifle, cream stock, long scope with a red cap, muzzle brake.
+I['w_scout_r'] = wash(C['leaf']) + '<g transform="translate(32 32) scale(.86) rotate(-20) translate(-32 -32)">' + \
+    ink('M2 34 C2 30 6 28 12 28 H22 V38 H12 C8 38 4 40 2 40 Z', C['cloth']) + ink('M22 28 H38 V38 H22 Z', C['iron']) + ink('M38 30 H58 V34 H38 Z', C['steel2'], 1.6) + \
+    ink('M58 29 H62 V35 H58 Z', C['iron'], 1.4) + ink('M24 38 L22 46 H27 L29 38', C['cloth'], 1.6) + \
+    ink('M20 18 H44 V24 H20 Z', C['night']) + ink('M44 17 H50 V25 H44 Z', C['rose'], 1.6) + line('M26 24 V28 M38 24 V28', 1.6) + \
+    line('M40 34 L46 42 M44 34 L50 42', 1.2) + hatch('M22 33 H38 V38 H22 Z') + '</g>'
+# Scout melee: Cat Nails: a leather bracer with brass bands and four hooked claws.
+I['w_scout_m'] = wash(C['leaf']) + ink('M6 30 C6 22 12 20 18 20 H32 V44 H18 C12 44 6 40 6 30 Z', C['leather']) + \
+    line('M14 20 V44 M24 20 V44', 2, C['cloth2']) + ink('M32 22 H38 V42 H32 Z', C['iron'], 1.6) + \
+    ''.join(ink(f'M38 {y} C46 {y - 2} 54 {y + 2} 58 {y + 8} L56 {y + 10}', 'none', 2.2) + line(f'M38 {y + 1.2} C46 {y - .8} 52 {y + 3} 56 {y + 8}', 1, '#7ad77a') for y in (22, 28, 34, 40)) + \
+    '<circle cx="35" cy="26" r="1.6" fill="#ff7a1a"/>' + hatch('M6 30 C6 38 12 44 18 44 V32 Z')
+
+# ---- Currency and bags ---------------------------------------------------------------------------
+I['coin'] = wash(C['amber']) + ink('M32 32 m-20 0 a20 20 0 1 0 40 0 a20 20 0 1 0 -40 0', C['amber']) + \
+    line('M32 32 m-16 0 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0', 1.2) + \
+    ink('M22 34 C26 26 36 24 42 30 C38 34 30 38 22 34 Z M42 30 L46 24 M42 30 L47 34', 'none', 1.6) + \
+    '<circle cx="38" cy="30" r="1" fill="#1d1a22"/>' + line('M26 33 c2 -1 4 -1 6 0', 1, C['brass']) + hatch('M12 32 a20 20 0 0 0 20 20 V48 a16 16 0 0 1 -16 -16 Z')
+I['essence'] = wash(C['rose']) + ink('M26 8 H38 V14 H26 Z', C['leather'], 1.8) + ink('M27 14 H37 V22 C46 26 50 34 48 44 C46 54 38 58 32 58 C26 58 18 54 16 44 C14 34 18 26 27 22 Z', C['glass']) + \
+    '<path d="M18 40 C24 36 40 44 46 40 C47 48 42 56 32 56 C22 56 17 48 18 40 Z" fill="#e2475c"/>' + \
+    line('M22 32 C21 36 21 40 22 42', 1.6, C['white']) + line('M20 4 c2 2 2 4 0 6 M44 6 c-2 2 -2 4 0 6', 1, C['rose']) + line('M18 40 C24 36 40 44 46 40', 1)
+I['token'] = wash(C['teal']) + ink('M32 10 L50 20 V44 L32 54 L14 44 V20 Z', C['brass']) + \
+    ink('M32 26 m-5 0 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0', C['paper'], 1.6) + \
+    ink('M22 40 C22 34 26 32 32 32 C38 32 42 34 42 40 C38 44 26 44 22 40 Z', C['leaf'], 1.6) + \
+    '<circle cx="27" cy="34" r="2.4" fill="#fffaf0" stroke="#1d1a22" stroke-width="1.2"/><circle cx="37" cy="34" r="2.4" fill="#fffaf0" stroke="#1d1a22" stroke-width="1.2"/>' + \
+    line('M28 41 c2 1 6 1 8 0', 1) + hatch('M14 20 L32 10 V14 L18 22 V42 L14 44 Z')
+I['satchel'] = wash(C['leather']) + line('M14 26 C14 8 50 8 50 26', 2.4) + ink('M8 26 H56 V54 C56 56 54 58 52 58 H12 C10 58 8 56 8 54 Z', C['leather']) + \
+    ink('M8 26 H56 V38 C46 42 18 42 8 38 Z', C['leather2']) + ink('M28 36 H36 V46 H28 Z', C['brass'], 1.6) + \
+    line('M12 30 h40 M12 52 h40', 1, C['paper'], .6) + hatch('M8 40 H16 V58 H12 C10 58 8 56 8 54 Z')
 
 # ---- Noir set ------------------------------------------------------------------------------------
 I['s_hat'] = wash(C['night']) + ink('M4 40 C14 46 50 46 60 40 C56 37 50 36 46 36 L44 18 C40 12 24 12 20 18 L18 36 C14 36 8 37 4 40 Z', C['night']) + \
@@ -161,7 +197,7 @@ I['reel'] = wash(C['night']) + ink('M32 32 m-20 0 a20 20 0 1 0 40 0 a20 20 0 1 0
     ink('M40 56 H54 V62 H40 Z', C['night'], 1.4)
 
 DEFS = '''<defs>
-<pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(40)"><line x1="0" y1="0" x2="0" y2="4" stroke="#1d1a22" stroke-width="1.1" opacity=".45"/></pattern>
+<pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(40)"><line x1="0" y1="0" x2="0" y2="4" stroke="#1d1a22" stroke-width=".9" opacity=".45"/></pattern>
 <filter id="bleed" x="-30%" y="-30%" width="160%" height="160%"><feTurbulence type="fractalNoise" baseFrequency=".09" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="6"/><feGaussianBlur stdDeviation=".6"/></filter>
 <filter id="hand" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="2" seed="SEED"/><feDisplacementMap in="SourceGraphic" scale="1.3"/></filter>
 </defs>'''
