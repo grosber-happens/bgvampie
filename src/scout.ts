@@ -6,6 +6,7 @@ import { forwardFromYaw, rightFromYaw } from './actors';
 import { SCOUT } from './balance';
 import { G, applyDot, chest, dealDamage, fireBullet, flatDist, glowMat, makeUnit, stun, type Unit } from './core';
 import { addShake, kick, muzzleFlash, sfx } from './feel';
+import { random } from './random';
 import {
   addZone,
   allies,
@@ -304,7 +305,7 @@ function snipe(): number {
 
 function claw(): number {
   const C = SCOUT.claws;
-  sweep(C.range, C.arcDeg, C.damage, '#7be36f', { tilt: Math.random() - 0.5 });
+  sweep(C.range, C.arcDeg, C.damage, '#7be36f', { tilt: random() - 0.5 });
   return C.rate;
 }
 
@@ -424,7 +425,7 @@ function update(dt: number) {
       const from = host.muzzle();
       const aim = host.aimPoint(S.range).subtract(from).normalize();
       for (let i = 0; i < S.pellets; i++) {
-        const d = aim.add(new Vector3((Math.random() - 0.5) * S.spread * 2, (Math.random() - 0.5) * S.spread, (Math.random() - 0.5) * S.spread * 2));
+        const d = aim.add(new Vector3((random() - 0.5) * S.spread * 2, (random() - 0.5) * S.spread, (random() - 0.5) * S.spread * 2));
         fireBullet(G.player, from, d, 70, S.range, S.damage, '#ffd27a', false, 0.1);
       }
       muzzleFlash(from, '#ffc46a');
@@ -484,7 +485,7 @@ function update(dt: number) {
           t.ai = t.ai ?? {};
           t.ai.noHealT = G.time + SNUM.rend.bleedT;
         }
-        sweep(SCOUT.claws.range, 60, 0, '#ff5a6e', { tilt: (Math.random() - 0.5) * 1.5 });
+        sweep(SCOUT.claws.range, 60, 0, '#ff5a6e', { tilt: (random() - 0.5) * 1.5 });
         rend.left -= 1;
         if (rend.left <= 0) rend = null;
       }

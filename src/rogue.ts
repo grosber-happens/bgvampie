@@ -27,6 +27,7 @@ import {
   type Unit,
 } from './core';
 import { addShake, kick, muzzleFlash, sfx } from './feel';
+import { random } from './random';
 import {
   aimedShotDir,
   behind,
@@ -343,7 +344,7 @@ export function spawnDecoy(at: Vector3, yaw: number, mode: 'run' | 'idle', disgu
   let name = G.player.name;
   if (disguise) {
     const bots = G.units.filter((u) => u.kind === 'bot');
-    const b = bots[Math.floor(Math.random() * bots.length)];
+    const b = bots[Math.floor(random() * bots.length)];
     if (b?.colors) {
       colors = b.colors;
       name = b.name;
@@ -433,7 +434,7 @@ function updateDecoys(dt: number) {
       if (ai.firing < 0 && see) {
         ai.firing = NUM.insane.fireFor;
         // Tier 3: the decoy uses a random skill of the class it copies (all bots are Rogues for now).
-        if (ownedTier('insane') === 3) ai.trick = ['wink', 'kidney', 'poison'][Math.floor(Math.random() * 3)];
+        if (ownedTier('insane') === 3) ai.trick = ['wink', 'kidney', 'poison'][Math.floor(random() * 3)];
         if (ai.trick === 'wink') {
           d.pos.copyFrom(behind(t));
           puff(d.pos, '#b46cff');

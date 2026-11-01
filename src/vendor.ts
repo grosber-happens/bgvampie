@@ -34,6 +34,13 @@ export function buildVendors(scene: Scene, world: World, seed: number, count = 2
   MACHINES.length = 0;
   sold.clear();
   shopSeed = seed;
+  if (world.mapObjects && world.field) {
+    for (const o of world.mapObjects) {
+      if (o.k !== 'satici') continue;
+      MACHINES.push({ id: o.v, pos: new Vector3(o.x, world.field.height(o.x, o.z), o.z), yaw: o.r });
+    }
+    return;
+  }
   const spots = placeVendors({
     size: CITY_HALF * 2,
     seed,

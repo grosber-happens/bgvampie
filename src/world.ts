@@ -8,6 +8,8 @@ import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import houseColliders from './assets/house-colliders.json';
+import { Field, KINDS, applyOps, generate, type MapFile, type Obj } from './mapgen/generate';
+import { MapView } from './planner/build';
 
 /** Every solid thing in the city is an axis-aligned box: center x/z, half sizes, bottom and top height. */
 export type Box = { x: number; z: number; hw: number; hd: number; y0: number; y1: number };
@@ -53,7 +55,12 @@ export type World = {
   props: PropSlot[];
   shadows: ShadowGenerator;
   seed: number;
+  field?: Field;
+  mapObjects?: Obj[];
+  spawn?: Vector3;
 };
+
+const mapFields = new WeakMap<Box[], { field: Field; half: number }>();
 
 function mat(scene: Scene, name: string, hex: string, emissive = 0): StandardMaterial {
   const m = new StandardMaterial(name, scene);
@@ -72,7 +79,7 @@ function rng(seed: number) {
   };
 }
 
-export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boolean }): World {
+export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boolean; mapFile?: MapFile }): World {
   const rand = rng(seed);
   const between = (a: number, b: number) => a + rand() * (b - a);
 
@@ -95,6 +102,31 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
   const shadows = new ShadowGenerator(2048, sun);
   shadows.usePercentageCloserFiltering = true;
   shadows.bias = 0.0008;
+
+  if (opts.mapFile) {
+    const file = opts.mapFile;
+    const field = new Field(file.gen, file.ops ?? []);
+    const mapObjects = applyOps(generate(field), file.ops ?? []);
+    const view = new MapView(scene);
+    view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
+    view.buildTerrain(field);
+    view.buildObjects(field, mapObjects);
+    shadows.addShadowCaster(view.terrain);
+    scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
+    const boxes: Box[] = [];
+    const half = file.gen.size / 2;
+    for (const o of mapObjects) {
+      if (o.k === 'nokta') continue;
+      const r = KINDS[o.k].r * o.s;
+      const y = field.height(o.x, o.z);
+      boxes.push({ x: o.x, z: o.z, hw: Math.max(0.3, r * 0.72), hd: Math.max(0.3, r * 0.72), y0: y, y1: y + Math.max(1.4, r * 1.15) });
+    }
+    mapFields.set(boxes, { field, half });
+    const world: World = { boxes, houses: [], props: [], shadows, seed, field, mapObjects };
+    const spawnRand = rng(seed + 913);
+    world.spawn = findOpenSpot(boxes, spawnRand, 0.65);
+    return world;
+  }
 
   // Ground: asphalt with lighter sidewalks around each block.
   const ground = MeshBuilder.CreateGround('ground', { width: CITY_HALF * 2 + 80, height: CITY_HALF * 2 + 80 }, scene);
@@ -294,7 +326,8 @@ function overlapsFootprint(b: Box, x: number, z: number, r: number) {
 
 /** Height of the highest surface under an actor that it can stand on from its current feet height. */
 export function groundHeight(pos: Vector3, radius: number, boxes: Box[]): number {
-  let g = 0;
+  const map = mapFields.get(boxes);
+  let g = map && Math.abs(pos.x) <= map.half && Math.abs(pos.z) <= map.half ? map.field.height(pos.x, pos.z) : 0;
   for (const b of near(boxes, pos.x, pos.z, radius)) {
     if (b.y1 > g && b.y1 <= pos.y + STEP_HEIGHT && overlapsFootprint(b, pos.x, pos.z, radius * 0.7)) g = b.y1;
   }
@@ -331,14 +364,15 @@ export function resolveWalls(pos: Vector3, radius: number, height: number, boxes
       else pos.z += Math.sign(pos.z - b.z || 1) * pz;
     }
   }
-  const max = CITY_HALF - radius;
+  const max = (mapFields.get(boxes)?.half ?? CITY_HALF) - radius;
   pos.x = Math.max(-max, Math.min(max, pos.x));
   pos.z = Math.max(-max, Math.min(max, pos.z));
 }
 
 /** True if a point is inside a solid box or below the ground (stops bullets and the camera). */
 export function pointHitsObstacle(p: Vector3, boxes: Box[]): boolean {
-  if (p.y < 0) return true;
+  const map = mapFields.get(boxes);
+  if (p.y < (map ? map.field.height(p.x, p.z) : 0)) return true;
   for (const b of near(boxes, p.x, p.z, 0)) {
     if (p.y > b.y0 && p.y < b.y1 && Math.abs(p.x - b.x) < b.hw && Math.abs(p.z - b.z) < b.hd) return true;
   }
@@ -347,14 +381,19 @@ export function pointHitsObstacle(p: Vector3, boxes: Box[]): boolean {
 
 /** Find an open street-level spot (not inside or on top of anything). */
 export function findOpenSpot(boxes: Box[], rand: () => number, radius = 0.6): Vector3 {
+  const map = mapFields.get(boxes);
+  const half = map?.half ?? CITY_HALF;
   for (let i = 0; i < 200; i++) {
-    const p = new Vector3((rand() * 2 - 1) * (CITY_HALF - 5), 0, (rand() * 2 - 1) * (CITY_HALF - 5));
-    if (near(boxes, p.x, p.z, radius + 0.3).every((b) => b.y1 <= 0.3 || !overlapsFootprint(b, p.x, p.z, radius + 0.3))) {
+    const p = new Vector3((rand() * 2 - 1) * (half - 5), 0, (rand() * 2 - 1) * (half - 5));
+    const floor = map ? map.field.height(p.x, p.z) : 0;
+    if (near(boxes, p.x, p.z, radius + 0.3).every((b) => b.y1 <= floor + 0.3 || !overlapsFootprint(b, p.x, p.z, radius + 0.3))) {
       p.y = groundHeight(p, radius, boxes);
       return p;
     }
   }
-  return new Vector3(0, 0.25, 0);
+  const p = new Vector3(0, 0, 0);
+  p.y = groundHeight(p, radius, boxes);
+  return p;
 }
 
 /** True when nothing taller than a curb stands within `r` of the point. */

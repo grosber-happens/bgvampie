@@ -1,6 +1,7 @@
 import { CURRENCY, MAX_LEVEL, MAX_SKILLS, TOKEN_PRICE, XP_REWARD, XP_TO_NEXT, BOTS } from './balance';
 import { G, PS, minutes, type Unit } from './core';
 import { def, kit, learn, skillIds, skills, type Tier } from './kit';
+import { random } from './random';
 
 export type Card = { id: string; tier: Tier; isNew: boolean; cost: number; locked: string | null };
 
@@ -50,7 +51,7 @@ export function rewardKill(killer: Unit | null, victim: Unit) {
   let money = 0;
   if (victim.kind === 'mob') {
     xp = XP_REWARD.mob(min);
-    if (Math.random() < CURRENCY.mobChance) money = CURRENCY.mob;
+    if (random() < CURRENCY.mobChance) money = CURRENCY.mob;
   } else if (victim.kind === 'boss') {
     xp = XP_REWARD.boss(min);
     money = CURRENCY.boss;
@@ -88,7 +89,7 @@ export function makeOffer(): Card[] {
   }
   // Shuffle and take 3.
   for (let i = options.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [options[i], options[j]] = [options[j], options[i]];
   }
   return options.slice(0, 3);

@@ -1,4 +1,4 @@
+allowBuilds:
+  esbuild: true
 # Only install npm package versions that have been public for at least a day (supply-chain safety).
 minimumReleaseAge: 1440
-onlyBuiltDependencies:
-  - esbuild
