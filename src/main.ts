@@ -16,6 +16,7 @@ import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
 import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
+import { placeNatureAssets } from './nature';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
 
 import { G, MODS, PS, chest, glowMat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
@@ -157,6 +158,9 @@ const cardsEl = $('cards');
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
 const world = buildWorld(scene, seed, { houseModel: true, mapFile: playingMap });
+if (world.field && world.mapObjects) {
+  placeNatureAssets(scene, world.field, world.mapObjects).catch((e) => console.error('Nature models failed to load', e));
+}
 buildVendors(scene, world, seed);
 const input = new Input(canvas);
 const levelUpUi = createLevelUpUi(input);

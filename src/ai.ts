@@ -56,7 +56,7 @@ function farSpot(rand: () => number, minDist: number): Vector3 {
 }
 
 function spawnBot(look: (typeof BOT_LOOKS)[number], level: number, xp: number, team: number, rand: () => number) {
-  const body = createCharacterBody(G.scene, G.world, `bot${G.nextId}`, look.skin, { tint: look.tint, hpBar: true });
+  const body = createCharacterBody(G.scene, G.world, `bot${G.nextId}`, look.skin, { height: 1.85, tint: look.tint, hpBar: true });
   // A glowing pistol in the right hand so bots read as armed players.
   const gun = MeshBuilder.CreateBox(`bot${G.nextId}-gun`, { width: 0.1, height: 0.14, depth: 0.5 }, G.scene);
   gun.material = glowMat(look.weapon, 0.9);
@@ -82,7 +82,10 @@ function spawnPack(rand: () => number, room = MOBS.maxAlive) {
   for (let i = 0; i < n; i++) {
     const p = center.add(new Vector3((rand() - 0.5) * 3, 0, (rand() - 0.5) * 3));
     const skin: SkinName = rand() < 0.5 ? 'zombieA' : 'zombieC';
-    const body = createCharacterBody(G.scene, G.world, `mob${G.nextId}`, skin, { height: 1.75, hpBar: true, hpColor: '#e0a33f' });
+    const skeleton = rand() < 0.35;
+    const body = skeleton
+      ? createCharacterBody(G.scene, G.world, `mob${G.nextId}`, { kit: 'skeleton', height: 1.75, hpBar: true, hpColor: '#e0a33f' })
+      : createCharacterBody(G.scene, G.world, `mob${G.nextId}`, skin, { height: 1.75, hpBar: true, hpColor: '#e0a33f' });
     makeUnit('mob', 'Zombi', body, p, -1, MOBS.hp(min), {
       radius: 0.45,
       height: 1.75,
@@ -108,7 +111,7 @@ export function spawnBoss(rand: () => number) {
   const pos = farSpot(rand, 20);
   boss = makeUnit('boss', 'Zombi Devi', body, pos, -1, BOSS.hp(minutes()), {
     radius: 1.1,
-    height: 4,
+    height: 4.2,
     level: 12,
     ai: { home: pos.clone(), target: null, think: 0, slamT: 2, rockT: 2, windT: -1, ring: null },
   });
