@@ -58,6 +58,7 @@ import { random, setRandomSeed, visualRandom } from './random';
 import { createLevelUpUi } from './level-up-ui';
 import { createGameHud, fmtTime, SKILL_KEYS } from './game-hud';
 import bundledMapRaw from './assets/maps/harita-47216.json?raw';
+import bundledMap8011Raw from './assets/maps/harita-8011.json?raw';
 import type { MapFile } from './mapgen/generate';
 
 // ---- Tuning (movement and camera) -------------------------------------------
@@ -137,8 +138,13 @@ const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
 const AIM = { distance: 2.8, shoulder: 1.15, fov: 0.55, moveMult: 0.55, blendSpeed: 12 };
 
 const params = new URLSearchParams(location.search);
-const bundledMap = JSON.parse(bundledMapRaw) as MapFile;
-const playingMap = ['47216', 'harita-47216'].includes(params.get('map') ?? '') ? bundledMap : undefined;
+const mapId = params.get('map')?.replace(/^harita-/, '');
+const selectedMap = mapId === '47216'
+  ? { id: '47216', raw: bundledMapRaw }
+  : mapId === '8011'
+    ? { id: '8011', raw: bundledMap8011Raw }
+    : undefined;
+const playingMap = selectedMap ? (JSON.parse(selectedMap.raw) as MapFile) : undefined;
 const seed = Number(params.get('seed')) || playingMap?.gen.seed || Math.floor(Math.random() * 1e6) + 1;
 setRandomSeed(seed);
 const DEBUG = params.has('debug');
@@ -170,7 +176,7 @@ placeHouses(scene, world)
 placeProps(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('Street props failed to load', e));
-const seedText = () => ($('seed').textContent = `${playingMap ? 'Harita #47216' : `${T('city')} #${seed} · ${T('newCity')}`}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
+const seedText = () => ($('seed').textContent = `${playingMap ? `Harita #${selectedMap!.id}` : `${T('city')} #${seed} · ${T('newCity')}`}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
 seedText();
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
