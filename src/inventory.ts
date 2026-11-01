@@ -267,7 +267,7 @@ export function gearIncoming(dmg: number, src: Unit | null): number {
     if (Vector3.Dot(to.normalize(), f) > 0.3) dr += 0.15;
   }
   const out = dmg * (1 - Math.min(0.75, dr));
-  if (INV.bandT > 0 && out >= G.player.maxHp * BANDAGE.breakAt) stopBandage(true);
+  if (INV.bandT > 0 && out > 0) stopBandage(true);
   return out;
 }
 
@@ -307,8 +307,6 @@ export function gearSpeedMult() {
 export const gearAtkMult = () => 1 + INV.s.atkSpeed;
 /** Dash costs this share of the normal breath cost. */
 export const gearDashCost = () => 1 + INV.s.dashCd;
-export const gearAirJumps = () => 1 + INV.s.airJumps;
-export const gearAirDashes = () => 1 + INV.s.dashCharges;
 export const gearWallRun = () => INV.s.wallRun;
 export const gearSlam = () => INV.s.slam;
 export const has = (u: Unique) => INV.u.has(u);
@@ -412,11 +410,12 @@ export function updateInventory(dt: number) {
     recomputeHp();
   }
   if (!p.alive) return;
-  // Pills: a short cast, then the heal lands at once; attacking, a skill or a dash stops it (main.ts calls stopBandage).
+  // Pills heal across the channel; movement, damage, attacks, skills and dashes can interrupt it.
   if (INV.bandT > 0) {
+    const elapsed = Math.min(dt, INV.bandT);
     INV.bandT -= dt;
+    p.hp = Math.min(p.maxHp, p.hp + p.maxHp * BANDAGE.healPct * (1 + INV.s.bandageHeal) * (elapsed / channelTime()));
     if (INV.bandT <= 0) {
-      p.hp = Math.min(p.maxHp, p.hp + p.maxHp * BANDAGE.healPct * (1 + INV.s.bandageHeal));
       ringFx(p.pos, 0.8, '#f4efe2', 0.3);
       INV.bandT = 0.0001;
       stopBandage(false);

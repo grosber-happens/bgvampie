@@ -33,7 +33,7 @@ type HudRuntime = {
   running: () => boolean;
   aimBlend: () => number;
   aimDirection: () => Vector3;
-  spMax: number;
+  spMax: () => number;
   dashCost: number;
 };
 
@@ -146,7 +146,7 @@ export function createGameHud(runtime: HudRuntime) {
     $('hp-fill').style.width = `${(Math.max(0, player.hp) / player.maxHp) * 100}%`;
     $('hp-text').textContent = `${Math.ceil(Math.max(0, player.hp))} / ${player.maxHp}`;
     $('weapon').textContent = `${hud(kit.weaponText(ctl.weapon))} (F)`;
-    $('sp-fill').style.width = `${(ctl.sp / runtime.spMax) * 100}%`;
+    $('sp-fill').style.width = `${(ctl.sp / runtime.spMax()) * 100}%`;
     $('sp-fill').parentElement!.classList.toggle('low', ctl.sp < runtime.dashCost * gearDashCost());
     $('sp-fill').parentElement!.classList.toggle('winded', ctl.winded > 0);
     const band = bandageShare();

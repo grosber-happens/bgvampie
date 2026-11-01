@@ -12,7 +12,6 @@ import {
   flatDist,
   glowMat,
   hostile,
-  inCombat,
   lineOfSight,
   makeUnit,
   minutes,
@@ -198,7 +197,6 @@ function updateBot(u: Unit, dt: number, rand: () => number) {
     ai.reloadT -= dt;
     if (ai.reloadT <= 0) ai.ammo = BOTS.magazine;
   }
-  if (!inCombat(u) && G.time - u.lastCombat > BOTS.regenDelay && !(u.ai!.noHealT > G.time)) u.hp = Math.min(u.maxHp, u.hp + BOTS.regenPerSec * dt);
 
   if (ai.think <= 0) {
     ai.think = 0.3 + rand() * 0.15;
@@ -359,7 +357,6 @@ function updateBoss(u: Unit, dt: number) {
     home.y = 0;
     if (home.length() > 2) steer(u, home, BOSS.speed, dt);
     else moveUnit(u, Vector3.Zero(), 0, dt);
-    if (!inCombat(u)) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.05 * dt);
     return;
   }
   const dist = flatDist(u.pos, t.pos);

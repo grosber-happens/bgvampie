@@ -10,9 +10,6 @@ export const ROGUE = {
   hpPerLevel: 9,
   /** Damage bonus per character level above 1. */
   damagePerLevel: 0.04,
-  /** Out of combat this long, then health comes back. */
-  regenDelay: 5,
-  regenPerSec: 5,
 };
 
 /** Short-range assassination pistol: few bullets, hits hard. */
@@ -38,7 +35,7 @@ export const COMBAT_LOCK = 2;
 
 // ---- Mage (design doc 2.2) ------------------------------------------------
 export const MAGE = {
-  stats: { maxHp: 105, hpPerLevel: 7, damagePerLevel: 0.06, regenDelay: 5, regenPerSec: 5 },
+  stats: { maxHp: 105, hpPerLevel: 7, damagePerLevel: 0.06 },
   /** Wand: a quick laser bolt, no ammo but it heats up. */
   wand: { rate: 0.28, damage: 13, range: 45, heatPerShot: 0.16, coolPerSec: 0.45, overheatLock: 1.5 },
   /** Rod: long, slow sweeps that push a little. */
@@ -52,7 +49,7 @@ export const MAGE = {
 
 // ---- Fighter ---------------------------------------------------------------
 export const FIGHTER = {
-  stats: { maxHp: 135, hpPerLevel: 9, damagePerLevel: 0.035, regenDelay: 5, regenPerSec: 5 },
+  stats: { maxHp: 135, hpPerLevel: 9, damagePerLevel: 0.035 },
   sword: { rate: 0.42, damage: 28, range: 2.9, arcDeg: 120 },
   /** Thrown energy spears: 3 in hand, each comes back after a while. */
   spear: { rate: 0.6, damage: 50, speed: 48, range: 40, count: 3, regen: 1.8 },
@@ -66,10 +63,10 @@ export const FIGHTER = {
 
 // ---- Scout -----------------------------------------------------------------
 export const SCOUT = {
-  stats: { maxHp: 90, hpPerLevel: 6, damagePerLevel: 0.03, regenDelay: 5, regenPerSec: 5 },
+  stats: { maxHp: 90, hpPerLevel: 6, damagePerLevel: 0.03 },
   claws: { rate: 0.24, damage: 17, range: 2.1, arcDeg: 110 },
   /** Sniper: damage grows while scoped (right mouse), unscoped shots are weak. */
-  sniper: { rate: 1.1, minDamage: 28, maxDamage: 80, chargeTime: 2.0, range: 90, magazine: 4, reload: 2.2 },
+  sniper: { rate: 1.1, minDamage: 28, maxDamage: 80, chargeTime: 3.0, range: 90, magazine: 4, reload: 2.2 },
   /** Passive 1: a cybernetic wolf that hunts what you last hit. */
   companion: { hp: 70, damage: 12, rate: 0.8, speed: 9.5, range: 18, respawn: 20 },
   /** Passive 2: hitting someone at least this much lower deals bonus damage. */
@@ -121,8 +118,6 @@ export const BOTS = {
   meleeDamage: 16,
   /** Below this share of health the bot runs to cover. */
   retreatAt: 0.35,
-  regenDelay: 5,
-  regenPerSec: 6,
   /** Prototype only: dead bots come back after this long (a real match has no respawns). */
   respawn: 30,
 };

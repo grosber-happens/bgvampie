@@ -17,12 +17,8 @@ export const SHOP = {
   setMult: 1.3,
   /** Selling an item back gives this share of its price. */
   sellShare: 0.3,
-  /** Items on one machine's shelf. */
-  stock: 4,
   /** The shelf is rolled again every this many seconds. */
   restock: 150,
-  /** Chance a shelf slot holds a Gece Karakolu piece. */
-  setChance: 0.08,
   /** Shop rarity odds by match phase: [from minute, common, rare, epic, legendary]. */
   odds: [
     [0, 0.65, 0.35, 0, 0],
@@ -70,24 +66,12 @@ export const restockWindow = (seconds: number) => Math.floor(seconds / SHOP.rest
 const CLASS_N: Record<ClassId, number> = { rogue: 1, mage: 2, fighter: 3, scout: 4 };
 
 /**
- * The shelf a class sees at one machine in one restock window. No two items share a slot,
- * and the class's own weapons always have a chance to show up.
+ * Every item wearable by the class is shown; rarity rolls remain stable for this shelf window.
  */
 export function shopStock(machine: number, cls: ClassId, seconds: number, seed = 1): Item[] {
   const win = restockWindow(seconds);
   const r = rng(seed * 7919 + machine * 104729 + win * 1301 + CLASS_N[cls] * 31);
-  for (let i = 0; i < 3; i++) r();
   const min = (win * SHOP.restock) / 60;
-  const pool = [...ARMOR, ...JEWELS, ...WEAPONS].filter((d) => canWear(cls, d));
-  const used = new Set<Slot>();
-  const out: Item[] = [];
-  for (let tries = 0; out.length < SHOP.stock && tries < 40; tries++) {
-    const set = r() < SHOP.setChance;
-    const list = set ? NOIR : pool;
-    const d = list[Math.floor(r() * list.length)];
-    if (used.has(d.slot)) continue;
-    used.add(d.slot);
-    out.push({ id: d.id, rarity: shopRarity(min, r()), xp: 0 });
-  }
-  return out;
+  const pool = [...ARMOR, ...JEWELS, ...WEAPONS, ...NOIR].filter((d) => canWear(cls, d));
+  return pool.map((d) => ({ id: d.id, rarity: shopRarity(min, r()), xp: 0 }));
 }

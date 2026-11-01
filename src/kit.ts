@@ -47,7 +47,7 @@ export type SkillDef = {
 
 export type Playstyle = { id: string; name: string; skill: string; weapon: Weapon };
 
-export type ClassStats = { maxHp: number; hpPerLevel: number; damagePerLevel: number; regenDelay: number; regenPerSec: number };
+export type ClassStats = { maxHp: number; hpPerLevel: number; damagePerLevel: number };
 
 /** Each class dashes in its own way: its own animation, speed, length and trail. */
 export type DashDef = { anim: Anim; speed: number; time: number; cd: number; color: string; /** Mage: a blink, the body vanishes during the dash. */ blink?: boolean };
