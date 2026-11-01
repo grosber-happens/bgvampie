@@ -278,7 +278,8 @@ function reload() {
 function charge() {
   if (fullShots > 0) return 1;
   if (!host.isAiming()) return 0;
-  return Math.min(1, host.aimTime() / SCOUT.sniper.chargeTime);
+  const steps = Math.floor((host.aimTime() + 1e-6) / 0.2);
+  return Math.min(1, (steps * 0.2) / SCOUT.sniper.chargeTime);
 }
 
 function snipe(): number {

@@ -12,6 +12,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import '@babylonjs/loaders/glTF/2.0';
 import survivorUrl from './assets/kenney/survivor.glb?url';
 import hippoUrl from './assets/hippo.glb?url';
+import skeletonUrl from './assets/skeleton.glb?url';
 import maleB from './assets/kenney/survivorMaleB.png?url';
 import femaleA from './assets/kenney/survivorFemaleA.png?url';
 import zombieA from './assets/kenney/zombieA.png?url';
@@ -33,6 +34,7 @@ export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'dash' | 'dash_mage' | 'da
 const KITS = {
   survivor: { url: survivorUrl, height: 3.76 },
   hippo: { url: hippoUrl, height: 1.9 },
+  skeleton: { url: skeletonUrl, height: 1.8 },
 };
 type KitName = keyof typeof KITS;
 const kits: Partial<Record<KitName, AssetContainer>> = {};
@@ -85,24 +87,55 @@ export function createCharacterBody(scene: Scene, world: World, name: string, sk
   const model = inst.rootNodes[0] as TransformNode;
   model.parent = root;
   model.scaling.scaleInPlace(height / KITS[kitName].height);
+  if (kitName === 'skeleton') {
+    // This pack's rig uses its own scale and axis transforms. Normalize the visible model
+    // to the same measured height as the gameplay capsule, then plant its feet at y=0.
+    model.computeWorldMatrix(true);
+    const bounds = model.getHierarchyBoundingVectors(true);
+    const modelHeight = bounds.max.y - bounds.min.y;
+    if (modelHeight > 0.01) {
+      const correction = height / modelHeight;
+      model.scaling.scaleInPlace(correction);
+      model.position.y -= bounds.min.y * correction;
+    }
+  }
 
   // Each unit gets its own material so a hit flash only lights that unit.
   const base = kit.materials[0] as PBRMaterial;
-  const mat =
-    kitName === 'survivor' ? survivorMaterial(scene, base, opts.skin ?? 'maleB', opts.tint ?? '#ffffff', name) : (base.clone(`${name}-mat`) as PBRMaterial);
-  clayify(mat);
+  const materials = new Map<PBRMaterial, PBRMaterial>();
+  const actorMaterials = new Set<PBRMaterial>();
+  let mat: PBRMaterial | null = null;
   const meshes: Mesh[] = [];
   for (const m of model.getChildMeshes(false)) {
     if (!(m instanceof Mesh)) continue;
-    m.material = mat;
+    const sourceMat = m.material instanceof PBRMaterial ? m.material : base;
+    let actorMat = materials.get(sourceMat);
+    if (!actorMat) {
+      actorMat = kitName === 'survivor'
+        ? survivorMaterial(scene, sourceMat, opts.skin ?? 'maleB', opts.tint ?? '#ffffff', `${name}-${sourceMat.name}`)
+        : sourceMat.clone(`${name}-${sourceMat.name}`) as PBRMaterial;
+      if (opts.tint && kitName !== 'survivor') actorMat.albedoColor = actorMat.albedoColor.multiply(Color3.FromHexString(opts.tint));
+      clayify(actorMat);
+      materials.set(sourceMat, actorMat);
+      actorMaterials.add(actorMat);
+    }
+    m.material = actorMat;
     m.receiveShadows = true;
     world.shadows.addShadowCaster(m);
     meshes.push(m);
+    if (!mat || m.name.toLowerCase().includes('skeleton')) mat = actorMat;
+  }
+  if (!mat) {
+    mat = base.clone(`${name}-mat`) as PBRMaterial;
+    actorMaterials.add(mat);
   }
   const anims: Partial<Record<Anim, AnimationGroup>> = {};
   for (const g of inst.animationGroups) {
     g.stop();
-    anims[g.name.replace(`${name}-`, '') as Anim] = g;
+    const clip = g.name.split('|').at(-1)?.toLowerCase() ?? g.name.replace(`${name}-`, '').toLowerCase();
+    if (['idle', 'walk', 'run', 'jump', 'dash', 'dash_mage', 'dash_fighter', 'dash_scout', 'cartwheel', 'sprint'].includes(clip)) {
+      anims[clip as Anim] = g;
+    }
   }
   let current: Anim | null = null;
   const play = (wanted: Anim, speed = 1, restart = false) => {
@@ -141,7 +174,7 @@ export function createCharacterBody(scene: Scene, world: World, name: string, sk
     dispose: () => {
       for (const g of inst.animationGroups) g.dispose();
       for (const s of inst.skeletons) s.dispose();
-      mat.dispose();
+      for (const actorMat of actorMaterials) actorMat.dispose();
     },
   };
 }

@@ -26,8 +26,6 @@ export type Stats = {
   speed: number;
   /** Dash cooldown share (negative = shorter). */
   dashCd: number;
-  /** Extra dash charges. */
-  dashCharges: number;
   /** All damage dealt. */
   dmg: number;
   /** Damage while the melee / ranged weapon is in hand (skills included). */
@@ -58,16 +56,15 @@ export type Stats = {
   reach: number;
   backstab: number;
   spears: number;
-  /** Movement from leg pieces (S4 League style): extra jumps in the air, seconds of wall running, a ground slam from the air. */
-  airJumps: number;
+  /** Movement from leg pieces: seconds of wall running, or a ground slam from the air. */
   wallRun: number;
   slam: number;
 };
 
 export const ZERO: Stats = {
-  armor: 0, hp: 0, hpPct: 0, speed: 0, dashCd: 0, dashCharges: 0, dmg: 0, meleeDmg: 0, rangedDmg: 0, atkSpeed: 0, cdr: 0, aoe: 0,
+  armor: 0, hp: 0, hpPct: 0, speed: 0, dashCd: 0, dmg: 0, meleeDmg: 0, rangedDmg: 0, atkSpeed: 0, cdr: 0, aoe: 0,
   lifesteal: 0, tenacity: 0, bandageCd: 0, bandageHeal: 0, regenEvery: 0, regenPct: 0, guardEvery: 0, guardPct: 0, mag: 0, heat: 0,
-  charge: 0, reach: 0, backstab: 0, spears: 0, airJumps: 0, wallRun: 0, slam: 0,
+  charge: 0, reach: 0, backstab: 0, spears: 0, wallRun: 0, slam: 0,
 };
 
 /** Keys that rarity scales. Penalties (negative speed, longer dash) and timers stay the same. */
@@ -110,7 +107,6 @@ export const WALL_RUN = { speed: 9.5, gravity: 4, jumpOff: 9 };
 
 /** A legendary piece's own rule. The game and the sim read these ids. */
 export type Unique =
-  | 'twinDash' // light legs: a second dash charge
   | 'frostTrail' // medium legs: dashing leaves ice that slows enemies 35%
   | 'ramDash' // heavy legs: the dash knocks enemies back and stuns 0.4 s
   | 'secondWind' // light chest: under 30% health, 3 s of +30% speed (60 s)
@@ -176,8 +172,7 @@ export const ARMOR: ItemDef[] = [
     id: 'l_legs', slot: 'legs', weight: 'light', icon: 'boots_light',
     name: { tr: 'Kedi Adımı', en: 'Catstep Boots' },
     lore: { tr: 'Taban kaplaması bir kedi pençesinden kopyalandı. Kedi hâlâ dava açmayı düşünüyor.', en: 'The soles were copied from a cat. The cat is still thinking of suing.' },
-    stats: { armor: 3, hp: 3, speed: 0.06, dashCd: -0.2, airJumps: 1 },
-    unique: { id: 'twinDash', text: { tr: 'İkinci dash hakkı', en: 'A second dash charge' } },
+    stats: { armor: 3, hp: 3, speed: 0.06, dashCd: -0.2 },
   },
   // Medium
   {
@@ -220,7 +215,7 @@ export const ARMOR: ItemDef[] = [
     id: 'h_legs', slot: 'legs', weight: 'heavy', icon: 'greaves',
     name: { tr: 'Kazık Dizlikler', en: 'Stake Greaves' },
     lore: { tr: 'Yere bastığında yer biraz geri çekilir. Saygıdan.', en: 'When it steps, the ground gives a little. Out of respect.' },
-    stats: { armor: 6, hp: 6, speed: -0.05, dashCd: 0.2, tenacity: 0.25, slam: 30, airJumps: -1 },
+    stats: { armor: 6, hp: 6, speed: -0.05, dashCd: 0.2, tenacity: 0.25, slam: 30 },
     unique: { id: 'ramDash', text: { tr: 'Dash önündekini geri iter ve 0.4 sn sersemletir', en: 'The dash knocks enemies back and stuns 0.4 s' } },
   },
 ];
@@ -364,7 +359,7 @@ export const NOIR: ItemDef[] = [
     id: 's_shoes', slot: 'legs', set: 'noir', weight: 'light', icon: 'oxfords',
     name: { tr: 'Sessiz Kunduralar', en: 'Quiet Oxfords' },
     lore: { tr: 'Islak kaldırımda iz bırakmaz. Sadece bir kez, bir cinayet gecesi bıraktı.', en: 'They leave no print on wet stone. Only once, on a murder night.' },
-    stats: { armor: 3, hp: 4, speed: 0.05, dashCd: -0.12, airJumps: 1 },
+    stats: { armor: 3, hp: 4, speed: 0.05, dashCd: -0.12 },
   },
   {
     id: 's_ring', slot: 'ring', set: 'noir', icon: 'badge',
@@ -403,7 +398,7 @@ export const NOIR_SET = {
  * (the healing done so far stays, and the cooldown is `cancelCd` of the full one).
  */
 /** Pills (X): a 0.5 s cast, then heal at once. Taking a big hit during the cast breaks it. */
-export const BANDAGE = { key: 'KeyX', channel: 0.5, healPct: 0.2, cd: 35, cancelCd: 0.5, moveMult: 0.6, breakAt: 0.08 };
+export const BANDAGE = { key: 'KeyX', channel: 3, healPct: 0.3, cd: 30, cancelCd: 0.5, moveMult: 0.6 };
 
 // ---- Lookup and math ---------------------------------------------------------------------
 export const ALL_ITEMS: ItemDef[] = [...ARMOR, ...JEWELS, ...WEAPONS, ...NOIR];
@@ -468,7 +463,6 @@ export function totalStats(l: Loadout): Stats {
     }
   }
   const u = uniques(l);
-  if (u.has('twinDash')) t.dashCharges += 1;
   if (u.has('ironCrown')) t.guardPct *= 2;
   // Caps so stacking never breaks a rule.
   t.cdr = Math.min(t.cdr, 0.4);

@@ -16,6 +16,7 @@ import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
 import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
+import { placeNatureAssets } from './nature';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
 
 import { G, MODS, PS, chest, glowMat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
@@ -42,7 +43,7 @@ import './fighter';
 import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
-import { INV, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAirDashes, gearAirJumps, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
+import { INV, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
 import { ITEM, RARITY_COLOR, SLAM, WALL_RUN } from './gear';
 import { SPECIALS } from './specials';
 import { rigHooks, rigReparent, rigSwing, updateRig } from './armory/rig';
@@ -71,12 +72,11 @@ const STEP_DOWN = 0.45;
 /**
  * S4 League style movement: a breath (stamina) bar pays for chained dashes and sprinting,
  * a jump right after a dash becomes a long dash-jump, everyone has a double jump and can kick off walls.
- * Leg gear adds air jumps, wall running (medium) or a ground slam (heavy).
+ * Leg gear adds wall running (medium) or a ground slam (heavy).
  * Costs follow the ratios S4 players documented (a dodge or a wall kick is a fifth of the bar,
  * sprinting is a slow drain); see docs/MOVEMENT.md. The code and numbers here are our own.
  */
 const S4 = {
-  spMax: 100,
   spRegen: 32,
   /** Breath starts coming back this long after the last dash or sprint. */
   spDelay: 0.6,
@@ -103,7 +103,6 @@ const S4 = {
   doubleTap: 0.3,
   dashJumpWindow: 0.22,
   dashJumpSpeed: 12,
-  doubleJump: 8.6,
   /**
    * Wall kick: costs breath, only while rising or at the top of a jump (not while falling),
    * and bounces off the wall like light off a mirror (angle in = angle out).
@@ -131,6 +130,8 @@ const S4 = {
     [400, 360],
   ] as [number, number][],
 };
+const BREATH_MAX: Record<ClassId, number> = { rogue: 120, fighter: 110, scout: 100, mage: 90 };
+const breathMax = () => BREATH_MAX[kit.id];
 const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
 // Right-click aim: closer over-the-shoulder view with zoom and slower movement.
 const AIM = { distance: 2.8, shoulder: 1.15, fov: 0.55, moveMult: 0.55, blendSpeed: 12 };
@@ -157,6 +158,9 @@ const cardsEl = $('cards');
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
 const world = buildWorld(scene, seed, { houseModel: true, mapFile: playingMap });
+if (world.field && world.mapObjects) {
+  placeNatureAssets(scene, world.field, world.mapObjects).catch((e) => console.error('Nature models failed to load', e));
+}
 buildVendors(scene, world, seed);
 const input = new Input(canvas);
 const levelUpUi = createLevelUpUi(input);
@@ -193,9 +197,8 @@ for (const m of pBody.meshes) m.isPickable = false;
 const ctl = {
   grounded: true,
   sinceGrounded: 0,
-  sp: 100,
+  sp: breathMax(),
   spIdle: 0,
-  airJumps: 1,
   airDashes: 1,
   wallKicks: 3,
   dashLock: 0,
@@ -216,6 +219,7 @@ const ctl = {
   fireCd: 0,
   dashT: 0,
   dashTotal: 0,
+  dashCommit: false,
   winded: 0,
   ghostT: 0,
   dashCd: 0,
@@ -320,6 +324,7 @@ setHost({
   isAiming,
   aimTime: () => ctl.aimTime,
   launch: (v) => {
+    if (ctl.dashCommit) return;
     player.velY = v;
     ctl.grounded = false;
     ctl.sinceGrounded = MOVE.coyoteTime;
@@ -377,6 +382,7 @@ function updatePlayer(dt: number) {
   if (fb < 0) move.scaleInPlace(S4.backRate);
   else if (fb === 0) move.scaleInPlace(S4.sideRate);
   ctl.moving = move.lengthSquared() > 0 || ctl.dashT > 0;
+  if (INV.bandT > 0 && (move.lengthSquared() > 0 || input.keys.has('Space'))) stopBandage(true);
   const stunned = player.stunT > 0;
 
   if (input.consume('KeyF')) setWeapon(ctl.weapon === 'ranged' ? 'melee' : 'ranged');
@@ -402,12 +408,14 @@ function updatePlayer(dt: number) {
   ctl.dashLock -= dt;
   ctl.winded = Math.max(0, ctl.winded - dt);
   ctl.sinceDash += dt;
+  if (ctl.dashCommit && ctl.grounded && ctl.dashT <= 0) ctl.dashCommit = false;
   const cost = (stunned ? S4.stunDashCost : S4.dashCost) * gearDashCost();
-  const canDash = () => ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0);
+  const canDash = () => !ctl.dashCommit && ctl.dashLock <= 0 && ctl.sp >= cost && (ctl.grounded || ctl.airDashes > 0 || ctl.wallRunT > 0);
   const doDash = (dir: Vector3) => {
     if (stunned) player.stunT = 0;
     ctl.dashDir = dir;
     ctl.dashStarted = true;
+    ctl.dashCommit = true;
     ctl.dashT = ctl.dashTotal = dash.time * (1 + S4.slide);
     // Stretch to the cartwheel's time but keep the distance (the Mage's blink stays instant).
     ctl.dashSpeedMul = 1;
@@ -447,13 +455,12 @@ function updatePlayer(dt: number) {
     ctl.spIdle = 0;
   } else if (ctl.dashT <= 0 && !ctl.airSprint) {
     ctl.spIdle += dt;
-    if (ctl.spIdle > S4.spDelay && ctl.winded <= 0) ctl.sp = Math.min(S4.spMax, ctl.sp + S4.spRegen * dt);
+    if (ctl.spIdle > S4.spDelay && ctl.winded <= 0) ctl.sp = Math.min(breathMax(), ctl.sp + S4.spRegen * dt);
   }
 
-  // Space: with A or D held it is a side dash; otherwise ground jump, dash-jump, wall run jump-off,
-  // wall kick (Space again next to a wall) or double jump.
+  // Space: with A or D held it is a side dash; otherwise ground jump, wall run jump-off or wall kick.
   // While stunned, only a side dash works (it breaks the stun).
-  if (input.consume('Space') && (!stunned || input.axis('KeyA', 'KeyD') !== 0)) {
+  if (input.consume('Space') && !ctl.dashCommit && (!stunned || input.axis('KeyA', 'KeyD') !== 0)) {
     const wn = ctl.grounded || stunned ? null : wallNormal();
     const side = input.axis('KeyA', 'KeyD');
     const kickCost = S4.wallKick.cost * gearDashCost();
@@ -478,8 +485,7 @@ function updatePlayer(dt: number) {
       } else player.velY = MOVE.jumpSpeed;
       ctl.grounded = false;
       ctl.sinceGrounded = MOVE.coyoteTime;
-      ctl.airJumps = gearAirJumps();
-      ctl.airDashes = gearAirDashes();
+      ctl.airDashes = 1;
       ctl.wallKicks = S4.wallKick.max;
     } else if (wn && canKick) {
       player.velY = S4.wallKick.up;
@@ -498,11 +504,6 @@ function updatePlayer(dt: number) {
       if (ctl.sp <= 0.5) ctl.winded = S4.winded;
       ringFx(player.pos.add(wn.scale(-0.4)), 0.5, kit.dash.color, 0.25);
       flip(-1);
-    } else if (ctl.airJumps > 0) {
-      player.velY = S4.doubleJump;
-      ctl.airJumps -= 1;
-      ringFx(player.pos, 0.7, kit.dash.color, 0.3);
-      flip(1);
     }
   }
   // Heavy legs: drop and slam (Ctrl or C in the air).
@@ -576,8 +577,7 @@ function updatePlayer(dt: number) {
     ctl.slamming = false;
     ctl.grounded = true;
     ctl.sinceGrounded = 0;
-    ctl.airJumps = gearAirJumps();
-    ctl.airDashes = gearAirDashes();
+    ctl.airDashes = 1;
     ctl.wallKicks = S4.wallKick.max;
     ctl.wallRunT = 0;
     ctl.wallRunDone = false;
@@ -652,7 +652,6 @@ function updatePlayer(dt: number) {
     else rigSwing();
   }
   // Health comes back out of combat.
-  if (G.time - player.lastCombat > kit.stats.regenDelay && !(player.ai?.noHealT > G.time)) player.hp = Math.min(player.maxHp, player.hp + kit.stats.regenPerSec * dt);
   kit.update(dt, ctl.moving, ctl.grounded);
   updateInventory(dt);
   // Weapons in hand: ready pose while aiming or attacking, class state on the models.
@@ -903,7 +902,7 @@ let started = false;
 let dead = false;
 let styleIndex = 0;
 
-gameHud = createGameHud({ engine, scene, camera, canvas, ctl, running: () => running, aimBlend: () => aimBlend, aimDirection, spMax: S4.spMax, dashCost: S4.dashCost });
+gameHud = createGameHud({ engine, scene, camera, canvas, ctl, running: () => running, aimBlend: () => aimBlend, aimDirection, spMax: breathMax, dashCost: S4.dashCost });
 
 
 
@@ -988,7 +987,16 @@ function resetMatch() {
   G.time = 0;
   resetKit();
   resetProgression();
-  ctl.sp = S4.spMax;
+  ctl.sp = breathMax();
+  ctl.spIdle = 0;
+  ctl.winded = 0;
+  ctl.dashT = ctl.dashTotal = 0;
+  ctl.dashCommit = false;
+  ctl.dashLock = 0;
+  ctl.sinceDash = 9;
+  ctl.airDashes = 1;
+  ctl.velH.setAll(0);
+  ctl.grounded = true;
   MODS.damagePerLevel = kit.stats.damagePerLevel;
   Object.assign(PS, { kills: 0, currency: 0 });
   const spawn = world.spawn ?? new Vector3(0, 0, 0);
@@ -1171,7 +1179,7 @@ window.addEventListener('resize', () => engine.resize());
   setWeapon,
   gear: (w: 'light' | 'medium' | 'heavy' | 'noir', r: 'common' | 'rare' | 'epic' | 'legendary' = 'epic') => debugKit(w, r),
   inv: () => ({ load: INV.load, bag: INV.bag, s: INV.s, set: INV.set, bandT: INV.bandT, bandCd: INV.bandCd }),
-  move: () => ({ sp: ctl.sp, dashT: ctl.dashT, airJumps: ctl.airJumps, wallRunT: ctl.wallRunT, sprinting: ctl.sprinting, airSprint: ctl.airSprint, lungeT: ctl.lungeT, windupT: ctl.windupT, shieldT: ctl.shieldT, specialCd: ctl.specialCd, wallKicks: ctl.wallKicks, velY: player.velY, grounded: ctl.grounded }),
+  move: () => ({ sp: ctl.sp, dashT: ctl.dashT, dashCommit: ctl.dashCommit, wallRunT: ctl.wallRunT, sprinting: ctl.sprinting, airSprint: ctl.airSprint, lungeT: ctl.lungeT, windupT: ctl.windupT, shieldT: ctl.shieldT, specialCd: ctl.specialCd, wallKicks: ctl.wallKicks, velY: player.velY, grounded: ctl.grounded }),
   dropItem: (id: string, rarity: 'common' | 'rare' | 'epic' | 'legendary' = 'rare') => spawnDrop({ id, rarity, xp: 0 }, player.pos.add(new Vector3(0, 0, 0.5))),
   orbs: (n: number) => (P.orbs = n),
   /** Hold the player in a pose (for screenshots): plays the animation, then freezes it. */

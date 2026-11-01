@@ -126,7 +126,7 @@ button { font-family: var(--body); font-variation-settings: inherit; color: inhe
 #shop.hidden { display: none; }
 .dossier.shop::before { content: 'KURBAĞA LONCASI · RAF'; background-color: var(--amber); color: var(--ink); }
 #shop .inv-cols { grid-template-columns: 1fr; gap: 6px; }
-#shop-shelf { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 18px; }
+#shop-shelf { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 18px; max-height: 48vh; overflow-y: auto; align-content: start; padding: 4px 6px 16px; }
 #shop-bag { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
 @media (max-width: 700px) { #shop-bag { grid-template-columns: repeat(4, 1fr); } }
 #shop-money { font-family: var(--display); font-size: 18px; background: var(--amber) var(--grain); border: 2px solid var(--ink); border-radius: 12px 7px 13px 6px / 8px 12px 6px 13px; padding: 0 10px; transform: rotate(-2deg); box-shadow: var(--lift); }
