@@ -27,6 +27,9 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
     devDependencies:
+      '@babylonjs/serializers':
+        specifier: 9.32.0
+        version: 9.32.0(@babylonjs/core@9.32.0)(babylonjs-gltf2interface@9.32.1)
       '@types/node':
         specifier: ^25.3.3
         version: 25.9.9
@@ -44,6 +47,12 @@ packages:
 
   '@babylonjs/loaders@9.32.0':
     resolution: {integrity: sha512-pHWbOaR34riRNxX0rffPpVcbaAoEXmjtS00A4RO43zoz4EPVg4mESX0EqzaA8yl7FbVk+aYWwyj30uR1OWrl1Q==}
+    peerDependencies:
+      '@babylonjs/core': ^9.0.0
+      babylonjs-gltf2interface: ^9.0.0
+
+  '@babylonjs/serializers@9.32.0':
+    resolution: {integrity: sha512-zvAT6lpUf4uQKvTOMXnizFfiP9f1kGcDs2r/aAy8p7DWuixMrK4AqMWP7x7WWzGIgSinU2qAiuQdoVjTz18nag==}
     peerDependencies:
       '@babylonjs/core': ^9.0.0
       babylonjs-gltf2interface: ^9.0.0
@@ -471,6 +480,11 @@ snapshots:
   '@babylonjs/core@9.32.0': {}
 
   '@babylonjs/loaders@9.32.0(@babylonjs/core@9.32.0)(babylonjs-gltf2interface@9.32.1)':
+    dependencies:
+      '@babylonjs/core': 9.32.0
+      babylonjs-gltf2interface: 9.32.1
+
+  '@babylonjs/serializers@9.32.0(@babylonjs/core@9.32.0)(babylonjs-gltf2interface@9.32.1)':
     dependencies:
       '@babylonjs/core': 9.32.0
       babylonjs-gltf2interface: 9.32.1
