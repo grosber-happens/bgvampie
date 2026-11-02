@@ -15,6 +15,7 @@ import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, unlockAu
 import { createHippoBody, loadCharacterKits } from './characters';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
+import { placeSpor } from './spor';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
 import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
 import { placeNatureAssets } from './nature';
@@ -192,6 +193,7 @@ const levelUpUi = createLevelUpUi(input);
 placeHouses(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('House model failed to load', e));
+placeSpor(scene, world).catch((e) => console.error('Spor Ormanı models failed to load', e));
 placeProps(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('Street props failed to load', e));
