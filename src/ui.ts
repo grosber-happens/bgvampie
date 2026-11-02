@@ -7,8 +7,8 @@ import { artUrl, itemIcon } from './icons';
 import { getLang, onLang, setLang, t } from './i18n';
 import { INV, dropFromBag, equipFromBag, invHooks, unequip, wearable } from './inventory';
 import { PS } from './core';
-import { sellPrice } from './shop.ts';
-import { buy, restockIn, sell, shelf, type Machine } from './vendor';
+import { SHOP, sellPrice } from './shop.ts';
+import { buy, repair, repairQuote, restockIn, sell, shelf, spin, type Machine } from './vendor';
 import { LOOK } from './look';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -198,6 +198,16 @@ export function renderShop(m: Machine | null = shopAt) {
   const { cls, seconds } = shopUi.ctx();
   const items = shelf(m, cls, seconds);
   $('shop-money').textContent = `${t('money')} ${PS.currency}`;
+  $('shop').classList.toggle('lucky', m.lucky);
+  $('shop-kind').textContent = m.lucky ? t('shopLuckyTitle') : t('shopShelf');
+  const lever = $('shop-spin') as HTMLButtonElement;
+  lever.classList.toggle('hidden', !m.lucky);
+  lever.textContent = spinning ? t('shopSpinning') : t('shopSpin', { c: SHOP.spinCost });
+  lever.disabled = spinning || PS.currency < SHOP.spinCost;
+  const q = repairQuote();
+  const fix = $('shop-repair') as HTMLButtonElement;
+  fix.textContent = q.lost > 0 ? t('shopRepair', { c: q.price, a: q.lost }) : t('shopRepairNone');
+  fix.disabled = q.lost <= 0 || PS.currency < q.price;
   const row = $('shop-shelf');
   row.innerHTML = items
     .map((s) => {
@@ -233,5 +243,39 @@ export function renderShop(m: Machine | null = shopAt) {
       renderShop();
     });
   });
-  $('shop-restock').textContent = t('shopRestock', { s: restockIn(seconds) });
+  $('shop-restock').textContent = m.lucky ? t('shopLuckyNote') : t('shopRestock', { s: restockIn(seconds) });
 }
+
+// Lucky machine lever: the result is decided at once; the slots then spin and stop one by one.
+let spinning = false;
+$('shop-spin').addEventListener('click', () => {
+  if (!shopAt || spinning) return;
+  const { cls } = shopUi.ctx();
+  const res = spin(shopAt, cls);
+  if ('err' in res) return shopUi.message(t(res.err));
+  spinning = true;
+  renderShop();
+  const cards = [...$('shop-shelf').children] as HTMLElement[];
+  const pool = Object.values(ITEM).filter((d) => wearable({ id: d.id, rarity: 'common', xp: 0 }));
+  cards.forEach((el, i) => {
+    el.classList.add('spin');
+    const flick = setInterval(() => {
+      const d = pool[Math.floor(Math.random() * pool.length)];
+      el.querySelector('.icon')!.innerHTML = itemIcon(d.id, d.icon, '#6b6258');
+    }, 70);
+    setTimeout(() => {
+      clearInterval(flick);
+      el.classList.remove('spin');
+      if (i === cards.length - 1) {
+        spinning = false;
+        renderShop();
+        if (res.prize) shopUi.message(t('shopJackpot', { n: ITEM[res.prize.id].name[getLang()] }));
+      }
+    }, 600 + i * 180);
+  });
+});
+$('shop-repair').addEventListener('click', () => {
+  const err = repair();
+  shopUi.message(err ? t(err) : t('shopRepaired'));
+  renderShop();
+});
