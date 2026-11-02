@@ -5,9 +5,9 @@ Kurbağa Loncası (the Frog Guild) runs vendor machines all over the map: clay k
 ## In the game
 
 - Walk up to a machine and press **V**. The shop shows the shelf, your coins, a repair button and your bag. Click a shelf item to buy it (it is worn at once if it is clearly better, otherwise it goes to the bag). Right click a bag item to sell it for 30% of its price.
-- **Two kinds of machine** (2026-11-02, user's design). Every other machine is lucky (`isLucky(id)` in `src/shop.ts`: odd ids); lucky ones have a violet beam, normal ones amber.
+- **Two kinds of machine** (2026-11-02, user's design). One machine in four is lucky (`isLucky(id)` in `src/shop.ts`: generated ids 3, 7, 11…); the 80 m prototype city has 2 machines and makes the second one lucky. In the map planner you can place either kind by hand (`satici` = normal, `sansli` = lucky). Lucky ones are violet, normal ones amber.
   - **Normal:** 6 different items your class can wear. The player cannot refresh it; it rolls again by itself every 150 s. Rarity by minute: 0–8 common 65% / rare 35%; 8–16 common 25% / rare 45% / epic 30%; from 16 rare 35% / epic 50% / legendary 15%.
-  - **Lucky:** 6 slots, items can repeat. Each spin picks 8 different items your class can wear and fills the 6 slots from them, so three of a kind lands in about 23% of spins. Pull the lever for 15 coins to spin; three of the same item gives you that item for free, at the best rarity of the three (bag, or at your feet if the bag is full). The shelf only changes with the lever. Rarity follows `progress` = half level (1→12) and half match time (0→30 min), blended between these rows:
+  - **Lucky:** 6 slots, items can repeat. Each spin picks 11 different items your class can wear and fills the 6 slots from them, so three of a kind lands in about 13% of spins: one free item every 7-8 pulls on average (user's target 6-8, about 110 coins of pulls). Pull the lever for 15 coins to spin; three of the same item gives you that item for free, at the best rarity of the three (bag, or at your feet if the bag is full). The shelf only changes with the lever. Rarity follows `progress` = half level (1→12) and half match time (0→30 min), blended between these rows:
 
     | Progress | Common | Rare | Epic | Legendary |
     | --- | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ Kurbağa Loncası (the Frog Guild) runs vendor machines all over the map: clay k
     | 0.66 | 20% | 35% | 35% | 10% |
     | 1 (level 12 or later, minute 30) | 5% | 20% | 45% | 30% |
 
-    The lever price, the 8-item reel and these odds are placeholders: the simulator does not model the lucky machine yet, so they need a sim pass before balance work.
+    The lever price and these rarity odds are placeholders: the simulator does not model the lucky machine yet, so they need a sim pass before balance work.
   - **Repair (both kinds):** chest and head armor points cost 0.5 coin each to repair, rounded up to 5 (a broken legendary heavy chest + head, 88 points, costs 45).
 - The prototype city is only 80 m across, so it has 2 machines (one of each). Like the bag, the shop pauses the single-player match while it is open.
 - Code: `src/shop.ts` (prices, shelves, lucky odds and jackpot; pure), `src/mapgen/vendors.ts` (placement; pure), `src/vendor.ts` (machines in the city, buy, sell, spin, repair), `src/ui.ts` (`renderShop`, lever animation). The planner draws the same machine (`vendorMachine` in `src/planner/kit.ts`) and does not mark lucky ones yet.

@@ -95,9 +95,9 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
   - You earn **x** per player kill and **y** per boss kill, and each mob kill has a **z%** chance to drop currency. The prototype uses x=30, y=80, z=20% for 5.
   - Currency is spent at **exchange or shop zones** on the map, on vehicles, items and tier-3 tokens.
   - [Proposal] Exchanging takes a few seconds, so shop zones become risky hot spots.
-- **Vendor machines (Kurbağa Loncası) [Built]:** frog-guild kiosks spread over the map, about one per 0.1 km² (10 on a 1 km map, at least one per landscape). Walk up and press **V**. Two kinds, every other machine is lucky (violet beam instead of amber). Prices and the sim results are in `docs/SHOP.md`.
+- **Vendor machines (Kurbağa Loncası) [Built]:** frog-guild kiosks spread over the map, about one per 0.1 km² (10 on a 1 km map, at least one per landscape). Walk up and press **V**. Two kinds, one machine in four is lucky (violet beam instead of amber). Prices and the sim results are in `docs/SHOP.md`.
   - **Normal machine:** 6 different items your class can wear. No paid refresh; the shelf rolls again by itself every 150 s and gets rarer as the match goes on (epic from minute 8, legendary from minute 16).
-  - **Lucky machine:** 6 slots and the same item can show up more than once. Rarity odds follow your level and the match time together (TFT style): mostly common/rare at the start, mostly epic/legendary at max level or minute 30. Pull the lever (15 coins) to spin all 6 slots again; if three of the same item land, you win that item for free. Lever price and odds are placeholders until the simulator models the machine.
+  - **Lucky machine:** 6 slots and the same item can show up more than once. Rarity odds follow your level and the match time together (TFT style): mostly common/rare at the start, mostly epic/legendary at max level or minute 30. Pull the lever (15 coins) to spin all 6 slots again; if three of the same item land, you win that item for free, about once every 7-8 pulls. Lever price and rarity odds are placeholders until the simulator models the machine.
   - **Repair:** both kinds repair chest and head armor (below) for 0.5 coin per lost point (rounded up to 5).
   - Sell bag items back for 30% of their price at either kind.
 - **Items, 6 slots [Decided]:**

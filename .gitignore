@@ -53,4 +53,5 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+public/perf-models/
 __pycache__/

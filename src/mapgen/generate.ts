@@ -151,7 +151,8 @@ export const KINDS = {
   /** Bouncy morel jump pad (bounce.ts): placed by hand in the planner, never scattered. */
   morel: { name: 'Zıplama mantarı', cat: 'mushrooms', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 0.6, s: [1, 1] },
   ...sporKinds(),
-  satici: { name: 'Kurbağa Loncası makinesi', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
+  satici: { name: 'Satıcı makinesi', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
+  sansli: { name: 'Şanslı makine', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
 } as const satisfies Record<string, { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] }>;
 export type Kind = keyof typeof KINDS;
 export const KIND_LIST = Object.keys(KINDS) as Kind[];

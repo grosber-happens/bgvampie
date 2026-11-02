@@ -11,6 +11,7 @@ node --experimental-strip-types --no-warnings sim/solo.ts 12           # one pla
 node --experimental-strip-types --no-warnings sim/skills-report.ts     # placement of players per owned skill
 TUNED=1 node --experimental-strip-types --no-warnings sim/shop-test.ts 96   # vendor machines, prices and S4 movement in full matches
 TUNED=1 node --experimental-strip-types --no-warnings sim/items-test.ts 96  # which items players get, from where, and when
+node --experimental-strip-types --no-warnings sim/stream-test.ts         # chunk streaming and LOD rules (src/mapgen/stream.ts)
 ```
 
 ## What is modelled

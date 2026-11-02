@@ -171,7 +171,9 @@ function house(d: Draw, w: number, h: number, wall: string, roof: string) {
  * (design/dunya-tasarimi.md §5). Screen on local +z, which faces the map center.
  * The game builds the same shape in src/vendor.ts.
  */
-export function vendorMachine(d: Draw) {
+/** Lucky machines get a violet shell and beacon instead of amber. */
+export function vendorMachine(d: Draw, lucky = false) {
+  const shellCol = lucky ? '#c58cf0' : P.amber;
   d.part('box', P.stone, [0, 0.15, 0], [2.2, 0.3, 2]);
   for (const x of [-0.75, 0.75]) for (const z of [-0.5, 0.5]) d.part('hemi', P.sun, [x, 0.3, z], [0.55, 0.3, 0.7]);
   d.part('box', P.sun, [0, 1.25, 0], [1.5, 1.9, 1.2]);
@@ -180,14 +182,14 @@ export function vendorMachine(d: Draw) {
   d.glow('box', P.amber, [0.5, 0.85, 0.62], [0.18, 0.26, 0.04]);
   d.part('box', P.darkMetal, [0, 0.55, 0.64], [0.9, 0.16, 0.16]);
   const shell = d.sub([0, 2.2, -0.05]);
-  shell.part('hemi', P.amber, [0, 0, 0], [1.9, 1.1, 1.6]);
+  shell.part('hemi', shellCol, [0, 0, 0], [1.9, 1.1, 1.6]);
   capDots(shell, 0, 0.95, 1.1, P.koi, 7);
   for (const x of [-0.42, 0.42]) {
     d.part('sphere', P.bone, [x, 2.95, 0.42], [0.5, 0.5, 0.5]);
     d.part('sphere', P.ink, [x, 2.97, 0.62], [0.22, 0.22, 0.12]);
   }
   d.rod(P.brass, [0.6, 2.6, -0.4], [0.75, 3.9, -0.5], 0.06);
-  d.glow('sphere', P.amber, [0.75, 4, -0.5], [0.32, 0.32, 0.32]);
+  d.glow('sphere', shellCol, [0.75, 4, -0.5], [0.32, 0.32, 0.32]);
   d.rod(P.brass, [-0.78, 0.6, 0], [-0.78, 2.1, 0], 0.08);
   d.rod(P.brass, [0.78, 0.6, 0.2], [0.78, 2.1, 0.2], 0.08);
 }
@@ -242,6 +244,9 @@ const RECIPES: Record<Kind, Recipe> = {
   },
   morel(d) {
     morel(d);
+  },
+  sansli(d) {
+    vendorMachine(d, true);
   },
   agac(d, o, b) {
     const leaf = o.v % 7 === 0 ? '#e98a3a' : b === 2 ? d.pick(['#4f9e8a', '#6fb08a', '#8dbf6a']) : d.pick(P.leaf);
