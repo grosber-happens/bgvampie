@@ -43,7 +43,7 @@ import './fighter';
 import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
-import { INV, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
+import { INV, absorbArmor, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
 import { ITEM, RARITY_COLOR, SLAM, WALL_RUN } from './gear';
 import { SPECIALS } from './specials';
 import { rigHooks, rigReparent, rigSwing, updateRig } from './armory/rig';
@@ -72,7 +72,7 @@ const MOVE = {
 const STEP_DOWN = 0.45;
 /**
  * S4 League style movement: a breath (stamina) bar pays for chained dashes and sprinting,
- * a jump right after a dash becomes a long dash-jump, everyone has a double jump and can kick off walls.
+ * a jump right after a dash becomes a long dash-jump and anyone can kick off walls (no double jump).
  * Leg gear adds wall running (medium) or a ground slam (heavy).
  * Costs follow the ratios S4 players documented (a dodge or a wall kick is a fifth of the bar,
  * sprinting is a slow drain); see docs/MOVEMENT.md. The code and numbers here are our own.
@@ -353,6 +353,8 @@ MODS.incoming = (d, src) => {
     P.shield -= absorbed;
     dmg -= absorbed;
   }
+  // Armor (chest and head) soaks what is left before health.
+  if (dmg > 0) dmg = absorbArmor(dmg);
   return dmg;
 };
 MODS.afterHit = (t, d, src) => {

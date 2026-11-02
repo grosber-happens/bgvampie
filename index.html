@@ -24,12 +24,13 @@
       <div id="feed"></div>
       <div id="stats" class="panel">
         <div id="level-line"><span id="level">Sv 1</span><span id="money">Para 0</span><span id="kills">0 leş</span></div>
+        <div id="armor-bar" class="bar armor hidden"><div id="armor-fill"></div><span id="armor-text"></span></div>
         <div class="bar hp"><div id="hp-fill"></div><span id="hp-text">100 / 100</span></div>
         <div class="bar sp"><div id="sp-fill"></div><span class="bar-label" data-t="sp">Nefes</span></div>
         <div id="weapon">Silah: Uzak (F)</div>
         <div id="buffs"></div>
         <div id="gear-line">
-          <span id="band" class="chip"><b>X</b> <span data-t="bandageChip">Pills</span> <i id="band-cd"></i></span>
+          <span id="band" class="chip"><b>X</b> <span data-t="bandageChip">Bandaj</span> <i id="band-cd"></i></span>
           <span id="reel" class="chip hidden"><b>G</b> <span data-t="reel">Son Kare</span> <i id="reel-cd"></i></span>
           <span class="chip"><b>I</b> <span data-t="bagChip">Çanta</span></span>
         </div>
@@ -64,7 +65,7 @@
       <div class="dossier shop">
         <header><h2 data-t="shopTitle">Kurbağa Loncası</h2><span id="shop-money"></span><button id="shop-close" class="x">×</button></header>
         <div class="inv-cols">
-          <section><h3 data-t="shopShelf">Raf</h3><div id="shop-shelf"></div><p id="shop-restock" class="note"></p></section>
+          <section><h3 id="shop-kind" data-t="shopShelf">Raf</h3><div id="shop-shelf"></div><div id="shop-actions"><button id="shop-spin" class="lever hidden"></button><button id="shop-repair"></button></div><p id="shop-restock" class="note"></p></section>
           <section><h3 data-t="shopSellTitle">Sat (çanta)</h3><div id="shop-bag"></div><div id="shop-info" class="note"></div></section>
         </div>
       </div>

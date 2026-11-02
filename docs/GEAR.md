@@ -11,7 +11,7 @@ This is the design and balance record for the gear update: armor, jewels, class 
 | A or D + Space | Side dash left or right. Chains while you have breath (SP). Dash then Space: dash-jump |
 | Space | Jump. Again in the air: double jump. Against a wall in the air: wall kick (up to 3) |
 | Ctrl or C in the air | Ground slam (heavy legs only) |
-| X | Bandage: free, 3 s channel, heals 30%, 35 s cooldown. Moving slows you to 60%. Taking a hit over 8% of max health breaks it |
+| X | Bandage: free, 1.5 s channel, heals 10% every 0.5 s (30% total), 30 s cooldown. You walk at 60%; moving, jumping, attacking, a skill, a dash or any hit stops it (2026-11-02; it was briefly called Pills) |
 | I | Bag. Click to equip, right click to unequip or drop |
 | G | Last Reel (5 pieces of the Noir set) |
 | Q E 1 2 3 | Skills · F: switch weapon · R: reload · Tab: cards · Esc: pause |
@@ -20,7 +20,8 @@ Medium legs let you run along walls. Light legs add an extra air jump.
 
 ## How the numbers work
 
-- Damage reduction from armor is `armor / (armor + 100)`.
+- **Armor points (Zırh), 2026-11-02:** chest and head pieces also give armor points (`plate` in `src/gear.ts`): extra health that hits use up before your health, after temporary shields. It only comes back with a repair at a vendor machine (0.5 coin per point). Base values light / medium / heavy: chest 15 / 25 / 35, head 10 / 15 / 20; Noir coat 18, fedora 10; × rarity. Each item remembers its own lost points (`worn`). The HUD shows a grey armor bar above health. The tables below are the 2026-10-29 record and do not list armor points.
+- Damage reduction from armor is `armor / (armor + 100)`. In the game this stat is now shown as Toughness so it is not confused with armor points.
 - Rarity multiplies every stat: common x1, rare x1.2, epic x1.4, legendary x1.6. Only legendary items unlock the item's unique rule (★).
 - Rings and necklaces level up from 60% of the XP you earn. They level at 400, 1000, 1900 and 3200 XP. The maximum level is 3 for common, 4 for rare and 5 for epic or legendary.
 - Who can wear what: Rogue wears light armor. Mage and Scout wear light or medium. Fighter wears all three. The Noir set counts as light, so every class can wear it.

@@ -20,6 +20,7 @@ import {
   armorToDr,
   canWear,
   itemScore,
+  itemStats,
   rollItem,
   setPieces,
   totalStats,
@@ -45,6 +46,8 @@ export const INV = {
   /** Bandage: seconds left of wrapping (0 = not wrapping) and cooldown. */
   bandT: 0,
   bandCd: 0,
+  /** Bandage heal ticks already given in this wrap. */
+  bandTicks: 0,
   regenT: 0,
   guardT: 0,
   reelT: 0,
@@ -336,8 +339,35 @@ export function dashTouch(dir: Vector3) {
   if (has('frostTrail')) for (const u of enemiesNear(p.pos, 2.2)) slowUnit(u, 0.35, 1.5);
 }
 
+// ---- Armor (Zırh): chest and head points that soak hits before health ------------------------
+const ARMOR_SLOTS = ['chest', 'head'] as const;
+const plateOf = (it: Item | undefined) => (it ? itemStats(it).plate : 0);
+/** Armor points left and the most there can be. */
+export const armorMax = () => ARMOR_SLOTS.reduce((a, k) => a + plateOf(INV.load[k]), 0);
+export const armorNow = () => ARMOR_SLOTS.reduce((a, k) => a + Math.max(0, plateOf(INV.load[k]) - (INV.load[k]?.worn ?? 0)), 0);
+/** Let the armor soak a hit (chest first). Returns the damage left for health. */
+export function absorbArmor(dmg: number): number {
+  for (const k of ARMOR_SLOTS) {
+    const it = INV.load[k];
+    if (!it || dmg <= 0) continue;
+    const left = plateOf(it) - (it.worn ?? 0);
+    if (left <= 0) continue;
+    const take = Math.min(left, dmg);
+    it.worn = (it.worn ?? 0) + take;
+    dmg -= take;
+    if (take >= left) invHooks.message(t('armorBroke'));
+  }
+  return dmg;
+}
+/** Vendor repair: every lost armor point comes back. */
+export function repairArmor() {
+  for (const k of ARMOR_SLOTS) if (INV.load[k]) INV.load[k]!.worn = 0;
+  invHooks.changed();
+}
+
 // ---- Bandage and Last Reel --------------------------------------------------------------------
 const channelTime = () => BANDAGE.channel * (has('nurse') ? 0.6 : 1);
+const bandTicks = () => Math.round(BANDAGE.channel / BANDAGE.tick);
 
 export function tryBandage(): string | null {
   const p = G.player;
@@ -346,6 +376,7 @@ export function tryBandage(): string | null {
   if (p.hp >= p.maxHp) return t('bandageFull');
   if (p.stunT > 0) return null;
   INV.bandT = channelTime();
+  INV.bandTicks = 0;
   return null;
 }
 
@@ -410,13 +441,16 @@ export function updateInventory(dt: number) {
     recomputeHp();
   }
   if (!p.alive) return;
-  // Pills heal across the channel; movement, damage, attacks, skills and dashes can interrupt it.
+  // The bandage heals in ticks (every 0.5 s, 10% each); moving, damage, attacks, skills and dashes stop it.
   if (INV.bandT > 0) {
-    const elapsed = Math.min(dt, INV.bandT);
     INV.bandT -= dt;
-    p.hp = Math.min(p.maxHp, p.hp + p.maxHp * BANDAGE.healPct * (1 + INV.s.bandageHeal) * (elapsed / channelTime()));
+    const total = channelTime();
+    const due = Math.min(bandTicks(), Math.floor(((total - Math.max(0, INV.bandT)) / total) * bandTicks() + 1e-6));
+    for (; INV.bandTicks < due; INV.bandTicks++) {
+      p.hp = Math.min(p.maxHp, p.hp + (p.maxHp * BANDAGE.healPct * (1 + INV.s.bandageHeal)) / bandTicks());
+      ringFx(p.pos, 0.6, '#f4efe2', 0.2);
+    }
     if (INV.bandT <= 0) {
-      ringFx(p.pos, 0.8, '#f4efe2', 0.3);
       INV.bandT = 0.0001;
       stopBandage(false);
       if (has('stitchedLining')) P.shield = Math.max(P.shield, 25);

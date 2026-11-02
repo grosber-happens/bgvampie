@@ -11,7 +11,7 @@ reference for ratios.
 | Wall kick | Space next to a wall, while rising | 20 SP | 20 SP |
 | Sprint | W W, hold W | 6 SP/s, ground only | 5 SP/s |
 | Air sprint (fast drop) | W W in the air | free | lower than sprinting ("bunny hop") |
-| Breath bar | | 100, regen 32/s after 0.6 s | 100 (+40 with SP Mastery) |
+| Breath bar | | by class: Rogue 120, Fighter 110, Scout 100, Mage 90; regen 32/s after 0.6 s | 100 (+40 with SP Mastery) |
 
 ## Rules
 
@@ -28,12 +28,13 @@ reference for ratios.
   the limbs. Keeping the gun arm on target through the turn needs the weapon in the hand
   (the weapons work in PR #8) and comes after that.
 - **Dash-jump (wave dash):** Space during a dash, or just after it, cancels the slide into a
-  long low leap that keeps the dash speed. In the air you can dash again (gear gives air
-  dashes), then land and jump-cancel again. It is the fastest way to move and the most
+  long low leap that keeps the dash speed. In the air you can dash once more, then land and jump-cancel again. It is the fastest way to move and the most
   expensive in breath.
 - **Sprint in the air** drops you faster (gravity x1.75) and keeps sprint speed. Breath
   only drains on the ground, so hopping (jump, air sprint, land, jump) costs less breath
   than running but covers less ground. It works with an empty bar.
+- **No double jump** (removed 2026-11-01). In the air you get one dash until you land
+  again (or touch a wall run).
 - **Wall kick** only works while rising or at the top of a jump, never while falling.
   The kick mirrors your incoming speed off the wall (angle in = angle out), so you can
   cross gaps by kicking off a wall at a shallow angle. Max 3 kicks before touching ground.

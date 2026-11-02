@@ -5,7 +5,7 @@ import type { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { MAX_LEVEL } from './balance';
 import { G, PS, inCombat } from './core';
 import { P, blockedReason, def, kit, maxCharges, skills, targetUnderCrosshair, type Weapon } from './kit';
-import { INV, bandageCdShare, bandageShare, gearDashCost, reelReady } from './inventory';
+import { INV, armorMax, armorNow, bandageCdShare, bandageShare, gearDashCost, reelReady } from './inventory';
 import { feel, addShake, sfx, sparksAt } from './feel';
 import { hud, t as T } from './i18n';
 import { prog, xpNeeded } from './progression';
@@ -145,6 +145,13 @@ export function createGameHud(runtime: HudRuntime) {
     const ctl = runtime.ctl;
     $('hp-fill').style.width = `${(Math.max(0, player.hp) / player.maxHp) * 100}%`;
     $('hp-text').textContent = `${Math.ceil(Math.max(0, player.hp))} / ${player.maxHp}`;
+    const amax = armorMax();
+    $('armor-bar').classList.toggle('hidden', amax <= 0);
+    if (amax > 0) {
+      const now = armorNow();
+      $('armor-fill').style.width = `${(now / amax) * 100}%`;
+      $('armor-text').textContent = `${T('armor')} ${Math.ceil(now)} / ${Math.round(amax)}`;
+    }
     $('weapon').textContent = `${hud(kit.weaponText(ctl.weapon))} (F)`;
     $('sp-fill').style.width = `${(ctl.sp / runtime.spMax()) * 100}%`;
     $('sp-fill').parentElement!.classList.toggle('low', ctl.sp < runtime.dashCost * gearDashCost());

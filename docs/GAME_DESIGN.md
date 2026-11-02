@@ -63,9 +63,9 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
 | Q, E, 1, 2, 3 | The 5 skill slots |
 | W W | Double tap W: sprint while W is held |
 | A or D + Space | Side dash left or right |
-| Space | Jump; again in the air for a double jump; against a wall for a wall kick (up to 3) |
+| Space | Jump; against a wall for a wall kick (up to 3). No double jump (removed 2026-11-01) |
 | Ctrl or C in the air | Ground slam (heavy legs only) |
-| X | Pills (was Bandage): free, 0.5 s cast, then heals 20% at once, 35 s cooldown; a big hit during the cast breaks it |
+| X | Bandage: free, 1.5 s channel that heals 10% every 0.5 s (30% total), 30 s cooldown. You walk at 60%; moving, jumping, attacking, a skill, a dash or any hit stops it (ticks already healed stay, half cooldown) |
 | I | Bag (equip, unequip, drop) |
 | G | Last Reel (5-piece Noir set) |
 | Tab | Open the level-up cards; pick with 1, 2 or 3 |
@@ -95,19 +95,25 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
   - You earn **x** per player kill and **y** per boss kill, and each mob kill has a **z%** chance to drop currency. The prototype uses x=30, y=80, z=20% for 5.
   - Currency is spent at **exchange or shop zones** on the map, on vehicles, items and tier-3 tokens.
   - [Proposal] Exchanging takes a few seconds, so shop zones become risky hot spots.
-- **Vendor machines (Kurbağa Loncası) [Built, numbers tuned with the sim]:** frog-guild kiosks spread over the map, about one per 0.1 km² (10 on a 1 km map, at least one per landscape). Walk up and press **V**. Each machine shows a personal shelf of 4 items your class can wear; the shelf rolls again every 150 s and gets rarer as the match goes on (epic from minute 8, legendary from minute 16). Sell bag items back for 30% of their price. Prices and the sim results are in `docs/SHOP.md`.
+- **Vendor machines (Kurbağa Loncası) [Built]:** frog-guild kiosks spread over the map, about one per 0.1 km² (10 on a 1 km map, at least one per landscape). Walk up and press **V**. Two kinds, every other machine is lucky (violet beam instead of amber). Prices and the sim results are in `docs/SHOP.md`.
+  - **Normal machine:** 6 different items your class can wear. No paid refresh; the shelf rolls again by itself every 150 s and gets rarer as the match goes on (epic from minute 8, legendary from minute 16).
+  - **Lucky machine:** 6 slots and the same item can show up more than once. Rarity odds follow your level and the match time together (TFT style): mostly common/rare at the start, mostly epic/legendary at max level or minute 30. Pull the lever (15 coins) to spin all 6 slots again; if three of the same item land, you win that item for free. Lever price and odds are placeholders until the simulator models the machine.
+  - **Repair:** both kinds repair chest and head armor (below) for 0.5 coin per lost point (rounded up to 5).
+  - Sell bag items back for 30% of their price at either kind.
 - **Items, 6 slots [Decided]:**
 
   | Slot | Effect | Variants |
   |---|---|---|
   | Weapon | Changes how you attack (style, range, damage). Class-locked | Per class |
-  | Chest | Armor and health | 3 types × common/rare/epic/legendary |
+  | Chest | Armor points, toughness and health | 3 types × common/rare/epic/legendary |
   | Feet | Move speed plus a utility, e.g. an extra dash or a trail of ice | 3 types × 4 rarities |
-  | Head | Armor plus a periodic healing effect | 3 types × 4 rarities |
+  | Head | Armor points plus a periodic healing or shield effect | 3 types × 4 rarities |
   | Necklace | % bonuses: damage, cooldown reduction, area size… | Has its own XP bar and levels up |
   | Ring | Same kind of % bonuses as the necklace | Has its own XP bar and levels up |
 
-  - [Built] The 3 armor types are light, medium and heavy. Rogue wears light, Mage and Scout light or medium, Fighter all three. Light legs add an air jump, medium legs a wall run, heavy legs a ground slam and a ramming dash. Full tables, the Noir detective set, legendary rules and the balance report are in `docs/GEAR.md`.
+  - **Armor (Zırh) [Built 2026-11-02]:** chest and head pieces give armor points, extra health that soaks hits before your health bar (after temporary shields). It does not come back by itself: repair it at any vendor machine for coins. Light / medium / heavy: chest 15 / 25 / 35, head 10 / 15 / 20 (Noir coat 18, fedora 10), × rarity (1 / 1.2 / 1.4 / 1.6). Each piece keeps its own damage, so swapping pieces does not refill it. The older damage reduction stat is still on every armor piece, now shown as Toughness.
+  - [Built] There is no out-of-combat health regen for anyone (2026-11-01); healing comes from the bandage, head pieces, lifesteal and skills.
+  - [Built] The 3 armor types are light, medium and heavy. Rogue wears light, Mage and Scout light or medium, Fighter all three. Light legs add speed and a shorter dash, medium legs a wall run, heavy legs a ground slam and a ramming dash. Full tables, the Noir detective set, legendary rules and the balance report are in `docs/GEAR.md`.
 
 ## 6. Classes — shared rules [Decided]
 

@@ -11,19 +11,22 @@ import { Scene } from '@babylonjs/core/scene';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 import { ITEM, type ClassId, type Item } from './gear';
-import { PS } from './core';
-import { BAG_SIZE, INV, gainItem, invHooks } from './inventory';
+import { G, PS, minutes } from './core';
+import { BAG_SIZE, INV, armorMax, armorNow, gainItem, invHooks, repairArmor, spawnDrop } from './inventory';
+import { random } from './random';
 import { clayify } from './look';
 import { placeVendors, VENDOR } from './mapgen/vendors.ts';
 import { drawObject, type Mat, type Shape } from './planner/kit';
 import { baseShape } from './planner/build';
-import { SHOP, itemPrice, restockWindow, sellPrice, shopStock } from './shop.ts';
+import { SHOP, isLucky, itemPrice, jackpot, luckySpin, progress, repairPrice, restockWindow, sellPrice, shopStock } from './shop.ts';
 import { CITY_HALF, spotIsOpen, type World } from './world';
 
-export type Machine = { id: number; pos: Vector3; yaw: number };
+export type Machine = { id: number; pos: Vector3; yaw: number; lucky: boolean };
 export const MACHINES: Machine[] = [];
 /** Shelf slots already bought: machine:window:index. */
 const sold = new Set<string>();
+/** Lucky machines: the current 6 slots, which were bought, and how many spins. */
+const luckyState = new Map<number, { items: Item[]; bought: boolean[]; spins: number }>();
 let shopSeed = 1;
 
 /**
@@ -33,11 +36,12 @@ let shopSeed = 1;
 export function buildVendors(scene: Scene, world: World, seed: number, count = 2) {
   MACHINES.length = 0;
   sold.clear();
+  luckyState.clear();
   shopSeed = seed;
   if (world.mapObjects && world.field) {
     for (const o of world.mapObjects) {
       if (o.k !== 'satici') continue;
-      MACHINES.push({ id: o.v, pos: new Vector3(o.x, world.field.height(o.x, o.z), o.z), yaw: o.r });
+      MACHINES.push({ id: o.v, pos: new Vector3(o.x, world.field.height(o.x, o.z), o.z), yaw: o.r, lucky: isLucky(o.v) });
     }
     return;
   }
@@ -75,15 +79,15 @@ export function buildVendors(scene: Scene, world: World, seed: number, count = 2
   for (const s of spots) {
     // Face the middle of the city.
     const yaw = Math.atan2(-s.x, -s.z);
-    MACHINES.push({ id: s.id, pos: new Vector3(s.x, 0, s.z), yaw });
+    MACHINES.push({ id: s.id, pos: new Vector3(s.x, 0, s.z), yaw, lucky: isLucky(s.id) });
     drawObject(sink, { k: 'satici', x: s.x, z: s.z, s: 1, r: yaw, v: s.id }, 0, 4);
     world.boxes.push({ x: s.x, z: s.z, hw: 1.1, hd: 1.1, y0: 0, y1: 2.6 });
-    // A thin amber beam so people can find it from across the city.
+    // A thin beam so people can find it from across the city (violet = lucky machine).
     const beam = MeshBuilder.CreateCylinder('vendor-beam', { height: 26, diameter: 0.18, tessellation: 8 }, scene);
     beam.position.set(s.x, 13 + 4, s.z);
     const bm = new StandardMaterial('vendor-beam-mat', scene);
     bm.disableLighting = true;
-    bm.emissiveColor = Color3.FromHexString('#ffb347');
+    bm.emissiveColor = Color3.FromHexString(isLucky(s.id) ? '#c58cf0' : '#ffb347');
     bm.alpha = 0.35;
     beam.material = bm;
     beam.isPickable = false;
@@ -103,13 +107,64 @@ export function nearMachine(pos: Vector3): Machine | null {
 
 export type ShelfItem = { it: Item; price: number; sold: boolean; key: string };
 
+const playerProgress = () => progress(G.player.level, minutes());
+
+function lucky(m: Machine, cls: ClassId) {
+  let st = luckyState.get(m.id);
+  if (!st) {
+    st = { items: luckySpin(cls, playerProgress(), random), bought: Array(SHOP.slots).fill(false), spins: 0 };
+    luckyState.set(m.id, st);
+  }
+  return st;
+}
+
 /** What this machine shows your class now. */
 export function shelf(m: Machine, cls: ClassId, seconds: number): ShelfItem[] {
+  if (m.lucky) {
+    const st = lucky(m, cls);
+    return st.items.map((it, i) => ({ it, price: itemPrice(it), sold: st.bought[i], key: `L${m.id}:${st.spins}:${i}` }));
+  }
   const win = restockWindow(seconds);
   return shopStock(m.id, cls, seconds, shopSeed).map((it, i) => {
     const key = `${m.id}:${win}:${i}`;
     return { it, price: itemPrice(it), sold: sold.has(key), key };
   });
+}
+
+/**
+ * Lucky machine lever: pay, roll all 6 slots again. Three of the same item puts that item in your bag
+ * (or at your feet if the bag is full). Returns an error key, or the prize (null = no prize).
+ */
+export function spin(m: Machine, cls: ClassId): { err: string } | { prize: Item | null } {
+  if (PS.currency < SHOP.spinCost) return { err: 'shopNoMoney' };
+  PS.currency -= SHOP.spinCost;
+  const st = lucky(m, cls);
+  st.items = luckySpin(cls, playerProgress(), random);
+  st.bought = Array(SHOP.slots).fill(false);
+  st.spins++;
+  const prize = jackpot(st.items);
+  if (prize) {
+    st.items.forEach((it, i) => (st.bought[i] ||= it.id === prize.id));
+    if (!gainItem({ ...prize })) spawnDrop({ ...prize }, G.player.pos.clone());
+  }
+  invHooks.changed();
+  return { prize };
+}
+
+/** Lost armor points and what fixing them costs. */
+export function repairQuote() {
+  const lost = Math.round(armorMax() - armorNow());
+  return { lost, price: repairPrice(lost) };
+}
+
+/** Repair chest and head armor. Returns an error key (i18n) or null. */
+export function repair(): string | null {
+  const { lost, price } = repairQuote();
+  if (lost <= 0) return 'shopRepairNone';
+  if (PS.currency < price) return 'shopNoMoney';
+  PS.currency -= price;
+  repairArmor();
+  return null;
 }
 
 /** Seconds until the shelves are rolled again. */
@@ -124,6 +179,11 @@ export function buy(s: ShelfItem): string | null {
   if (!gainItem({ ...s.it })) return 'shopBagFull';
   PS.currency -= s.price;
   sold.add(s.key);
+  if (s.key.startsWith('L')) {
+    const [m, , i] = s.key.slice(1).split(':').map(Number);
+    const st = luckyState.get(m);
+    if (st) st.bought[i] = true;
+  }
   invHooks.changed();
   return null;
 }

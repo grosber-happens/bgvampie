@@ -18,7 +18,10 @@ export const RARITIES: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 
 /** Every number gear can change. Shares are fractions (0.05 = 5%). */
 export type Stats = {
+  /** Damage reduction points (all armor slots), see `armorToDr`. Shown as Toughness. */
   armor: number;
+  /** Armor (Zırh): extra health from chest and head pieces that is used up by hits and repaired at vendors. */
+  plate: number;
   hp: number;
   /** Max health share. */
   hpPct: number;
@@ -62,13 +65,13 @@ export type Stats = {
 };
 
 export const ZERO: Stats = {
-  armor: 0, hp: 0, hpPct: 0, speed: 0, dashCd: 0, dmg: 0, meleeDmg: 0, rangedDmg: 0, atkSpeed: 0, cdr: 0, aoe: 0,
+  armor: 0, plate: 0, hp: 0, hpPct: 0, speed: 0, dashCd: 0, dmg: 0, meleeDmg: 0, rangedDmg: 0, atkSpeed: 0, cdr: 0, aoe: 0,
   lifesteal: 0, tenacity: 0, bandageCd: 0, bandageHeal: 0, regenEvery: 0, regenPct: 0, guardEvery: 0, guardPct: 0, mag: 0, heat: 0,
   charge: 0, reach: 0, backstab: 0, spears: 0, wallRun: 0, slam: 0,
 };
 
 /** Keys that rarity scales. Penalties (negative speed, longer dash) and timers stay the same. */
-const SCALES: (keyof Stats)[] = ['armor', 'hp', 'hpPct', 'dmg', 'meleeDmg', 'rangedDmg', 'atkSpeed', 'cdr', 'aoe', 'lifesteal', 'tenacity', 'bandageHeal', 'regenPct', 'guardPct', 'backstab'];
+const SCALES: (keyof Stats)[] = ['armor', 'plate', 'hp', 'hpPct', 'dmg', 'meleeDmg', 'rangedDmg', 'atkSpeed', 'cdr', 'aoe', 'lifesteal', 'tenacity', 'bandageHeal', 'regenPct', 'guardPct', 'backstab'];
 /** Rarity multiplier for the numbers above. */
 export const RARITY_MULT: Record<Rarity, number> = { common: 1, rare: 1.2, epic: 1.4, legendary: 1.6 };
 export const RARITY_COLOR: Record<Rarity, string> = { common: '#c9c2b2', rare: '#5fb4d9', epic: '#c58cf0', legendary: '#f2b33d' };
@@ -113,7 +116,7 @@ export type Unique =
   | 'stitchedLining' // medium chest: the bandage also gives 25 shield
   | 'bulwark' // heavy chest: 15% less damage from the front... modelled as 6% DR
   | 'clearSight' // light head: see faded and invisible enemies within 10 m
-  | 'nurse' // medium head: pills cast 40% faster
+  | 'nurse' // medium head: the bandage wraps 40% faster
   | 'ironCrown' // heavy head: the guard shield is twice as big
   | 'lastBullet' // rogue gun: the last shot of a magazine deals double
   | 'moonCut' // rogue daggers: backstabs slow 40% for 1 s
@@ -158,14 +161,14 @@ export const ARMOR: ItemDef[] = [
     id: 'l_head', slot: 'head', weight: 'light', icon: 'hood',
     name: { tr: 'Yağmur Kukuletası', en: 'Rain Hood' },
     lore: { tr: 'Islak sokaklarda kimse yüzüne bakmaz. Kukuleta da bunu bilir.', en: 'Nobody looks at your face on wet streets. The hood knows it.' },
-    stats: { armor: 3, hp: 4, regenEvery: 14, regenPct: 0.05 },
+    stats: { armor: 3, plate: 10, hp: 4, regenEvery: 14, regenPct: 0.05 },
     unique: { id: 'clearSight', text: { tr: '10 m içindeki silik ve görünmez rakipleri görürsün', en: 'See faded and invisible enemies within 10 m' } },
   },
   {
     id: 'l_chest', slot: 'chest', weight: 'light', icon: 'coat',
     name: { tr: 'Tül Ceket', en: 'Gossamer Jacket' },
     lore: { tr: 'Bir terzi robotun son işi: dikişleri hâlâ nefes alıyor.', en: "A tailor robot's last work: the seams still breathe." },
-    stats: { armor: 4, hp: 6, atkSpeed: 0.03, dmg: 0.03, speed: 0.01 },
+    stats: { armor: 4, plate: 15, hp: 6, atkSpeed: 0.03, dmg: 0.03, speed: 0.01 },
     unique: { id: 'secondWind', text: { tr: 'Canın %30 altına inince 3 sn +%30 hız (60 sn)', en: 'Below 30% health: +30% speed for 3 s (60 s)' } },
   },
   {
@@ -179,15 +182,15 @@ export const ARMOR: ItemDef[] = [
     id: 'm_head', slot: 'head', weight: 'medium', icon: 'visor',
     name: { tr: 'Müfettiş Vizörü', en: "Inspector's Visor" },
     lore: { tr: 'Camında eski davaların yansıması kalmış. Bazen biri el sallıyor.', en: 'Old cases still reflect in the glass. Sometimes one of them waves.' },
-    stats: { armor: 5, hp: 8, bandageCd: -0.15, bandageHeal: 0.1 },
-    unique: { id: 'nurse', text: { tr: 'Pills %40 daha hızlı içilir', en: 'Pills cast 40% faster' } },
+    stats: { armor: 5, plate: 15, hp: 8, bandageCd: -0.15, bandageHeal: 0.1 },
+    unique: { id: 'nurse', text: { tr: 'Bandaj %40 daha hızlı sarılır', en: 'Bandage wraps 40% faster' } },
   },
   {
     id: 'm_chest', slot: 'chest', weight: 'medium', icon: 'vest',
     name: { tr: 'Örgü Yelek', en: 'Weave Vest' },
     lore: { tr: 'Nano tellerle örüldü. Kurşun girer, ama kibarca geri çıkması rica edilir.', en: 'Knitted from nano wire. Bullets get in, then are politely asked to leave.' },
-    stats: { armor: 8, hp: 12, cdr: 0.06 },
-    unique: { id: 'stitchedLining', text: { tr: 'Pills ayrıca 25 kalkan verir', en: 'Pills also give 25 shield' } },
+    stats: { armor: 8, plate: 25, hp: 12, cdr: 0.06 },
+    unique: { id: 'stitchedLining', text: { tr: 'Bandaj ayrıca 25 kalkan verir', en: 'The bandage also gives 25 shield' } },
   },
   {
     id: 'm_legs', slot: 'legs', weight: 'medium', icon: 'boots_medium',
@@ -201,14 +204,14 @@ export const ARMOR: ItemDef[] = [
     id: 'h_head', slot: 'head', weight: 'heavy', icon: 'helm',
     name: { tr: 'Dökme Miğfer', en: 'Cast Helm' },
     lore: { tr: 'Kızıl Katedral’in eski çan döküm kalıbından. İçinde hâlâ uğultu var.', en: "Cast in the Red Cathedral's old bell mould. It still hums inside." },
-    stats: { armor: 7, hp: 6, guardEvery: 20, guardPct: 0.08, tenacity: 0.1 },
+    stats: { armor: 7, plate: 20, hp: 6, guardEvery: 20, guardPct: 0.08, tenacity: 0.1 },
     unique: { id: 'ironCrown', text: { tr: 'Koruma kalkanı iki kat büyük', en: 'The guard shield is twice as big' } },
   },
   {
     id: 'h_chest', slot: 'chest', weight: 'heavy', icon: 'plate',
     name: { tr: 'Çan Göğüslüğü', en: 'Bell Cuirass' },
     lore: { tr: 'Vurulduğunda tek bir nota çalar. Sahibi o notayı sevmeyi öğrenir.', en: 'It rings one note when struck. Its owner learns to love that note.' },
-    stats: { armor: 10, hp: 12, speed: -0.03, atkSpeed: -0.04 },
+    stats: { armor: 10, plate: 35, hp: 12, speed: -0.03, atkSpeed: -0.04 },
     unique: { id: 'bulwark', text: { tr: 'Önden gelen hasar %15 azalır', en: '15% less damage from the front' } },
   },
   {
@@ -347,13 +350,13 @@ export const NOIR: ItemDef[] = [
     id: 's_hat', slot: 'head', set: 'noir', weight: 'light', icon: 'fedora',
     name: { tr: 'Tanığın Fötrü', en: "Witness's Fedora" },
     lore: { tr: 'Kenarından yağmur hiç kesilmez. İçinde bir tanığın son cümlesi kayıtlı.', en: "Rain never stops falling from its brim. A witness's last sentence is recorded inside." },
-    stats: { armor: 3, hp: 5, regenEvery: 16, regenPct: 0.04 },
+    stats: { armor: 3, plate: 10, hp: 5, regenEvery: 16, regenPct: 0.04 },
   },
   {
     id: 's_coat', slot: 'chest', set: 'noir', weight: 'light', icon: 'trench',
     name: { tr: 'Uzun Palto', en: 'The Long Coat' },
     lore: { tr: 'Cebinde hiç açılmamış bir mektup var. Adres: yarın.', en: 'An unopened letter in the pocket. Address: tomorrow.' },
-    stats: { armor: 5, hp: 8, cdr: 0.04 },
+    stats: { armor: 5, plate: 18, hp: 8, cdr: 0.04 },
   },
   {
     id: 's_shoes', slot: 'legs', set: 'noir', weight: 'light', icon: 'oxfords',
@@ -393,19 +396,18 @@ export const NOIR_SET = {
 
 // ---- Bandage ------------------------------------------------------------------------------
 /**
- * X: free, no item needed. Wrap for `channel` s and heal `healPct` of max health over it.
- * You walk at `moveMult` speed. Attacking, a skill, a dash or one hit of `breakAt` max health stops it
- * (the healing done so far stays, and the cooldown is `cancelCd` of the full one).
+ * X: free, no item needed. Wrap for `channel` s; every `tick` s heal a share of `healPct` max health
+ * (3 ticks of 10%). You walk at `moveMult` speed. Moving, jumping, attacking, a skill, a dash or any hit
+ * stops it (the ticks already healed stay, and the cooldown is `cancelCd` of the full one).
  */
-/** Pills (X): a 0.5 s cast, then heal at once. Taking a big hit during the cast breaks it. */
-export const BANDAGE = { key: 'KeyX', channel: 3, healPct: 0.3, cd: 30, cancelCd: 0.5, moveMult: 0.6 };
+export const BANDAGE = { key: 'KeyX', channel: 1.5, tick: 0.5, healPct: 0.3, cd: 30, cancelCd: 0.5, moveMult: 0.6 };
 
 // ---- Lookup and math ---------------------------------------------------------------------
 export const ALL_ITEMS: ItemDef[] = [...ARMOR, ...JEWELS, ...WEAPONS, ...NOIR];
 export const ITEM = Object.fromEntries(ALL_ITEMS.map((d) => [d.id, d])) as Record<string, ItemDef>;
 
-/** One item someone owns. Jewels keep their own XP. */
-export type Item = { id: string; rarity: Rarity; xp: number };
+/** One item someone owns. Jewels keep their own XP; chest and head pieces keep the armor points they lost (`worn`). */
+export type Item = { id: string; rarity: Rarity; xp: number; worn?: number };
 
 export function canWear(cls: ClassId, d: ItemDef): boolean {
   if (d.slot === 'weapon') return d.cls === cls;
@@ -477,7 +479,7 @@ export const armorToDr = (armor: number) => armor / (armor + 100);
 /** A rough value for comparing items of one slot (higher = better). */
 export function itemScore(it: Item): number {
   const s = itemStats(it);
-  return s.armor * 1 + s.hp * 0.8 + s.hpPct * 300 + s.speed * 250 - s.dashCd * 60 + s.dmg * 500 + s.meleeDmg * 300 + s.rangedDmg * 300 + s.atkSpeed * 350 + s.cdr * 300 + s.aoe * 150 + s.lifesteal * 600 + s.tenacity * 60 + s.regenPct * 200 + s.guardPct * 200 - s.bandageCd * 40 + s.bandageHeal * 40 + s.mag * 10 - s.heat * 60 - s.charge * 80 + s.reach * 30 + s.backstab * 100 + s.spears * 15 + RARITIES.indexOf(it.rarity) * 5;
+  return s.armor * 1 + s.plate * 0.5 + s.hp * 0.8 + s.hpPct * 300 + s.speed * 250 - s.dashCd * 60 + s.dmg * 500 + s.meleeDmg * 300 + s.rangedDmg * 300 + s.atkSpeed * 350 + s.cdr * 300 + s.aoe * 150 + s.lifesteal * 600 + s.tenacity * 60 + s.regenPct * 200 + s.guardPct * 200 - s.bandageCd * 40 + s.bandageHeal * 40 + s.mag * 10 - s.heat * 60 - s.charge * 80 + s.reach * 30 + s.backstab * 100 + s.spears * 15 + RARITIES.indexOf(it.rarity) * 5;
 }
 
 /** Drop rarity by match minute: early drops are mostly common, the last third is mostly epic. */
@@ -508,7 +510,11 @@ export function statLines(it: Item, lang: Lang): string[] {
   const pct = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
   const L: string[] = [];
   const add = (cond: boolean, t: string, e: string) => cond && L.push(tr ? t : e);
-  add(s.armor > 0, `Zırh ${Math.round(s.armor)} (%${Math.round(armorToDr(s.armor) * 100)} hasar azaltma)`, `Armor ${Math.round(s.armor)} (${Math.round(armorToDr(s.armor) * 100)}% less damage)`);
+  if (s.plate > 0) {
+    const left = Math.max(0, Math.round(s.plate - (it.worn ?? 0)));
+    add(true, `Zırh ${left} / ${Math.round(s.plate)} (önce bu erir, satıcıda tamir)`, `Armor ${left} / ${Math.round(s.plate)} (soaks hits first, repair at vendors)`);
+  }
+  add(s.armor > 0, `Dayanım ${Math.round(s.armor)} (%${Math.round(armorToDr(s.armor) * 100)} hasar azaltma)`, `Toughness ${Math.round(s.armor)} (${Math.round(armorToDr(s.armor) * 100)}% less damage)`);
   add(s.hp > 0, `+${Math.round(s.hp)} can`, `+${Math.round(s.hp)} health`);
   add(s.hpPct !== 0, `${pct(s.hpPct)} en yüksek can`, `${pct(s.hpPct)} max health`);
   add(s.speed !== 0, `${pct(s.speed)} hız`, `${pct(s.speed)} speed`);
@@ -521,8 +527,8 @@ export function statLines(it: Item, lang: Lang): string[] {
   add(s.aoe !== 0, `${pct(s.aoe)} alan`, `${pct(s.aoe)} area`);
   add(s.lifesteal !== 0, `%${(s.lifesteal * 100).toFixed(1)} can çalma`, `${(s.lifesteal * 100).toFixed(1)}% lifesteal`);
   add(s.tenacity !== 0, `${pct(-s.tenacity)} sersemlik ve yavaşlama süresi`, `${pct(-s.tenacity)} stun and slow time`);
-  add(s.bandageCd !== 0, `${pct(s.bandageCd)} pills bekleme`, `${pct(s.bandageCd)} pills cooldown`);
-  add(s.bandageHeal !== 0, `${pct(s.bandageHeal)} pills iyileştirme`, `${pct(s.bandageHeal)} pills healing`);
+  add(s.bandageCd !== 0, `${pct(s.bandageCd)} bandaj bekleme`, `${pct(s.bandageCd)} bandage cooldown`);
+  add(s.bandageHeal !== 0, `${pct(s.bandageHeal)} bandaj iyileştirme`, `${pct(s.bandageHeal)} bandage healing`);
   add(s.regenEvery > 0, `${s.regenEvery} sn'de bir canının %${Math.round(s.regenPct * 100)}'i kadar iyileşirsin`, `Heal ${Math.round(s.regenPct * 100)}% of max health every ${s.regenEvery} s`);
   add(s.guardEvery > 0, `${s.guardEvery} sn'de bir canının %${Math.round(s.guardPct * 100)}'i kadar kalkan`, `A shield of ${Math.round(s.guardPct * 100)}% max health every ${s.guardEvery} s`);
   add(s.mag > 0, `+${s.mag} şarjör`, `+${s.mag} magazine`);
