@@ -41,21 +41,21 @@ HP = {  # house palette, soft watercolor versions of the reference
 # Shapes. Heights in meters. caps: (x, y, z, radius, height ratio, tilt deg, droop)
 HOUSES = {
     'ev_kule': dict(
-        trunk=(20.0, 3.0, 2.1), room=(4.6, 3.4), door_angle=-90, bend=0.13, bend_ph=3.5, twist=1.6,
-        caps=[(0, 0, 3.7, 6.6, 0.38, 6, 0.9), (1.4, 0.8, 6.6, 4.8, 0.40, -12, 0.8),
+        trunk=(20.0, 3.0, 2.1), room=(6.4, 3.4), door_angle=-90, bend=0.13, bend_ph=3.5, twist=1.6,
+        caps=[(0, 0, 3.7, 8.4, 0.36, 6, 0.9), (1.4, 0.8, 6.6, 4.8, 0.40, -12, 0.8),
               (-0.8, -0.4, 15.2, 7.0, 0.34, 12, 1.2), (0.3, 0.2, 19.6, 10.5, 0.34, -9, 1.8)],
         windows=[(5.6, -60), (8.4, 150), (9.0, 40), (13.6, -60), (17.4, 60)],
         balcony=(10.6, -110, 3.6, 150), shelves=[(5.5, 20), (11.5, 100), (14.0, 200)],
         vines=3, lantern=(-6.5, -5.0)),
     'ev_genis': dict(
-        trunk=(15.0, 3.6, 2.4), room=(5.8, 3.6), door_angle=-80, bend=0.10, bend_ph=2.2, twist=1.0,
+        trunk=(15.0, 3.6, 2.4), room=(7.6, 3.6), door_angle=-80, bend=0.10, bend_ph=2.2, twist=1.0,
         caps=[(0.8, 0.4, 6.9, 7.5, 0.36, -11, 1.1), (0.0, 0.0, 15.4, 13.0, 0.32, 8, 2.2)],
         windows=[(4.6, -40), (5.0, -130), (12.2, 160), (12.0, 20), (11.0, 150)],
         balcony=(9.6, -90, 4.4, 260), shelves=[(4.8, 60), (12.8, -140)],
         vines=4, lantern=(7.0, -6.0)),
     'ev_kulube': dict(
-        trunk=(10.5, 2.6, 2.1), room=(5.0, 3.2), door_angle=-95, bend=0.08, bend_ph=4.0, twist=1.4,
-        caps=[(0, 0, 3.4, 8.2, 0.40, 5, 1.2), (0.4, 0.3, 10.4, 7.6, 0.38, -12, 1.4)],
+        trunk=(10.5, 2.6, 2.1), room=(6.8, 3.2), door_angle=-95, bend=0.08, bend_ph=4.0, twist=1.4,
+        caps=[(0, 0, 3.4, 9.2, 0.38, 5, 1.2), (0.4, 0.3, 10.4, 7.6, 0.38, -12, 1.4)],
         windows=[(1.6, -45, 'wall'), (1.6, -140, 'wall'), (1.6, 30, 'wall'), (8.6, 20)],
         balcony=(6.6, -90, 2.6, 140), shelves=[(5.6, 60)],
         vines=2, lantern=(-5.5, -6.0)),
