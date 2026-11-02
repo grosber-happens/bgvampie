@@ -14,11 +14,21 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 
 ## Editor
 
-- Tools (left): view (WASD pans the camera, Shift moves faster), place (pick a kind), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo, walk (WASD, Shift to run), photo, hide UI.
+- Tools (left): view, place (pick a kind), move (grab an object and drag it), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo, walk (WASD, Shift to run), photo, hide UI.
+- Camera, in every tool: WASD or the arrows move forward, back, left and right along the view, like walking (speed follows the zoom, Shift is three times faster). Right drag turns the camera, middle drag pans, the wheel zooms. In the view tool left drag also turns.
+- The move tool writes a `move` op (`{ t: 'move', k, x, z, nx, nz }`): the object of kind `k` at (x, z) goes to (nx, nz). It moves one object; mirror does not apply.
 - Panel (right): seed and dice, symmetry for fair maps, landscape toggles, terrain sliders, density sliders, atmosphere presets (Altın Saat, Koi Tutulması, Kızıl Sis, Spor Sabahı) and sliders for fog, sun, bloom, god rays, ink lines, spores, koi and paper grain.
-- Keys: 1–5 tools, M mirror, Y walk, P photo, H hide UI, R new seed, Ctrl+Z / Ctrl+Y.
+- Keys: 1–6 tools (6 is move), M mirror, Y walk, P photo, H hide UI, R new seed, Ctrl+Z / Ctrl+Y.
 - The map autosaves in the browser. Export / import writes a JSON `MapFile` (`{ v, gen, ops, atmos }`): the generator settings plus the ordered hand edits, so files stay small.
 - `?q=low` renders at lower resolution with lighter shadows.
+
+## Map size and chunks
+
+- The default map is 4 × 4 km (`size: 4000`); the "Harita boyu" slider goes from 160 m to 4 km.
+- `MapView` (`src/planner/build.ts`) splits the map into chunks: terrain chunks of 64 cells (cells are about 2.5 m on small maps, 5 m on big ones, at most 920 per side), and object buckets half that size. A brush stroke, a placed or a moved object rebuilds only the chunks it touches.
+- The planner builds and draws objects only near the camera (220 to 700 m, following the zoom), two buckets per frame, nearest first. The minimap shows the whole map. The game builds every bucket at once.
+- Objects grow on the natural terrain: `generate()` ignores hand lifts, so a terrain stroke moves the objects in it up or down instead of re-rolling the map.
+- A 4 km map at default density has about 344,000 objects; growing it takes several seconds after each slider change. Making it light enough for the game (chunk streaming, colliders, density) is Phase 1 work in `docs/ROADMAP.md`.
 
 ## Look
 

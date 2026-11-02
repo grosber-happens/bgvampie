@@ -111,7 +111,6 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
     view.buildObjects(field, mapObjects);
-    shadows.addShadowCaster(view.terrain);
     scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
     const boxes: Box[] = [];
     const half = file.gen.size / 2;

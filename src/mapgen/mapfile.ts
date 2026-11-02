@@ -26,6 +26,11 @@ function opError(op: unknown, i: number): string | null {
     if (![o.x, o.z, o.s, o.r, o.v].every(num)) return `ops[${i}].o needs numeric x, z, s, r, v`;
     return null;
   }
+  if (op.t === 'move') {
+    if (typeof op.k !== 'string' || !(op.k in KINDS)) return `ops[${i}] has unknown kind "${String(op.k)}"`;
+    if (![op.x, op.z, op.nx, op.nz].every(num)) return `ops[${i}] needs numeric x, z, nx, nz`;
+    return null;
+  }
   return `ops[${i}] has unknown type "${String(op.t)}"`;
 }
 
