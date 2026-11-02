@@ -43,6 +43,7 @@ export function buildVendors(scene: Scene, world: World, seed: number, count = 2
       if (o.k !== 'satici') continue;
       MACHINES.push({ id: o.v, pos: new Vector3(o.x, world.field.height(o.x, o.z), o.z), yaw: o.r, lucky: isLucky(o.v) });
     }
+    oneLucky();
     return;
   }
   const spots = placeVendors({
@@ -79,7 +80,7 @@ export function buildVendors(scene: Scene, world: World, seed: number, count = 2
   for (const s of spots) {
     // Face the middle of the city.
     const yaw = Math.atan2(-s.x, -s.z);
-    MACHINES.push({ id: s.id, pos: new Vector3(s.x, 0, s.z), yaw, lucky: isLucky(s.id) });
+    MACHINES.push({ id: s.id, pos: new Vector3(s.x, 0, s.z), yaw, lucky: isLucky(s.id) || (spots.length < 4 && s === spots[spots.length - 1]) });
     drawObject(sink, { k: 'satici', x: s.x, z: s.z, s: 1, r: yaw, v: s.id }, 0, 4);
     world.boxes.push({ x: s.x, z: s.z, hw: 1.1, hd: 1.1, y0: 0, y1: 2.6 });
     // A thin beam so people can find it from across the city (violet = lucky machine).
@@ -87,7 +88,7 @@ export function buildVendors(scene: Scene, world: World, seed: number, count = 2
     beam.position.set(s.x, 13 + 4, s.z);
     const bm = new StandardMaterial('vendor-beam-mat', scene);
     bm.disableLighting = true;
-    bm.emissiveColor = Color3.FromHexString(isLucky(s.id) ? '#c58cf0' : '#ffb347');
+    bm.emissiveColor = Color3.FromHexString(MACHINES[MACHINES.length - 1].lucky ? '#c58cf0' : '#ffb347');
     bm.alpha = 0.35;
     beam.material = bm;
     beam.isPickable = false;
@@ -97,6 +98,11 @@ export function buildVendors(scene: Scene, world: World, seed: number, count = 2
     g.mesh.thinInstanceSetBuffer('color', new Float32Array(g.cols), 4, false);
     g.mesh.thinInstanceRefreshBoundingInfo(false);
   }
+}
+
+/** Small maps with fewer than 4 machines still get one lucky machine (the last one). */
+function oneLucky() {
+  if (MACHINES.length && !MACHINES.some((m) => m.lucky)) MACHINES[MACHINES.length - 1].lucky = true;
 }
 
 /** The machine the player stands at, if any. */

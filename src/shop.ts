@@ -2,7 +2,7 @@
  * Kurbağa Loncası vendor machines: what they sell and for how much.
  * Pure data and math, no Babylon imports, so the balance simulator (sim/) uses the same prices.
  *
- * Two kinds of machine (every other one is lucky):
+ * Two kinds of machine (one in four is lucky):
  *  - Normal: 6 different items your class can wear, rolled from the machine id, the restock window
  *    and your class, so two visits in the same window see the same shelf. No paid refresh.
  *  - Lucky: 6 slots where items can repeat. Pulling the lever (paid) rolls all 6 again, and three of
@@ -36,10 +36,10 @@ export const SHOP = {
   /** Repair: coins per lost armor point (rounded up to 5, at least 5). */
   repairPerPoint: 0.5,
   /** Lucky machine: lever price, and how many different items one spin draws its 6 slots from
-   * (8 gives three of a kind in about 23% of spins, so a free item costs ~65 coins of spins on average).
-   * Placeholder numbers until the simulator models the lucky machine. */
+   * (11 gives three of a kind in about 13% of spins: one win every 7-8 pulls, user's target 6-8).
+   * The lever price is a placeholder until the simulator models the lucky machine. */
   spinCost: 15,
-  reel: 8,
+  reel: 11,
   /** Lucky odds by progress (0 = level 1 at minute 0, 1 = max level or minute 30):
    * [progress, common, rare, epic, legendary], blended between rows. */
   luckyOdds: [
@@ -50,8 +50,8 @@ export const SHOP = {
   ] as [number, number, number, number, number][],
 };
 
-/** Every other machine is a lucky one. */
-export const isLucky = (machine: number) => machine % 2 === 1;
+/** One machine in four is a lucky one (user, 2026-11-02). */
+export const isLucky = (machine: number) => machine % 4 === 3;
 
 /** Repair price for this many lost armor points. */
 export const repairPrice = (points: number) => (points <= 0 ? 0 : Math.max(5, Math.ceil((points * SHOP.repairPerPoint) / 5) * 5));
