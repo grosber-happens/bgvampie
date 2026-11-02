@@ -39,3 +39,9 @@ The script also saves `spor_ormani.blend`; open it to edit by hand.
 
 All numbers are at the top of the script: `PAL` (colors), `CLUSTER` (positions, heights, cap sizes, lean),
 `SINGLES`, `LOD_RATIOS` and `SEED` (change it for a different random layout of spots and moss).
+
+## Collision (`spor_carpisma.py`)
+
+`python3 tools/blender/spor_carpisma.py` reads the house and bridge `.glb` files in `src/assets/spor/` and writes
+`src/assets/spor/carpisma.json`: upward faces become thin floor slabs, steep faces become wall boxes.
+Doorways keep the `olcek.RULES` door size clear. Run it again whenever a house or bridge model changes.

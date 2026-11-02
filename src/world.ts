@@ -9,7 +9,11 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import houseColliders from './assets/house-colliders.json';
 import { Field, KINDS, SPOR_KINDS, applyOps, generate, type MapFile, type Obj, type SporKind } from './mapgen/generate';
+import sporCollide from './assets/spor/carpisma.json';
 import { MapView } from './planner/build';
+
+/** Baked collision boxes per Spor Ormanı model: [x, z, hw, hd, y0, y1] in model units (tools/blender/spor_carpisma.py). */
+const SPOR_COLLIDE = sporCollide as Record<string, number[][] | undefined>;
 
 /** Every solid thing in the city is an axis-aligned box: center x/z, half sizes, bottom and top height. */
 export type Box = { x: number; z: number; hw: number; hd: number; y0: number; y1: number };
@@ -119,12 +123,26 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     for (const o of mapObjects) {
       if (o.k === 'nokta') continue;
       if (o.k in SPOR_KINDS) {
-        // Only the trunk/stem is solid for now; rooms, stairs and bridge decks need their own boxes later.
-        const solid = SPOR_KINDS[o.k as SporKind].solid;
-        if (solid) {
-          const y = field.height(o.x, o.z);
-          boxes.push({ x: o.x, z: o.z, hw: solid[0] * o.s, hd: solid[0] * o.s, y0: y - 0.2, y1: y + solid[1] * o.s });
+        const y = field.height(o.x, o.z);
+        const shape = SPOR_COLLIDE[o.k];
+        if (shape) {
+          // Houses and bridges: floors, stairs, balconies, decks and walls baked from the model.
+          const c = Math.cos(o.r), sn = Math.sin(o.r);
+          for (const [lx, lz, hw, hd, y0, y1] of shape) {
+            boxes.push({
+              x: o.x + (lx * c + lz * sn) * o.s,
+              z: o.z + (-lx * sn + lz * c) * o.s,
+              hw: (Math.abs(c) * hw + Math.abs(sn) * hd) * o.s,
+              hd: (Math.abs(sn) * hw + Math.abs(c) * hd) * o.s,
+              y0: y + y0 * o.s,
+              y1: y + y1 * o.s,
+            });
+          }
+          continue;
         }
+        // Mushrooms: only the stem is solid.
+        const solid = SPOR_KINDS[o.k as SporKind].solid;
+        if (solid) boxes.push({ x: o.x, z: o.z, hw: solid[0] * o.s, hd: solid[0] * o.s, y0: y - 0.2, y1: y + solid[1] * o.s });
         continue;
       }
       const r = KINDS[o.k].r * o.s;
