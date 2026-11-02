@@ -43,6 +43,16 @@ reference for ratios.
 - **Direction speeds:** strafing runs at 92% speed and backpedalling at 78% (S4 has
   separate front, side and back speed rates).
 - **Out of breath (winded):** no regen and slower steps for 1.1 s.
+- **Bouncy morel (zıplama mantarı), 2026-11-02:** a 2 m elastic morel in Spor Ormanı, placed by hand in the
+  map planner. Landing on its cap throws you up and forward (where you are steering, else where the camera
+  looks); the farther you fell, the harder the throw. It gives back 90% of the landing speed upward (max
+  24 m/s) and pushes forward 6 + 1.1 m/s per meter fallen (max 20 m/s); air drag stays low until you land.
+  A fall under 0.6 m only hops (6.5 m/s), so you can't stand on it. A normal jump can't reach the 2 m cap:
+  drop onto it from higher ground or a wall kick. Measured in the game (flat ground, no input): a 3 m fall
+  lands 8.5 m away, 6 m → 15 m, 10 m → 24 m, 20 m → 31 m. Numbers: `BOUNCE` in `src/balance.ts`; the throw
+  is pure math in `src/bounce.ts`; `src/pads.ts` draws the pads and plays the squash-and-stretch. Bots
+  don't use pads yet. The Blender model (3 LODs, `zipla` shape-key clip) is in the project files under
+  `regions/spor-ormani/` (`spor_morel.py`).
 
 The S4 tuning knobs are listed by name in the open-source NetspherePirates server
 (`ConstantInfoDto.cs`: dodge speed, decel, time and delay, walljump force, delay before

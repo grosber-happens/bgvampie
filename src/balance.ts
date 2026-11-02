@@ -156,3 +156,44 @@ export const BOSS = {
   rockEvery: 3,
   rockSpeed: 22,
 };
+
+// ---- Bouncy morel (zıplama mantarı, Spor Ormanı) ---------------------------
+/**
+ * A 2 m elastic morel mushroom that works as a jump pad. Land on its top and it throws you
+ * up and forward; the higher you fell from, the higher and farther it throws (logic in bounce.ts).
+ * A normal jump (1.56 m) can't reach the 2 m top, so it only works when you drop onto it.
+ */
+export const BOUNCE = {
+  /** Top of the cap and footprint half size at scale 1 (meters); the Blender model is 2 m tall. */
+  padTop: 2.0,
+  padRadius: 0.55,
+  /** Falls shorter than this give only a soft hop of `hop` m/s (so you never stand still on it). */
+  minFall: 0.6,
+  hop: 6.5,
+  /** Share of the landing speed given back upward (below 1, so repeated bounces settle down to the hop). */
+  keep: 0.9,
+  /** Highest upward launch speed (m/s): 24 m/s peaks about 11 m over the cap. */
+  maxUp: 24,
+  /** Forward push: a base, plus this much per meter fallen, up to the cap (m/s). */
+  forwardBase: 6,
+  forwardPerMeter: 1.1,
+  maxForward: 20,
+  /** Air drag while flying from a launch (normal air drag is 1.2/s), so the throw carries far. */
+  airDrag: 0.25,
+  /** Squash-and-stretch of the mushroom after a bounce: [time s, squash 0..1, stretch 0..1] (matches the Blender clip). */
+  squash: [
+    [0, 0, 0],
+    [0.1, 1, 0],
+    [0.27, 0, 1],
+    [0.43, 0.45, 0],
+    [0.57, 0, 0.32],
+    [0.7, 0.14, 0],
+    [0.83, 0, 0.05],
+    [1, 0, 0],
+  ] as const,
+  /** Squashed: this share of the height and this much wider; stretched: taller and thinner. */
+  squashHeight: 0.62,
+  squashBulge: 0.3,
+  stretchHeight: 1.2,
+  stretchThin: 0.12,
+};
