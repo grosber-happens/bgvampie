@@ -2,6 +2,7 @@
  * Harita Planlayıcı: an in-game editor that grows a Harvest map from sliders and a seed,
  * then lets you place, erase, raise and mirror by hand. Open /planner.html.
  */
+import { sporLodModels } from '../spor';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Engine } from '@babylonjs/core/Engines/engine';
@@ -54,6 +55,11 @@ const view = new MapView(scene);
 view.onCasters = (m) => atmos.cast(m);
 view.viewRadius = 800;
 atmos.exclude(view.water);
+// Spor Ormanı objects show their real Blender models, not stand-ins.
+sporLodModels(scene).then(
+  (list) => list.forEach(([k, m]) => view.useModels(k, [m])),
+  (e) => console.error('Spor Ormanı models failed to load', e),
+);
 
 // ---- State --------------------------------------------------------------------------------
 type State = { gen: Params; ops: Op[]; atmos: Atmos };
