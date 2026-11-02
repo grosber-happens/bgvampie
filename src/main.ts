@@ -57,6 +57,7 @@ import { MACHINES, buildVendors, nearMachine } from './vendor';
 import { BOUNCE } from './balance';
 import { bounceLaunch } from './bounce';
 import { bouncePad, buildPads, updatePads } from './pads';
+import { buildGroundCover } from './cimen';
 import { loadArtIndex } from './icons';
 import { killLog, xpLog, currentOffer, grantXp, prog, resetProgression, rewardKill, xpNeeded } from './progression';
 import { random, setRandomSeed, visualRandom } from './random';
@@ -192,6 +193,7 @@ if (world.field && world.mapObjects) {
 }
 buildVendors(scene, world, seed);
 buildPads(scene, world);
+const groundCover = buildGroundCover(scene, world);
 const input = new Input(canvas);
 const levelUpUi = createLevelUpUi(input);
 placeHouses(scene, world)
@@ -1181,6 +1183,7 @@ engine.runRenderLoop(() => {
   input.endFrame();
   updateCamera(dt);
   world.stream?.(player.pos.x, player.pos.z);
+  groundCover.update(dt, player.pos.x, player.pos.z);
   gameHud.update(live ? dt : 0);
   scene.render();
 });

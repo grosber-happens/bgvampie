@@ -45,3 +45,24 @@ All numbers are at the top of the script: `PAL` (colors), `CLUSTER` (positions, 
 `python3 tools/blender/spor_carpisma.py` reads the house and bridge `.glb` files in `src/assets/spor/` and writes
 `src/assets/spor/carpisma.json`: upward faces become thin floor slabs, steep faces become wall boxes.
 Doorways keep the `olcek.RULES` door size clear. Run it again whenever a house or bridge model changes.
+
+## Spor Ormanı grass and fireflies (`spor_cimen.py`)
+
+Dark forest green grass clumps (near black at the root, moss, blue-green and a little olive at the tips) and a firefly.
+LODs are rebuilt with less detail, not decimated. Blade normals lean toward the sky, so a clump shades as one soft mass.
+The game scatters the clumps over planner grass patches (`src/cimen.ts`).
+
+| Asset | What it is | Triangles LOD0 / LOD1 / LOD2 |
+|---|---|---|
+| `cimen_kucuk` | small clump, 26 blades, up to 0.4 m | 208 / 56 / 12 |
+| `cimen_orta` | medium clump, 44 blades, up to 0.6 m | 352 / 96 / 22 |
+| `cimen_genis` | wide clump, 70 blades, 0.75 m across | 560 / 152 / 36 |
+| `cimen_uzun` | tall clump, 34 blades, up to 0.95 m | 272 / 76 / 16 |
+| `ates_bocegi` | 3 cm firefly: body and wings (`_LOD0`) plus its glowing tail (`_isik`) | 108 + 80 |
+
+It also writes `isik_lekesi.png`, the soft watercolor blot the game uses as the firefly's light (an additive sprite).
+The firefly mesh itself is too small to see in play; it is kept for close-up shots.
+
+```
+python3 tools/blender/spor_cimen.py out/cimen [--render] [--night]
+```
