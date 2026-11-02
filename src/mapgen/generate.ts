@@ -87,6 +87,37 @@ export type Category = 'trees' | 'mushrooms' | 'giants' | 'mech' | 'ruins' | 'ro
  * Every object kind. aff = how likely it is in each landscape (kanyon, spor, asma, lagün, kum, kemik).
  * cell = spacing of the placement grid, r = footprint radius at scale 1 (keeps things from overlapping).
  */
+/**
+ * Spor Ormanı Blender models (src/spor.ts), placed by hand in the planner, never scattered.
+ * r: planner footprint. solid: collision box half size and height (trunk/stem only; null = none yet).
+ */
+export const SPOR_KINDS = {
+  ev_kule: { name: 'Mantar ev: kule', cat: 'landmark', r: 8, solid: [2.4, 20] },
+  ev_genis: { name: 'Mantar ev: geniş', cat: 'landmark', r: 9, solid: [3.0, 15] },
+  ev_kulube: { name: 'Mantar ev: kulübe', cat: 'landmark', r: 8, solid: [2.2, 10.5] },
+  kopru_tas: { name: 'Taş köprü', cat: 'ruins', r: 13, solid: null },
+  kopru_tas_yikik: { name: 'Yıkık taş köprü', cat: 'ruins', r: 13, solid: null },
+  kopru_ahsap: { name: 'Ahşap köprü', cat: 'ruins', r: 10, solid: null },
+  mantar_kumesi: { name: 'Dev mantar kümesi', cat: 'mushrooms', r: 14, solid: [2.0, 22] },
+  mantar_buyuk: { name: 'Büyük mantar', cat: 'mushrooms', r: 5.5, solid: [1.3, 12] },
+  mantar_orta: { name: 'Orta mantar', cat: 'mushrooms', r: 2.8, solid: [0.7, 6] },
+  mantar_kucuk: { name: 'Küçük mantar', cat: 'mushrooms', r: 1.2, solid: [0.3, 2.4] },
+  enoki_buyuk: { name: 'Enoki (büyük)', cat: 'mushrooms', r: 0.5, solid: null },
+  enoki_orta: { name: 'Enoki (orta)', cat: 'mushrooms', r: 0.4, solid: null },
+  enoki_kucuk: { name: 'Enoki (küçük)', cat: 'mushrooms', r: 0.3, solid: null },
+  enoki_seyrek: { name: 'Enoki (seyrek)', cat: 'mushrooms', r: 0.3, solid: null },
+} as const satisfies Record<string, { name: string; cat: Category; r: number; solid: readonly [number, number] | null }>;
+export type SporKind = keyof typeof SPOR_KINDS;
+
+function sporKinds() {
+  const out = {} as { [K in SporKind]: { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] } };
+  for (const k of Object.keys(SPOR_KINDS) as SporKind[]) {
+    const d = SPOR_KINDS[k];
+    out[k] = { name: d.name, cat: d.cat, aff: [0, 0, 0, 0, 0, 0], cell: 0, r: d.r, s: [1, 1] };
+  }
+  return out;
+}
+
 export const KINDS = {
   agac: { name: 'Yuvarlak ağaç', cat: 'trees', aff: [0.15, 0.5, 0.7, 0.5, 0.03, 0.3], cell: 9, r: 2.2, s: [0.8, 1.4] },
   moebius: { name: 'Düz tepeli ağaç', cat: 'trees', aff: [0, 0.35, 1, 0.3, 0.05, 0.1], cell: 11, r: 2.5, s: [0.8, 1.6] },
@@ -117,6 +148,7 @@ export const KINDS = {
   nokta: { name: 'Puantiye', cat: 'dots', aff: [0, 1, 0.1, 0, 0, 0], cell: 3.2, r: 0.6, s: [0.4, 1.6] },
   katedral: { name: 'Kızıl Katedral', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 16, s: [1, 1] },
   dev: { name: 'Düşmüş Dev', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 30, s: [1, 1] },
+  ...sporKinds(),
   satici: { name: 'Kurbağa Loncası makinesi', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
 } as const satisfies Record<string, { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] }>;
 export type Kind = keyof typeof KINDS;
