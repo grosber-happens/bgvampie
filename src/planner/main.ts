@@ -19,7 +19,7 @@ import { setLookScene } from '../look';
 import { isLucky } from '../shop.ts';
 import { BIOMES, DEFAULT_PARAMS, Field, KINDS, KIND_LIST, NB, applyOps, generate, type Category, type Kind, type MapFile, type Obj, type Op, type Params } from '../mapgen/generate';
 import { Atmosphere, DEFAULT_ATMOS, PRESETS, type Atmos, type PresetId } from './atmos';
-import { MapView } from './build';
+import { MapView, type Area } from './build';
 import { vendorCount } from '../mapgen/vendors.ts';
 import { PLANNER_SAVE_KEY, parseMapFile } from '../mapgen/mapfile';
 
@@ -40,6 +40,11 @@ camera.upperBetaLimit = 1.5;
 camera.wheelDeltaPercentage = 0.02;
 camera.panningSensibility = 40;
 camera.attachControl(canvas, true);
+// Right drag turns the camera in every tool, middle drag pans; WASD and the arrows move (see below).
+camera.movement.input.setInteraction('pointer', { button: 2 }, 'rotate');
+camera.movement.input.setInteraction('pointer', { button: 1 }, 'pan');
+camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ?q=low: half resolution and lighter shadows for slow machines.
 const LOW = new URLSearchParams(location.search).get('q') === 'low';
@@ -47,7 +52,7 @@ if (LOW) engine.setHardwareScalingLevel(1.6);
 const atmos = new Atmosphere(scene, camera, LOW);
 const view = new MapView(scene);
 view.onCasters = (m) => atmos.cast(m);
-atmos.cast([view.terrain]);
+view.viewRadius = 800;
 atmos.exclude(view.water);
 
 // ---- State --------------------------------------------------------------------------------
@@ -89,20 +94,27 @@ let field = new Field(S.gen, S.ops);
 let objs: Obj[] = [];
 let genKey = '';
 let genCache: Obj[] = [];
-function rebuild(terrain = true) {
+/**
+ * Rebuild the map from the state. With areas, only the chunks those areas touch are redrawn
+ * (a brush stroke or a moved object); the minimap waits for the stroke to end (`mini = false`).
+ */
+function rebuild(terrain = true, areas?: Area[], mini = true) {
   const t0 = performance.now();
   field = new Field(S.gen, S.ops);
-  const key = JSON.stringify([S.gen, S.ops.filter((o) => o.t === 'lift')]);
+  // Hand lifts do not change what grows (generate() ignores them), so only the settings matter.
+  const key = JSON.stringify(S.gen);
   if (key !== genKey) {
     genCache = generate(field);
     genKey = key;
+    areas = undefined;
   }
   objs = applyOps(genCache, S.ops);
-  if (terrain) view.buildTerrain(field);
-  view.buildObjects(field, objs);
+  if (terrain) view.buildTerrain(field, areas);
+  view.buildObjects(field, objs, areas);
   atmos.setMapSize(S.gen.size);
-  camera.upperRadiusLimit = S.gen.size * 2;
-  drawMinimap();
+  camera.upperRadiusLimit = Math.min(S.gen.size * 2, 3000);
+  camera.maxZ = Math.max(3000, camera.upperRadiusLimit + S.gen.size);
+  if (mini) drawMinimap();
   mirrorLines();
   $('stat-count').textContent = `${objs.length} nesne · ${objs.filter((o) => o.k === 'satici' || o.k === 'sansli').length} satıcı`;
   $('stat-time').textContent = `${Math.round(performance.now() - t0)} ms`;
@@ -113,14 +125,15 @@ let pending = 0;
 /** Debounced rebuild for sliders being dragged. */
 function soon(terrain = true) {
   clearTimeout(pending);
-  pending = window.setTimeout(() => rebuild(terrain), 120);
+  // Big maps take seconds to grow: wait until the slider rests.
+  pending = window.setTimeout(() => rebuild(terrain), S.gen.size > 1000 ? 450 : 120);
 }
 
 // ---- Panels -------------------------------------------------------------------------------
 type Slider = { key: string; label: string; min: number; max: number; step: number; fmt?: (v: number) => string };
 const GEN_SLIDERS: [string, Slider[]][] = [
   ['Arazi', [
-    { key: 'size', label: 'Harita boyu', min: 160, max: 480, step: 10, fmt: (v) => `${v} m` },
+    { key: 'size', label: 'Harita boyu', min: 160, max: 4000, step: 10, fmt: (v) => (v >= 1000 ? `${(v / 1000).toFixed(2)} km` : `${v} m`) },
     { key: 'relief', label: 'Tepe yüksekliği', min: 0, max: 2.5, step: 0.05 },
     { key: 'roughness', label: 'Engebe sıklığı', min: 0.4, max: 2.5, step: 0.05 },
     { key: 'water', label: 'Su seviyesi', min: -4, max: 4, step: 0.1, fmt: (v) => `${v.toFixed(1)} m` },
@@ -310,7 +323,7 @@ function randomSeed() {
 }
 
 // ---- Tools --------------------------------------------------------------------------------
-type Tool = 'view' | 'place' | 'erase' | 'raise' | 'lower' | 'walk';
+type Tool = 'view' | 'place' | 'move' | 'erase' | 'raise' | 'lower' | 'walk';
 let tool: Tool = 'view';
 let mirror = 0; // 0 none, 1 x, 2 z, 3 both
 let brush = 6;
@@ -321,6 +334,7 @@ const MIRROR_NAMES = ['Ayna: kapalı', 'Ayna: sol ↔ sağ', 'Ayna: ön ↔ arka
 const TOOLS: { id: Tool | 'mirror' | 'undo' | 'redo' | 'photo' | 'hide'; icon: string; label: string; key: string }[] = [
   { id: 'view', icon: '✋', label: 'Gözat', key: '1' },
   { id: 'place', icon: '🌳', label: 'Yerleştir', key: '2' },
+  { id: 'move', icon: '✥', label: 'Taşı', key: '6' },
   { id: 'erase', icon: '⌫', label: 'Sil', key: '3' },
   { id: 'raise', icon: '⛰', label: 'Yükselt', key: '4' },
   { id: 'lower', icon: '🕳', label: 'Alçalt', key: '5' },
@@ -362,6 +376,13 @@ function buildToolbar() {
     }
     pal.appendChild(grid);
   }
+  // Size of the selected object (move tool).
+  const sizeCard = document.createElement('div');
+  sizeCard.id = 'size-card';
+  sizeCard.className = 'card hidden';
+  sizeCard.innerHTML = '<h4 id="size-name"></h4>';
+  $('brush').after(sizeCard);
+  slider(sizeCard, { key: 'objsize', label: 'Nesne boyu', min: SIZE_MIN, max: SIZE_MAX, step: 0.05, fmt: (v) => `${v.toFixed(2)}×` }, () => sel?.s ?? 1, (v) => resizeSel(v, false));
   const brushRow = $('brush');
   slider(brushRow, { key: 'brush', label: 'Fırça çapı', min: 1, max: 30, step: 0.5, fmt: (v) => `${v} m` }, () => brush, (v) => {
     brush = v;
@@ -390,12 +411,14 @@ function syncToolbar() {
   document.querySelectorAll<HTMLButtonElement>('#palette button').forEach((b) => b.classList.toggle('on', b.dataset.kind === placeKind));
   $('palette-wrap').classList.toggle('hidden', tool !== 'place');
   $('brush').classList.toggle('hidden', !['erase', 'raise', 'lower', 'place'].includes(tool));
+  $('size-card').classList.toggle('hidden', !(tool === 'move' && sel));
   const hints: Record<Tool, string> = {
-    view: 'WASD: kamerayı kaydır · Shift: hızlı · sol tık sürükle: döndür · sağ tık: kaydır · tekerlek: yakınlaş',
-    place: `${KINDS[placeKind].name}: tıkla ya da sürükleyerek dağıt · sağ tık: döndür`,
-    erase: 'Sürükleyerek sil · sağ tık: döndür',
-    raise: 'Sürükleyerek araziyi yükselt',
-    lower: 'Sürükleyerek araziyi alçalt (su birikir)',
+    view: 'WASD: ileri, geri, sağa, sola git · Shift: çok hızlı · sol ya da sağ tık sürükle: döndür · orta tık: kaydır · tekerlek: yakınlaş',
+    place: `${KINDS[placeKind].name}: tıkla ya da sürükleyerek dağıt · sağ tık sürükle: döndür · WASD: git`,
+    move: 'Nesneye tıkla: seç · sürükle: taşı · tutarken tekerlek ya da [ ]: boyunu değiştir · sağ tık sürükle: döndür · WASD: git',
+    erase: 'Sürükleyerek sil · sağ tık sürükle: döndür · WASD: git',
+    raise: 'Sürükleyerek araziyi yükselt · sağ tık sürükle: döndür · WASD: git',
+    lower: 'Sürükleyerek araziyi alçalt (su birikir) · sağ tık sürükle: döndür · WASD: git',
     walk: 'WASD yürü · Shift koş · sol tık sürükle: bak · Esc çık',
   };
   $('hint').textContent = hints[tool] + (mirror ? ` · ${MIRROR_NAMES[mirror]}` : '');
@@ -408,12 +431,13 @@ function setTool(t: Tool) {
   pointers.buttons = t === 'view' || t === 'walk' ? [0, 1, 2] : [1, 2];
   if (t === 'walk') enterWalk();
   else if (was === 'walk') exitWalk();
-  cursor.setEnabled(['erase', 'raise', 'lower', 'place'].includes(t));
+  cursor.setEnabled(['erase', 'raise', 'lower', 'place', 'move'].includes(t));
   cursorScale();
   syncToolbar();
 }
 
 function doUndo() {
+  select(null);
   const s = undo.pop();
   if (!s) return flash('Geri alınacak bir şey yok');
   redo.push(snap());
@@ -423,6 +447,7 @@ function doUndo() {
   rebuild();
 }
 function doRedo() {
+  select(null);
   const s = redo.pop();
   if (!s) return;
   undo.push(snap());
@@ -464,7 +489,7 @@ cursor.isPickable = false;
 cursor.setEnabled(false);
 atmos.exclude(cursor);
 function cursorScale() {
-  const r = tool === 'place' ? Math.max(1, KINDS[placeKind].r * S.gen.scale) : brush;
+  const r = tool === 'place' ? Math.max(1, KINDS[placeKind].r * S.gen.scale) : tool === 'move' ? (sel ? Math.max(1, KINDS[sel.k].r * sel.s) : 2) : brush;
   cursor.scaling.set(r, 1, r);
 }
 
@@ -501,14 +526,21 @@ let painting = false;
 let lastPaint: Vector3 | null = null;
 let lastTerrain = 0;
 function groundPick(): Vector3 | null {
-  const hit = scene.pick(scene.pointerX, scene.pointerY, (m) => m === view.terrain);
+  const hit = scene.pick(scene.pointerX, scene.pointerY, (m) => view.isTerrain(m));
   return hit?.hit && hit.pickedPoint ? hit.pickedPoint : null;
 }
 
+/** Areas this stroke touched: redrawn when it ends. `fresh` holds the ones the terrain has not shown yet. */
+let stroke: Area[] = [];
+let fresh: Area[] = [];
 function paintAt(p: Vector3) {
   const spacing = tool === 'place' ? Math.max(1.5, KINDS[placeKind].r * S.gen.scale * 2) : Math.max(0.8, brush * 0.4);
   if (lastPaint && Vector3.Distance(lastPaint, p) < spacing) return;
   lastPaint = p.clone();
+  const reach = tool === 'place' ? KINDS[placeKind].r * S.gen.scale * 2.5 + 2 : brush + 2;
+  const touched = mirrored(p.x, p.z).map(([x, z]) => ({ x, z, r: reach }));
+  stroke.push(...touched);
+  fresh.push(...touched);
   for (const [x, z, m] of mirrored(p.x, p.z)) {
     if (tool === 'place') {
       const def = KINDS[placeKind];
@@ -522,22 +554,115 @@ function paintAt(p: Vector3) {
   if (tool === 'raise' || tool === 'lower') {
     // Terrain is the slow part: refresh it at most ~8 times a second while dragging.
     const now = performance.now();
-    if (now - lastTerrain > 120) {
+    if (now - lastTerrain > 80) {
       lastTerrain = now;
       field = new Field(S.gen, S.ops);
-      view.buildTerrain(field);
+      view.buildTerrain(field, fresh);
+      fresh = [];
     }
-  } else rebuild(false);
+  } else {
+    rebuild(false, touched, false);
+    fresh = [];
+  }
 }
+
+// ---- Move tool: select an object, drag it, resize it -------------------------------------
+type MoveOp = Extract<Op, { t: 'move' }>;
+/** The selected object as it stands now (position and size after every op). */
+let sel: { k: Kind; x: number; z: number; s: number } | null = null;
+/** The move op that holds the selection's changes. Edited in place while it is the last op. */
+let selOp: MoveOp | null = null;
+let dragging = false;
+let lastMove = 0;
+const SIZE_MIN = 0.2;
+const SIZE_MAX = 6;
+/** The object under the cursor: the nearest one whose footprint holds the point. */
+function objectAt(p: Vector3): Obj | null {
+  let best: Obj | null = null;
+  let bestD = Infinity;
+  for (const o of objs) {
+    const r = Math.max(1, KINDS[o.k].r * o.s);
+    const d = ((o.x - p.x) ** 2 + (o.z - p.z) ** 2) / (r * r);
+    // Prefer real objects over floor dots when both are under the cursor.
+    const score = o.k === 'nokta' ? d + 0.5 : d;
+    if (d <= 1 && score < bestD) {
+      bestD = score;
+      best = o;
+    }
+  }
+  return best;
+}
+const selArea = (x: number, z: number) => ({ x, z, r: sel ? KINDS[sel.k].r * sel.s * 2.5 + 2 : 4 });
+/** The op to edit for the selection: the last op if it is ours, else a new one (with an undo step). */
+function selEdit(doCommit: boolean): MoveOp | null {
+  if (!sel) return null;
+  if (!selOp || S.ops[S.ops.length - 1] !== selOp) {
+    if (doCommit) commit();
+    selOp = { t: 'move', k: sel.k, x: sel.x, z: sel.z, nx: sel.x, nz: sel.z };
+    S.ops.push(selOp);
+  }
+  return selOp;
+}
+function moveTo(p: Vector3, final: boolean) {
+  const op = selOp;
+  if (!sel || !op) return;
+  const before = selArea(op.nx, op.nz);
+  op.nx = p.x;
+  op.nz = p.z;
+  const now = performance.now();
+  if (!final && now - lastMove < 50) return;
+  lastMove = now;
+  rebuild(false, [before, selArea(p.x, p.z)], final);
+}
+/** Set the selected object's size (its `s`), saved in the map file as the move op's `ns`. */
+function resizeSel(v: number, doCommit: boolean) {
+  const op = selEdit(doCommit);
+  if (!sel || !op) return;
+  const area = selArea(op.nx, op.nz);
+  sel.s = op.ns = Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round(v * 100) / 100));
+  rebuild(false, [area, selArea(op.nx, op.nz)], false);
+  inputs.get('objsize')?.();
+  cursorScale();
+}
+function select(o: Obj | null) {
+  sel = o && { k: o.k, x: o.x, z: o.z, s: o.s };
+  selOp = null;
+  $('size-card').classList.toggle('hidden', !(tool === 'move' && sel));
+  if (sel) $('size-name').textContent = KINDS[sel.k].name;
+  inputs.get('objsize')?.();
+  cursorScale();
+}
+// The wheel resizes the object while you hold it, instead of zooming.
+canvas.addEventListener(
+  'wheel',
+  (e) => {
+    if (!dragging || !sel) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    resizeSel(sel.s * (e.deltaY < 0 ? 1.08 : 1 / 1.08), false);
+  },
+  { capture: true, passive: false },
+);
 
 scene.onPointerObservable.add((ev) => {
   const e = ev.event as PointerEvent;
-  if (ev.type === 1 /* down */ && e.button === 0 && ['place', 'erase', 'raise', 'lower'].includes(tool)) {
+  if (ev.type === 1 /* down */ && e.button === 0 && tool === 'move') {
+    const p = groundPick();
+    const o = p && objectAt(p);
+    select(o ?? null);
+    if (!o) return;
+    commit();
+    selEdit(false);
+    dragging = true;
+    camera.inputs.attached.mousewheel?.detachControl();
+  } else if (ev.type === 1 /* down */ && e.button === 0 && ['place', 'erase', 'raise', 'lower'].includes(tool)) {
     const p = groundPick();
     if (!p) return;
     commit();
     painting = true;
     lastPaint = null;
+    stroke = [];
+    fresh = [];
     paintAt(p);
   } else if (ev.type === 4 /* move */) {
     const p = groundPick();
@@ -546,10 +671,24 @@ scene.onPointerObservable.add((ev) => {
       const b = BIOMES[field.biome(p.x, p.z)];
       $('stat-here').textContent = `${b.name} · ${p.y.toFixed(1)} m`;
       if (painting) paintAt(p);
+      if (dragging) moveTo(p, false);
     }
+  } else if (ev.type === 2 /* up */ && dragging && sel && selOp) {
+    dragging = false;
+    camera.inputs.attached.mousewheel?.attachControl(true);
+    const op = selOp;
+    if (Math.hypot(op.nx - op.x, op.nz - op.z) < 0.05 && op.ns === undefined) {
+      // A click without a drag or resize only selects: drop the op and its undo step.
+      S.ops.pop();
+      undo.pop();
+      selOp = null;
+    } else moveTo(new Vector3(op.nx, 0, op.nz), true);
+    sel.x = op.nx;
+    sel.z = op.nz;
   } else if (ev.type === 2 /* up */ && painting) {
     painting = false;
-    rebuild(tool === 'raise' || tool === 'lower');
+    rebuild(tool === 'raise' || tool === 'lower', stroke);
+    stroke = [];
   }
 });
 
@@ -571,7 +710,7 @@ function enterWalk() {
 }
 function exitWalk() {
   camera.lowerRadiusLimit = MIN_ORBIT_RADIUS;
-  camera.upperRadiusLimit = S.gen.size * 2;
+  camera.upperRadiusLimit = Math.min(S.gen.size * 2, 3000);
   camera.upperBetaLimit = 1.5;
   camera.panningSensibility = 40;
   camera.angularSensibilityX = camera.angularSensibilityY = 1000;
@@ -585,20 +724,23 @@ function exitWalk() {
   document.body.classList.remove('walking');
 }
 scene.onBeforeRenderObservable.add(() => {
-  if (tool !== 'walk' && tool !== 'view') return;
+  // Objects build and show only near the camera, a few chunks per frame.
+  view.viewRadius = Math.max(220, Math.min(700, camera.radius * 1.3));
+  view.update(camera.target.x, camera.target.z, 2);
   const dt = engine.getDeltaTime() / 1000;
   const fwd = camera.getForwardRay(1).direction;
   fwd.y = 0;
   fwd.normalize();
   const right = new Vector3(fwd.z, 0, -fwd.x);
   const v = new Vector3();
-  if (keys.has('KeyW')) v.addInPlace(fwd);
-  if (keys.has('KeyS')) v.subtractInPlace(fwd);
-  if (keys.has('KeyD')) v.addInPlace(right);
-  if (keys.has('KeyA')) v.subtractInPlace(right);
+  if (keys.has('KeyW') || keys.has('ArrowUp')) v.addInPlace(fwd);
+  if (keys.has('KeyS') || keys.has('ArrowDown')) v.subtractInPlace(fwd);
+  if (keys.has('KeyD') || keys.has('ArrowRight')) v.addInPlace(right);
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) v.subtractInPlace(right);
   if (v.lengthSquared() === 0) return;
   const fast = keys.has('ShiftLeft') || keys.has('ShiftRight');
-  const speed = tool === 'walk' ? (fast ? 22 : 9) : Math.max(4, Math.min(100, camera.radius * 0.2)) * (fast ? 2.5 : 1);
+  // Fly speed follows the zoom: about a screen width per second, three times that with Shift.
+  const speed = tool === 'walk' ? (fast ? 22 : 9) : Math.max(25, Math.min(1500, camera.radius * 0.9)) * (fast ? 3 : 1);
   v.normalize().scaleInPlace(speed * dt);
   const t = camera.target.add(v);
   const ground = Math.max(field.height(t.x, t.z), S.gen.water - 1);
@@ -612,7 +754,7 @@ window.addEventListener('keydown', (e) => {
   const target = e.target as HTMLElement;
   if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
   keys.add(e.code);
-  if ((tool === 'walk' || tool === 'view') && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
     return;
   }
@@ -629,6 +771,8 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'Digit3') setTool('erase');
   else if (e.code === 'Digit4') setTool('raise');
   else if (e.code === 'Digit5') setTool('lower');
+  else if (e.code === 'Digit6') setTool('move');
+  else if (tool === 'move' && sel && (e.code === 'BracketLeft' || e.code === 'BracketRight')) resizeSel(sel.s * (e.code === 'BracketRight' ? 1.08 : 1 / 1.08), true);
   else if (e.code === 'KeyM') toolAction('mirror');
   else if (e.code === 'KeyY') setTool(tool === 'walk' ? 'view' : 'walk');
   else if (e.code === 'KeyP') photo();
@@ -672,10 +816,15 @@ function drawMinimap() {
   ctx.fillStyle = 'rgba(21,19,26,0.4)';
   for (const o of objs) {
     if (o.k === 'nokta') continue;
-    const r = Math.max(0.6, (KINDS[o.k].r * o.s * N) / size);
-    ctx.beginPath();
-    ctx.arc(((o.x + size / 2) / size) * N, ((size / 2 - o.z) / size) * N, r, 0, Math.PI * 2);
-    ctx.fill();
+    const r = (KINDS[o.k].r * o.s * N) / size;
+    const px = ((o.x + size / 2) / size) * N, py = ((size / 2 - o.z) / size) * N;
+    // Small objects on a big map are single pixels: far cheaper than arcs.
+    if (r < 0.8) ctx.fillRect(px, py, 1, 1);
+    else {
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   // Vendor machines: amber dots (violet = lucky) with an ink rim.
   for (const o of objs) {

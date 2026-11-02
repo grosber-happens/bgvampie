@@ -59,7 +59,7 @@ export type Params = {
 
 export const DEFAULT_PARAMS: Params = {
   seed: 1907,
-  size: 300,
+  size: 4000,
   relief: 1,
   roughness: 1,
   water: 0,
@@ -87,6 +87,37 @@ export type Category = 'trees' | 'mushrooms' | 'giants' | 'mech' | 'ruins' | 'ro
  * Every object kind. aff = how likely it is in each landscape (kanyon, spor, asma, lagün, kum, kemik).
  * cell = spacing of the placement grid, r = footprint radius at scale 1 (keeps things from overlapping).
  */
+/**
+ * Spor Ormanı Blender models (src/spor.ts), placed by hand in the planner, never scattered.
+ * r: planner footprint. solid: collision box half size and height (trunk/stem only; null = none yet).
+ */
+export const SPOR_KINDS = {
+  ev_kule: { name: 'Mantar ev: kule', cat: 'landmark', r: 8, solid: [2.4, 20] },
+  ev_genis: { name: 'Mantar ev: geniş', cat: 'landmark', r: 9, solid: [3.0, 15] },
+  ev_kulube: { name: 'Mantar ev: kulübe', cat: 'landmark', r: 8, solid: [2.2, 10.5] },
+  kopru_tas: { name: 'Taş köprü', cat: 'ruins', r: 13, solid: null },
+  kopru_tas_yikik: { name: 'Yıkık taş köprü', cat: 'ruins', r: 13, solid: null },
+  kopru_ahsap: { name: 'Ahşap köprü', cat: 'ruins', r: 10, solid: null },
+  mantar_kumesi: { name: 'Dev mantar kümesi', cat: 'mushrooms', r: 14, solid: [2.0, 22] },
+  mantar_buyuk: { name: 'Büyük mantar', cat: 'mushrooms', r: 5.5, solid: [1.3, 12] },
+  mantar_orta: { name: 'Orta mantar', cat: 'mushrooms', r: 2.8, solid: [0.7, 6] },
+  mantar_kucuk: { name: 'Küçük mantar', cat: 'mushrooms', r: 1.2, solid: [0.3, 2.4] },
+  enoki_buyuk: { name: 'Enoki (büyük)', cat: 'mushrooms', r: 0.5, solid: null },
+  enoki_orta: { name: 'Enoki (orta)', cat: 'mushrooms', r: 0.4, solid: null },
+  enoki_kucuk: { name: 'Enoki (küçük)', cat: 'mushrooms', r: 0.3, solid: null },
+  enoki_seyrek: { name: 'Enoki (seyrek)', cat: 'mushrooms', r: 0.3, solid: null },
+} as const satisfies Record<string, { name: string; cat: Category; r: number; solid: readonly [number, number] | null }>;
+export type SporKind = keyof typeof SPOR_KINDS;
+
+function sporKinds() {
+  const out = {} as { [K in SporKind]: { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] } };
+  for (const k of Object.keys(SPOR_KINDS) as SporKind[]) {
+    const d = SPOR_KINDS[k];
+    out[k] = { name: d.name, cat: d.cat, aff: [0, 0, 0, 0, 0, 0], cell: 0, r: d.r, s: [1, 1] };
+  }
+  return out;
+}
+
 export const KINDS = {
   agac: { name: 'Yuvarlak ağaç', cat: 'trees', aff: [0.15, 0.5, 0.7, 0.5, 0.03, 0.3], cell: 9, r: 2.2, s: [0.8, 1.4] },
   moebius: { name: 'Düz tepeli ağaç', cat: 'trees', aff: [0, 0.35, 1, 0.3, 0.05, 0.1], cell: 11, r: 2.5, s: [0.8, 1.6] },
@@ -117,6 +148,7 @@ export const KINDS = {
   nokta: { name: 'Puantiye', cat: 'dots', aff: [0, 1, 0.1, 0, 0, 0], cell: 3.2, r: 0.6, s: [0.4, 1.6] },
   katedral: { name: 'Kızıl Katedral', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 16, s: [1, 1] },
   dev: { name: 'Düşmüş Dev', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 30, s: [1, 1] },
+  ...sporKinds(),
   satici: { name: 'Satıcı makinesi', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
   sansli: { name: 'Şanslı makine', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
 } as const satisfies Record<string, { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] }>;
@@ -130,7 +162,9 @@ export type Obj = { k: Kind; x: number; z: number; s: number; r: number; v: numb
 export type Op =
   | { t: 'add'; o: Obj }
   | { t: 'erase'; x: number; z: number; r: number }
-  | { t: 'lift'; x: number; z: number; r: number; a: number };
+  | { t: 'lift'; x: number; z: number; r: number; a: number }
+  /** Move the object of kind k standing at (x, z) to (nx, nz), and resize it to ns when given. */
+  | { t: 'move'; k: Kind; x: number; z: number; nx: number; nz: number; ns?: number };
 
 /** Mirror a point into the generated half/quarter. */
 function canon(sym: number, x: number, z: number): [number, number] {
@@ -145,6 +179,8 @@ export class Field {
   private sites: { b: number; x: number; z: number; k: number }[] = [];
   private lifts: Extract<Op, { t: 'lift' }>[];
   private flat: { x: number; z: number; r: number; h: number }[] = [];
+  /** Scratch distances for weights(), one per site. */
+  private ds = new Float64Array(NB + 1);
 
   constructor(p: Params, ops: Op[] = []) {
     this.p = p;
@@ -175,19 +211,21 @@ export class Field {
     const wz = z + p.warp * s * 0.14 * fbm(x / s * 3.1 + 9, z / s * 3.1 - 4, p.seed + 91, 3);
     out.fill(0);
     let dmin = Infinity;
-    const ds: number[] = [];
-    for (const st of this.sites) {
+    const sites = this.sites;
+    const ds = this.ds;
+    for (let i = 0; i < sites.length; i++) {
+      const st = sites[i];
       const d = Math.hypot(wx - st.x, wz - st.z) * st.k;
-      ds.push(d);
+      ds[i] = d;
       if (d < dmin) dmin = d;
     }
     const blend = s * 0.035;
     let sum = 0;
-    this.sites.forEach((st, i) => {
+    for (let i = 0; i < sites.length; i++) {
       const w = Math.exp(-(ds[i] - dmin) / blend);
-      out[st.b] += w;
+      out[sites[i].b] += w;
       sum += w;
-    });
+    }
     for (let i = 0; i < NB; i++) out[i] /= sum;
     return out;
   }
@@ -302,6 +340,9 @@ const WET: Partial<Record<Kind, number>> = { kemer: 3, kaya: 1.2, kafa: 2.5, dis
 
 /** Build the generated objects for these parameters (no hand edits). */
 export function generate(field: Field, p: Params = field.p): Obj[] {
+  // Objects grow on the natural terrain, without hand lifts: a terrain stroke moves objects up or down
+  // but never re-rolls the map, which keeps sculpting fast on a 4 km map.
+  field = new Field(p);
   const out: Obj[] = landmarks(p);
   const occ = new Occupancy();
   for (const o of out) occ.add(o.x, o.z, KINDS[o.k].r * o.s);
@@ -373,13 +414,20 @@ export function generate(field: Field, p: Params = field.p): Obj[] {
 
 /** Apply hand edits in order: placements add, erase circles remove everything under them. */
 export function applyOps(objs: Obj[], ops: Op[]): Obj[] {
-  let list = objs;
+  let list = objs.slice();
   for (const op of ops) {
-    if (op.t === 'add') list = [...list, op.o];
+    if (op.t === 'add') list.push(op.o);
     else if (op.t === 'erase') list = list.filter((o) => (o.x - op.x) ** 2 + (o.z - op.z) ** 2 > op.r * op.r);
+    else if (op.t === 'move') {
+      const i = list.findIndex((o) => o.k === op.k && Math.abs(o.x - op.x) < MOVE_EPS && Math.abs(o.z - op.z) < MOVE_EPS);
+      if (i >= 0) list[i] = { ...list[i], x: op.nx, z: op.nz, s: op.ns ?? list[i].s };
+    }
   }
   return list;
 }
+
+/** How close a move op's (x, z) must be to the object it moves, in meters. */
+const MOVE_EPS = 0.05;
 
 /** Saved map file (planner export, and what the game will load later). */
 export type MapFile = { v: 1; gen: Params; ops: Op[]; atmos?: Record<string, number | string | boolean> };
