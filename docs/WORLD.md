@@ -1,6 +1,6 @@
 # Ufuk-i Kehribar (the Amber Horizon) — World Bible
 
-Source of truth (Turkish): `/mnt/project-files/design/dunya-tasarimi.md` in the project files. This is the English brief for Replit Agent.
+Source of truth (Turkish): `/mnt/project-files/design/dunya-tasarimi.md` in the project files. This is the English brief for the agents working on the repo.
 Interactive atlas: https://claude.ai/artifact/AqRB9sb1MZRmUWC27ZKonQ · Class & hero board: https://claude.ai/artifact/3KqLWK5Vj1cdeow7eXvJPC
 
 ## Decision (2026-10-29)

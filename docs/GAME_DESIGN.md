@@ -1,6 +1,6 @@
 # Vampire Battleground — Game Design Brief
 
-This is the brief for anyone continuing the game, including Replit Agent. It collects everything planned so far: gameplay, classes, skills, progression, art and the current state of the code.
+This is the brief for anyone continuing the game, including the agents (see `AGENTS.md`). It collects everything planned so far: gameplay, classes, skills, progression, art and the current state of the code.
 
 - Tags: **[Decided]** means the owner approved it. **[Proposal]** means Claude suggested it and it still needs the owner's approval. Untagged lines describe the current prototype.
 - The owner decides the design. Do not invent new classes, skills or rules. If something is missing or unclear, ask the owner. Small missing details (exact timings, effects) can be filled in, but say what you assumed.
@@ -355,6 +355,8 @@ This is the brief for anyone continuing the game, including Replit Agent. It col
 - One ruined-city block with walkable houses (porch, stairs, balcony, roof).
 - The clay and watercolor look.
 - A playable single-file build for sharing.
+
+The phases from here on are in [`ROADMAP.md`](ROADMAP.md); the short list below is kept for context.
 
 **Not built yet, roughly in priority order:**
 1. The full map: 5 regions, the shrinking ring, about 20 players.

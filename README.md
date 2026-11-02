@@ -2,7 +2,7 @@
 
 3D third-person battle royale prototype, built with Babylon.js + TypeScript. This replaced the earlier 2D Replit prototype; that version is still in the git history.
 
-Full game design brief: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md). Notes for Replit Agent: [`replit.md`](replit.md).
+Full game design brief: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md). Roadmap and workflow: [`docs/ROADMAP.md`](docs/ROADMAP.md). Rules for agents: [`AGENTS.md`](AGENTS.md).
 
 ## Run
 
