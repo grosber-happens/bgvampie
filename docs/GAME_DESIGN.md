@@ -289,6 +289,7 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 - **Mobs [Decided]:**
   - They come in small packs and must never flood the map.
   - The prototype caps them at 10 alive near the player. On the full map the target is about 100 alive across the whole map.
+  - The prototype packs are the Spor Ormanı creatures made in Blender (`src/creatures.ts`, numbers in `MOB_SPECIES` in `src/balance.ts`): **antlered deer** (fast, packs of 2–4) and **giant snail** (slow and tough, hits hard, alone or in pairs). On big maps packs spawn 22–70 m from the player, and mobs left 180 m behind out of a fight are removed. [Proposal] The species numbers are first guesses.
 - **Bosses:**
   - The prototype spawns a zombie giant (slam and rock throw) at minutes 5, 13 and 21.
   - [Proposal, from the simulation] On the full map: two region bosses at minute 5, two at 11 and two at 16, then the final boss Crimson Countess at 21 with 1.3× health.
@@ -357,7 +358,7 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 - A third-person controller: aim, dash, jump, coyote time, weapon switching.
 - All 4 classes, with every skill at all 3 tiers, both weapons, passives and playstyles.
 - Level-up cards, XP, the tier-3 lock and token.
-- Bots, zombie packs and the zombie giant boss.
+- Bots, Spor Ormanı creature packs (deer, snail) and the zombie giant boss.
 - One ruined-city block with walkable houses (porch, stairs, balcony, roof).
 - The clay and watercolor look.
 - A playable single-file build for sharing.

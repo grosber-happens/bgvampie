@@ -139,7 +139,24 @@ export const MOBS = {
   leash: 30,
   attackRange: 1.6,
   attackRate: 1.0,
+  /** On big maps packs spawn within this distance of the player (and at least minSpawnDist away)... */
+  maxSpawnDist: 70,
+  /** ...and a mob out of the fight this far from the player is removed, so the pack count follows the player. */
+  despawnDist: 180,
 };
+
+/**
+ * Spor Ormanı creatures that replace the Kenney zombie packs (src/creatures.ts). Each species scales
+ * the MOBS numbers. hp/damage are multipliers; speed in m/s; radius/height are the gameplay capsule;
+ * attackRange is from the creature's center; windup is the time from the attack start to the hit;
+ * walkRef is the move speed at which the walk clip plays at 1×; chance is the share of packs;
+ * pack is the [min, max] pack size.
+ */
+export const MOB_SPECIES = {
+  geyik: { hp: 1, damage: 1, speed: 6.5, radius: 0.8, height: 2.6, attackRange: 2.5, windup: 0.45, walkRef: 3.2, chance: 0.65, pack: [2, 4] },
+  salyangoz: { hp: 2.4, damage: 1.7, speed: 2.8, radius: 1.6, height: 4.8, attackRange: 3.4, windup: 0.7, walkRef: 1.4, chance: 0.35, pack: [1, 2] },
+} as const satisfies Record<string, { hp: number; damage: number; speed: number; radius: number; height: number; attackRange: number; windup: number; walkRef: number; chance: number; pack: readonly [number, number] }>;
+export type MobSpecies = keyof typeof MOB_SPECIES;
 
 /** One boss at these match minutes. */
 export const BOSS = {

@@ -134,6 +134,9 @@ const UI: Dict = {
   reel: ['Son Kare', 'Last Reel'],
   noBreath: ['Nefes yetmiyor', 'Out of breath'],
   boss: ['Zombi Devi', 'Zombie Giant'],
+  mobDeer: ['Boynuzlu Geyik', 'Antlered Deer'],
+  mobSnail: ['Dev Salyangoz', 'Giant Snail'],
+  mobDummy: ['Hedef', 'Target'],
   you: ['Sen', 'You'],
   poison: ['Zehir', 'Poison'],
   yourCopy: ['Kopyan', 'Your copy'],
@@ -141,6 +144,8 @@ const UI: Dict = {
   newCity: ['N: yeni şehir', 'N: new city'],
   map: ['Harita', 'Map'],
   plannerMap: ['planlayıcıdan', 'from the planner'],
+  sporMap: ['Spor Ormanı (test)', 'Spore Forest (test)'],
+  playCity: ['Şehir bloğunu oyna', 'Play the city block'],
   mapFailed: ['Harita yüklenemedi, şehir bloğu açıldı', 'Map could not be loaded, playing the city block'],
   hint: [
     'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan (yakın silahla: özel saldırı) · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab basılı tut: kart · Esc duraklat',

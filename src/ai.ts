@@ -2,7 +2,9 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { forwardFromYaw, rightFromYaw } from './actors';
 import { createCharacterBody, type SkinName } from './characters';
-import { BOSS, BOTS, DAGGERS, MOBS, SHADOW_TRAIL } from './balance';
+import { BOSS, BOTS, DAGGERS, MOBS, MOB_SPECIES, SHADOW_TRAIL, type MobSpecies } from './balance';
+import { createCreatureBody, creatureReady } from './creatures';
+import { t as T } from './i18n';
 import {
   G,
   chest,
@@ -14,13 +16,14 @@ import {
   hostile,
   lineOfSight,
   makeUnit,
+  removeUnit,
   minutes,
   moveUnit,
   ringFx,
   type Unit,
 } from './core';
 import { hiddenByZone, playerFaded, playerVisibility } from './kit';
-import { findOpenSpot } from './world';
+import { findOpenSpot, spotIsClear } from './world';
 import { addShake, sfx } from './feel';
 import { random } from './random';
 
@@ -75,35 +78,67 @@ function spawnBot(look: (typeof BOT_LOOKS)[number], level: number, xp: number, t
   return u;
 }
 
+/** Pick a species by its pack share. */
+function pickSpecies(rand: () => number): MobSpecies {
+  const list = Object.keys(MOB_SPECIES) as MobSpecies[];
+  let roll = rand() * list.reduce((a, k) => a + MOB_SPECIES[k].chance, 0);
+  for (const k of list) if ((roll -= MOB_SPECIES[k].chance) <= 0) return k;
+  return list[0];
+}
+
+/**
+ * Where a pack spawns. On the city block anywhere far enough from the player; on big maps in a ring
+ * around the player (minSpawnDist..maxSpawnDist), so the packs follow the player across the map.
+ */
+function packSpot(rand: () => number): Vector3 {
+  if (!G.world.field) return farSpot(rand, MOBS.minSpawnDist);
+  const half = G.world.field.p.size / 2 - 10;
+  for (let i = 0; i < 30; i++) {
+    const a = rand() * Math.PI * 2, d = MOBS.minSpawnDist + rand() * (MOBS.maxSpawnDist - MOBS.minSpawnDist);
+    const x = G.player.pos.x + Math.sin(a) * d, z = G.player.pos.z + Math.cos(a) * d;
+    if (Math.abs(x) > half || Math.abs(z) > half) continue;
+    if (G.world.field.height(x, z) < G.world.field.p.water + 0.3) continue;
+    if (!spotIsClear(G.world.boxes, x, z, 2)) continue;
+    const p = new Vector3(x, 0, z);
+    p.y = G.world.field.height(x, z);
+    return p;
+  }
+  return farSpot(rand, MOBS.minSpawnDist);
+}
+
+/** One Spor Ormanı creature (or a Kenney zombie if the creature models failed to load). */
+function spawnMob(species: MobSpecies, p: Vector3, home: Vector3, hp: number, name: string, rand: () => number) {
+  const spec = MOB_SPECIES[species];
+  const id = `mob${G.nextId}`;
+  if (!creatureReady(species)) {
+    const body = createCharacterBody(G.scene, G.world, id, 'zombieA', { height: 1.75, hpBar: true, hpColor: '#e0a33f' });
+    return makeUnit('mob', name, body, p, -1, hp, { radius: 0.45, height: 1.75, yaw: rand() * Math.PI * 2, ai: { home: home.clone(), target: null, think: 0, attackT: 0, windT: -1, wander: p.clone(), wanderT: 0, species } });
+  }
+  const body = createCreatureBody(G.scene, G.world, id, species, { hpBar: true });
+  return makeUnit('mob', name, body, p, -1, hp, {
+    radius: spec.radius,
+    height: spec.height,
+    yaw: rand() * Math.PI * 2,
+    ai: { home: home.clone(), target: null, think: 0, attackT: 0, windT: -1, wander: p.clone(), wanderT: 0, species },
+  });
+}
+
 function spawnPack(rand: () => number, room = MOBS.maxAlive) {
-  const center = farSpot(rand, MOBS.minSpawnDist);
-  const n = Math.min(room, MOBS.packMin + Math.floor(rand() * (MOBS.packMax - MOBS.packMin + 1)));
+  const species = pickSpecies(rand);
+  const spec = MOB_SPECIES[species];
+  const center = packSpot(rand);
+  const n = Math.min(room, spec.pack[0] + Math.floor(rand() * (spec.pack[1] - spec.pack[0] + 1)));
   const min = minutes();
+  const spread = 3 + spec.radius * 3;
   for (let i = 0; i < n; i++) {
-    const p = center.add(new Vector3((rand() - 0.5) * 3, 0, (rand() - 0.5) * 3));
-    const skin: SkinName = rand() < 0.5 ? 'zombieA' : 'zombieC';
-    const skeleton = rand() < 0.35;
-    const body = skeleton
-      ? createCharacterBody(G.scene, G.world, `mob${G.nextId}`, { kit: 'skeleton', height: 1.75, hpBar: true, hpColor: '#e0a33f' })
-      : createCharacterBody(G.scene, G.world, `mob${G.nextId}`, skin, { height: 1.75, hpBar: true, hpColor: '#e0a33f' });
-    makeUnit('mob', 'Zombi', body, p, -1, MOBS.hp(min), {
-      radius: 0.45,
-      height: 1.75,
-      yaw: rand() * Math.PI * 2,
-      ai: { home: center.clone(), target: null, think: 0, attackT: 0, windT: -1, wander: p.clone(), wanderT: 0 },
-    });
+    const p = center.add(new Vector3((rand() - 0.5) * spread, 0, (rand() - 0.5) * spread));
+    spawnMob(species, p, center, Math.round(MOBS.hp(min) * spec.hp), T(species === 'geyik' ? 'mobDeer' : 'mobSnail'), rand);
   }
 }
 
-/** Test helper: one zombie at a point. */
-export function spawnDummy(p: Vector3, hp: number) {
-  const body = createCharacterBody(G.scene, G.world, `mob${G.nextId}`, 'zombieA', { height: 1.75, hpBar: true, hpColor: '#e0a33f' });
-  return makeUnit('mob', 'Hedef', body, p, -1, hp, {
-    radius: 0.45,
-    height: 1.75,
-    yaw: 0,
-    ai: { home: p.clone(), target: null, think: 0, attackT: 0, windT: -1, wander: p.clone(), wanderT: 0 },
-  });
+/** Test helper: one creature (a deer unless told otherwise) at a point. */
+export function spawnDummy(p: Vector3, hp: number, species: MobSpecies = 'geyik') {
+  return spawnMob(species, p, p, hp, T('mobDummy'), random);
 }
 
 export function spawnBoss(rand: () => number) {
@@ -274,8 +309,12 @@ function updateBot(u: Unit, dt: number, rand: () => number) {
 }
 
 // ---- Mobs ----------------------------------------------------------------------
+/** Zombie numbers for mobs without a species (old saves, failed loads). */
+const ZOMBIE = { speed: MOBS.speed, attackRange: MOBS.attackRange, windup: 0.35, damage: 1 };
+
 function updateMob(u: Unit, dt: number, rand: () => number) {
   const ai = u.ai!;
+  const spec = ai.species && creatureReady(ai.species) ? MOB_SPECIES[ai.species as MobSpecies] : ZOMBIE;
   ai.think -= dt;
   ai.attackT -= dt;
   if (ai.think <= 0) {
@@ -296,14 +335,15 @@ function updateMob(u: Unit, dt: number, rand: () => number) {
     if (ai.windT >= 0) {
       ai.windT -= dt;
       moveUnit(u, Vector3.Zero(), 0, dt);
-      if (ai.windT < 0 && dist < MOBS.attackRange + t.radius + 0.4) dealDamage(u, t, MOBS.damage(minutes()));
-    } else if (dist < MOBS.attackRange + t.radius) {
+      if (ai.windT < 0 && dist < spec.attackRange + t.radius + 0.4) dealDamage(u, t, MOBS.damage(minutes()) * spec.damage);
+    } else if (dist < spec.attackRange + t.radius) {
       moveUnit(u, Vector3.Zero(), 0, dt);
       if (ai.attackT <= 0) {
-        ai.attackT = MOBS.attackRate;
-        ai.windT = 0.35;
+        ai.attackT = Math.max(MOBS.attackRate, spec.windup + 0.3);
+        ai.windT = spec.windup;
+        u.body.play?.('attack', 1, true);
       }
-    } else steer(u, t.pos.subtract(u.pos), MOBS.speed, dt);
+    } else steer(u, t.pos.subtract(u.pos), spec.speed, dt);
     return;
   }
   // Idle: sniff around the pack's home.
@@ -315,7 +355,7 @@ function updateMob(u: Unit, dt: number, rand: () => number) {
   const to = ai.wander.subtract(u.pos);
   to.y = 0;
   if (to.length() > 0.8) {
-    steer(u, to, MOBS.speed * 0.35, dt);
+    steer(u, to, spec.speed * 0.35, dt);
     faceTowards(u, u.pos.add(to), dt, 4);
   } else moveUnit(u, Vector3.Zero(), 0, dt);
 }
@@ -393,6 +433,12 @@ export function updateAI(dt: number, rand: () => number, announce: Announce) {
     if (u.kind === 'bot') updateBot(u, dt, rand);
     else if (u.kind === 'mob') updateMob(u, dt, rand);
     else if (u.kind === 'boss') updateBoss(u, dt);
+  }
+  // Big maps: mobs left far behind (and not fighting) go away, so new packs can spawn near the player.
+  if (G.world.field) {
+    for (const u of [...G.units]) {
+      if (u.kind === 'mob' && !u.ai?.target && flatDist(u.pos, G.player.pos) > MOBS.despawnDist) removeUnit(u);
+    }
   }
   // Mob packs: keep a moderate number alive.
   mobPackT -= dt;
