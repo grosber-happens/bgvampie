@@ -17,6 +17,8 @@ import sys
 
 import bpy  # must come before bmesh when run as a pip module
 import bmesh
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mathutils import Vector, Matrix
 
 # ---------------------------------------------------------------- numbers
@@ -76,6 +78,7 @@ class Builder:
     def __init__(self):
         self.bm = bmesh.new()
         self.col = self.bm.loops.layers.color.new('Col')
+        self.mat = 0   # 0 = vertex color material, 1 = glow (windows, lanterns)
 
     def grid(self, rings, close_u=True, colors=None):
         """rings: list of lists of Vector (same length). colors: same shape."""
@@ -86,6 +89,8 @@ class Builder:
             for j in range(n if close_u else n - 1):
                 k = (j + 1) % n
                 f = bm.faces.new((vs[i][j], vs[i][k], vs[i + 1][k], vs[i + 1][j]))
+                f.material_index = self.mat
+                f.smooth = True
                 if colors:
                     cs = (colors[i][j], colors[i][k], colors[i + 1][k], colors[i + 1][j])
                     for loop, c in zip(f.loops, cs):
@@ -98,6 +103,8 @@ class Builder:
         for j in range(n):
             a, b = ring_verts[j], ring_verts[(j + 1) % n]
             f = self.bm.faces.new((c, b, a) if flip else (c, a, b))
+            f.material_index = self.mat
+            f.smooth = True
             for loop in f.loops:
                 loop[self.col] = (*color, 1.0)
 
@@ -115,6 +122,8 @@ class Builder:
             m[v] = self.bm.verts.new(rot @ (sc @ p) + Vector(center))
         for f in tmp.faces:
             nf = self.bm.faces.new([m[v] for v in f.verts])
+            nf.material_index = self.mat
+            nf.smooth = True
             for loop in nf.loops:
                 z = (loop.vert.co - Vector(center)).dot(rot @ Vector((0, 0, 1)))
                 t = max(0, min(1, 0.5 + z / (radius * scale[2] * 2 + 1e-6)))
@@ -126,11 +135,11 @@ class Builder:
         bmesh.ops.recalc_face_normals(self.bm, faces=self.bm.faces)
         self.bm.to_mesh(me)
         self.bm.free()
-        for p in me.polygons:
-            p.use_smooth = True
         ob = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(ob)
         ob.data.materials.append(shared_material())
+        if any(p.material_index == 1 for p in me.polygons):
+            ob.data.materials.append(glow_material())
         return ob
 
 
@@ -150,6 +159,23 @@ def shared_material():
     nt.links.new(attr.outputs['Color'], bsdf.inputs['Base Color'])
     bsdf.inputs['Roughness'].default_value = 0.85
     _MAT = m
+    return m
+
+
+_GLOW = None
+
+
+def glow_material():
+    global _GLOW
+    if _GLOW:
+        return _GLOW
+    m = bpy.data.materials.new('spor_glow')
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes['Principled BSDF']
+    bsdf.inputs['Base Color'].default_value = (1.0, 0.82, 0.45, 1)
+    bsdf.inputs['Emission Color'].default_value = (1.0, 0.78, 0.40, 1)
+    bsdf.inputs['Emission Strength'].default_value = 2.5
+    _GLOW = m
     return m
 
 
@@ -440,35 +466,32 @@ def setup_render(res=(1280, 720)):
     gm.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.55, 0.42, 0.30, 1)
     gm.node_tree.nodes['Principled BSDF'].inputs['Roughness'].default_value = 1
     g.data.materials.append(gm)
-    # 1.8 m scale figure
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.3, depth=1.8, location=(0, 0, 0.9))
-    fig = bpy.context.active_object
-    fig.name = 'preview_human_1.8m'
-    fm = bpy.data.materials.new('fig')
-    fm.use_nodes = True
-    fm.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.08, 0.07, 0.1, 1)
-    fig.data.materials.append(fm)
+    # player blockout (1.85 m) inside its see-through hitbox capsule, see olcek.py
+    import olcek
+    fig = olcek.player_blockout('preview_oyuncu')
+    cap = olcek.hitbox_capsule('preview_hitbox')
+    cap.parent = fig
     cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam'))
     sc.collection.objects.link(cam)
     sc.camera = cam
     return cam, fig
 
 
-def render(cam, fig, objs, target, fig_pos, path):
+def render(cam, fig, objs, target, fig_pos, path, zoom=1.0, view=(0.5, -1.0)):
     for o in bpy.data.objects:
         if o.type == 'MESH' and not o.name.startswith('preview_'):
             o.hide_render = o not in objs
-    fig.location = Vector(fig_pos) + Vector((0, 0, 0.9))
-    lo = Vector((min(v[0] for o in objs for v in o.bound_box), min(v[1] for o in objs for v in o.bound_box), 0))
-    hi = Vector((max(v[0] for o in objs for v in o.bound_box), max(v[1] for o in objs for v in o.bound_box),
-                 max(v[2] for o in objs for v in o.bound_box)))
-    size = max(hi.x - lo.x, hi.y - lo.y, hi.z)
+    fig.location = Vector(fig_pos)
+    bpy.context.view_layer.update()
+    wb = [o.matrix_world @ Vector(v) for o in objs for v in o.bound_box]
+    lo = Vector((min(v.x for v in wb), min(v.y for v in wb), 0))
+    hi = Vector((max(v.x for v in wb), max(v.y for v in wb), max(v.z for v in wb)))
     tgt = Vector(target) + Vector((0, 0, hi.z * 0.5))
     # low camera looking slightly up, so the gills show like in the reference
     cam.data.lens = 28
     rad = 0.5 * math.sqrt((hi.x - lo.x) ** 2 + (hi.y - lo.y) ** 2 + hi.z ** 2)
-    dist = rad / math.tan(cam.data.angle_y / 2) * 1.05
-    cam.location = Vector((tgt.x, tgt.y, 0)) + Vector((0.5, -1.0, 0)).normalized() * dist + Vector((0, 0, hi.z * 0.18 + 1.5))
+    dist = rad / math.tan(cam.data.angle_y / 2) * 1.05 * zoom
+    cam.location = Vector((tgt.x, tgt.y, 0)) + Vector((view[0], view[1], 0)).normalized() * dist + Vector((0, 0, hi.z * 0.18 + 1.5))
     cam.rotation_euler = (tgt - cam.location).to_track_quat('-Z', 'Y').to_euler()
     bpy.context.scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
@@ -527,8 +550,8 @@ def main():
             o.hide_render = i > 0
         for i, o in enumerate(singles):
             o.location.x = 40 * (i + 1)
-        for n in ('preview_ground', 'preview_human_1.8m', 'cam', 'sun'):
-            bpy.data.objects[n].hide_set(n != 'preview_human_1.8m')
+        for n in ('preview_ground', 'cam', 'sun'):
+            bpy.data.objects[n].hide_set(True)
 
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out_dir, 'spor_ormani.blend'))
 
