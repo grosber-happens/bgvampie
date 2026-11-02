@@ -140,8 +140,11 @@ class Builder:
         ob = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(ob)
         ob.data.materials.append(shared_material())
-        if any(p.material_index == 1 for p in me.polygons):
+        used = {p.material_index for p in me.polygons}
+        if used & {1, 2}:
             ob.data.materials.append(glow_material())
+        if 2 in used:
+            ob.data.materials.append(glass_material())
         return ob
 
 
@@ -178,6 +181,28 @@ def glow_material():
     bsdf.inputs['Emission Color'].default_value = (1.0, 0.78, 0.40, 1)
     bsdf.inputs['Emission Strength'].default_value = 2.5
     _GLOW = m
+    return m
+
+
+_GLASS = None
+
+
+def glass_material():
+    """Stained glass: glows in its own vertex color (material index 2)."""
+    global _GLASS
+    if _GLASS:
+        return _GLASS
+    m = bpy.data.materials.new('spor_vitray')
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes['Principled BSDF']
+    vc = nt.nodes.new('ShaderNodeVertexColor')
+    vc.layer_name = 'Col'
+    nt.links.new(vc.outputs['Color'], bsdf.inputs['Base Color'])
+    nt.links.new(vc.outputs['Color'], bsdf.inputs['Emission Color'])
+    bsdf.inputs['Emission Strength'].default_value = 1.6
+    bsdf.inputs['Roughness'].default_value = 0.3
+    _GLASS = m
     return m
 
 

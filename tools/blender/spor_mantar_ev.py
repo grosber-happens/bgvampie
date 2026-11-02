@@ -17,7 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import spor_ormani as so  # noqa: E402
-from olcek import RULES, headroom  # noqa: E402
+from olcek import PLAYER, RULES, headroom  # noqa: E402
 import bpy  # noqa: E402
 import bmesh  # noqa: E402
 from mathutils import Vector, Matrix  # noqa: E402
@@ -404,6 +404,177 @@ def lantern(b, x, y):
     box(b, base + Vector((0, 0, 0.1)), (0.45, 0.45, 0.2), HP['stone_dk'])
 
 
+# ---------------------------------------------------------------- Gaudí details
+GLASS = [(0.95, 0.66, 0.25), (0.30, 0.62, 0.66), (0.86, 0.40, 0.46), (0.52, 0.40, 0.76),
+         (0.55, 0.70, 0.35), (0.95, 0.85, 0.55)]
+TILE = [(0.82, 0.62, 0.36), (0.70, 0.50, 0.30), (0.40, 0.58, 0.60), (0.86, 0.72, 0.52), (0.66, 0.40, 0.36)]
+
+
+def roundel(b, pos, normal, r, rnd):
+    """Bullseye stained-glass disc with a lead ring."""
+    b.mat = 2
+    c = rnd.choice(GLASS)
+    b.add_blob(pos, r, (1, 1, 0.12), (so.mix(c, (1, 1, 1), 0.35), c), rnd, 1, normal, 0.0)
+    b.mat = 0
+    b.add_blob(pos - normal * 0.01, r * 1.15, (1, 1, 0.08), (HP['iron'], HP['iron']), rnd, 1, normal, 0.0)
+
+
+def glass_cluster(b, center, normal, side, w, h, rnd, n=7):
+    """Oval transom of roundels, like the Casa Batlló doors. side = in-plane horizontal axis."""
+    up = Vector((0, 0, 1))
+    for k in range(n):
+        a = k / n * math.tau + rnd.uniform(-0.2, 0.2)
+        rr = 0.55 if k else 0.0
+        p = center + side * math.cos(a) * w * 0.5 * rr + up * math.sin(a) * h * 0.5 * rr
+        roundel(b, p, normal, rnd.uniform(0.11, 0.17) * (1.3 if k == 0 else 1), rnd)
+
+
+def wavy_arch(b, base, rot, w, h, color, thick=0.09, depth=0.0):
+    """Organic door frame: posts that bulge and an arched top that wobbles, in timber."""
+    pts = []
+    n = 26
+    for i in range(n + 1):
+        t = i / n
+        if t < 0.35:      # left post up
+            u = t / 0.35
+            y, z = -w / 2 - 0.05 * math.sin(u * math.pi * 2), u * (h - w / 2)
+        elif t < 0.65:    # arch
+            u = (t - 0.35) / 0.3
+            a = math.pi * (1 - u)
+            y, z = math.cos(a) * w / 2, h - w / 2 + math.sin(a) * w / 2 * (1 + 0.15 * math.sin(u * math.pi * 3))
+        else:             # right post down
+            u = (t - 0.65) / 0.35
+            y, z = w / 2 + 0.05 * math.sin(u * math.pi * 2), (1 - u) * (h - w / 2)
+        pts.append(base + rot @ Vector((depth, y, z)))
+    tube(b, pts, [thick * (1.4 if i in (0, n) else 1 + 0.25 * math.sin(i)) for i in range(n + 1)], color, 6)
+
+
+def trencadis(b, center, normal, side, w, h, rnd, count=40, arch=True):
+    """Broken-tile mosaic patch on a wall, optionally following an arch outline."""
+    up = Vector((0, 0, 1))
+    for _ in range(count):
+        if arch:
+            a = rnd.uniform(0, math.pi)
+            rr = rnd.uniform(0.85, 1.15)
+            p = center + side * math.cos(a) * w / 2 * rr + up * math.sin(a) * h * rr
+        else:
+            p = center + side * rnd.uniform(-w / 2, w / 2) + up * rnd.uniform(0, h)
+        c = so.jitter(rnd.choice(TILE), 0.05, rnd)
+        b.add_blob(p, rnd.uniform(0.07, 0.12), (1.3, 1, 0.15), (c, c), rnd, 1, normal, 0.3)
+
+
+def wall_frame(spec, deg, r, z):
+    """Point on a wall plus its outward normal and horizontal side axis."""
+    nrm = polar(1, deg)
+    side = Vector((-nrm.y, nrm.x, 0))
+    return polar(r, deg, z), nrm, side
+
+
+def furnish(b, spec, rnd):
+    """Ground room fit-out in the Casa Batlló spirit, kept off the walking ring."""
+    rr, rh = spec['room']
+    rt = trunk_radius_at(spec, 0)
+    d = spec['door_angle']
+    wall_in = rr - 0.25 - 0.02                         # inner face of the room wall
+    depth = wall_in - (rt + 2 * PLAYER['radius'] + 0.3)  # what fits between wall and walking ring
+    # ceiling of gills: ridged lining under the room roof
+    segs = 72
+    rings, cols = [], []
+    for k, r in enumerate((trunk_radius_at(spec, rh) + 0.05, rr - 0.25)):
+        ring = []
+        for j in range(segs):
+            ridge = abs(math.sin(j * math.pi / 2)) * 0.12
+            ring.append(polar(r, j / segs * 360, rh - 0.06 - ridge))
+        rings.append(ring)
+        cols.append([so.mix(HP['gill'], HP['gill_lt'], abs(math.sin(j * math.pi / 2))) for j in range(segs)])
+    b.grid(rings, colors=cols)
+    # hearth: mushroom arch alcove with copper hood, mosaic round the arch
+    hd = d + 180
+    hdp = max(0.35, min(0.8, depth))
+    p, n, side = wall_frame(spec, hd, wall_in, 0)
+    rot = zrot(hd)
+    wavy_arch(b, p - n * 0.05, rot, 1.8, 2.2, HP['stone_dk'], 0.16)
+    trencadis(b, p - n * 0.02 + Vector((0, 0, 1.3)), -n, side, 1.9, 0.95, rnd, 50)
+    b.add_blob(p - n * (hdp * 0.5) + Vector((0, 0, 1.0)), 0.3, (hdp * 1.4, 1.2, 1.6), ((0.62, 0.38, 0.24), (0.78, 0.50, 0.30)), rnd, 2, None, 0)
+    tube(b, [p - n * (hdp * 0.5) + Vector((0, 0, 1.4)), p - n * 0.2 + Vector((0, 0, 2.2)), p + Vector((0, 0, 2.6))], 0.12, (0.62, 0.38, 0.24), 6)
+    b.mat = 1
+    box(b, p - n * (hdp * 0.5) + Vector((0, 0, 0.35)), (hdp * 0.6, 0.6, 0.35), HP['glow'], rot, mat=1)
+    b.mat = 0
+    for s in (-1, 1):  # seat ears either side of the hearth
+        b.add_blob(p - n * (hdp * 0.45) + side * s * 0.75 + Vector((0, 0, 0.45)), 0.25, (hdp * 1.6, 1.2, 1.0), (HP['floor_dk'], HP['floor']), rnd, 1, None, 0)
+    # curved wall bench
+    bd = min(0.5, depth)
+    for a in range(int(d + 110), int(d + 160), 6):
+        q, n2, _ = wall_frame(spec, a, wall_in - bd / 2, 0.22)
+        box(b, q, (bd, 0.62, 0.44), HP['floor'] if a % 12 else HP['floor_dk'], zrot(a))
+    # mushroom table and stools where the room is deep enough
+    if depth >= 0.9:
+        ta = d + 235
+        q, n2, side2 = wall_frame(spec, ta, wall_in - depth / 2, 0)
+        tube(b, [q, q + Vector((0, 0, 0.7))], [0.12, 0.08], HP['bone'], 6)
+        b.add_blob(q + Vector((0, 0, 0.74)), depth * 0.45, (1, 1, 0.18), (HP['floor_dk'], HP['floor']), rnd, 2, None, 0)
+        for s in (-1, 1):
+            st = q + side2 * s * (depth * 0.45 + 0.35)
+            tube(b, [st, st + Vector((0, 0, 0.42))], [0.08, 0.06], HP['bone'], 5)
+            b.add_blob(st + Vector((0, 0, 0.45)), 0.22, (1, 1, 0.35), (HP['cap_dk'], HP['cap']), rnd, 1, None, 0)
+    # shelves where it is shallow
+    else:
+        q, n2, side2 = wall_frame(spec, d + 235, wall_in - 0.18, 0)
+        for z in (0.4, 0.9, 1.4, 1.9):
+            box(b, q + Vector((0, 0, z)), (0.34, 1.2, 0.05), HP['timber'], zrot(d + 235))
+            b.add_blob(q + Vector((0, 0, z + 0.15)), 0.12, (1, 2.5, 1), (rnd.choice(GLASS), HP['bone']), rnd, 1, None, 0)
+    # warm wall sconces
+    for a in range(int(d + 40), int(d + 360), 70):
+        q, n2, _ = wall_frame(spec, a, wall_in - 0.08, 2.1)
+        b.mat = 1
+        b.add_blob(q, 0.12, (0.7, 0.7, 1.2), (HP['glow'], HP['glow']), rnd, 1, None, 0)
+        b.mat = 0
+        b.add_blob(q + Vector((0, 0, 0.16)), 0.13, (1, 1, 0.4), (HP['iron'], HP['iron']), rnd, 1, None, 0)
+    # front door: wavy frame and a stained-glass transom on both faces
+    dw, dh = RULES['door_w'], RULES['door_h']
+    for face, sgn in ((rr + 0.05, 1), (wall_in, -1)):
+        q, n2, side2 = wall_frame(spec, d, face, 0)
+        wavy_arch(b, q + n2 * 0.06 * sgn, zrot(d), dw + 0.2, dh + 0.35, HP['timber'], 0.08)
+        if dh + 0.6 < rh:
+            glass_cluster(b, q + n2 * 0.08 * sgn + Vector((0, 0, (dh + rh) / 2 + 0.05)), n2 * sgn, side2,
+                          dw, rh - dh - 0.3, rnd, 5)
+    # room-wall windows: roundels inside and out
+    for w in spec['windows']:
+        if len(w) > 2:
+            for face, sgn in ((rr + 0.12, 1), (wall_in - 0.02, -1)):
+                q, n2, side2 = wall_frame(spec, w[1], face, w[0] + 0.85)
+                glass_cluster(b, q, n2 * sgn, side2, 0.8, 0.35, rnd, 3)
+
+
+def shaft_details(b, spec, rnd, entry):
+    """Stair shaft: wavy arches on the openings, lanterns up the stair, mosaic band."""
+    dw, dh = RULES['door_w'], RULES['door_h']
+    bz, bdeg = spec['balcony'][0], spec['balcony'][1]
+    for deg, z in ((entry, 0.0), (bdeg, bz)):
+        for face, sgn in ((trunk_radius_at(spec, z + 1) + 0.04, 1), (trunk_radius_at(spec, z + 1) - WALL - 0.04, -1)):
+            q = tpolar(spec, face, deg, z)
+            wavy_arch(b, q, zrot(deg), dw + 0.25, dh + 0.3, HP['timber'], 0.08)
+            n = polar(1, deg) * sgn
+            side = Vector((-n.y, n.x, 0))
+            glass_cluster(b, q + n * 0.05 + Vector((0, 0, dh + 0.55)), n, side, dw * 0.8, 0.5, rnd, 4)
+    # lanterns on the shaft wall every ~2.5 m of climb
+    z = 2.0
+    while z < bz + 1.5:
+        a = entry + 60 + z * 40
+        q = tpolar(spec, trunk_radius_at(spec, z) - WALL - 0.12, a, z)
+        b.mat = 1
+        b.add_blob(q, 0.13, (0.8, 0.8, 1.3), (HP['glow'], HP['glow']), rnd, 1, None, 0)
+        b.mat = 0
+        z += 2.5
+    # trencadís band at hand height round the shaft bottom
+    for k in range(70):
+        a = rnd.uniform(0, 360)
+        z = rnd.uniform(0.9, 1.5)
+        q = tpolar(spec, trunk_radius_at(spec, z) - WALL - 0.01, a, z)
+        c = so.jitter(rnd.choice(TILE), 0.05, rnd)
+        b.add_blob(q, rnd.uniform(0.07, 0.11), (1.3, 1, 0.15), (c, c), rnd, 1, -polar(1, a), 0.3)
+
+
 # ---------------------------------------------------------------- interior
 STEP_DEG = 34   # spiral stair: degrees per step (tread about 0.6 m at mid radius)
 
@@ -436,13 +607,9 @@ def interior(b, spec, rnd):
         tube(b, [polar(r0, j, rh - 0.05), polar((r0 + r1) / 2, j + 6, rh - 0.35), polar(r1, j, rh - 0.6)], 0.09, HP['bone'], 5)
     # mushroom-shaped hearth opposite the door
     hd = spec['door_angle'] + 180
-    pts['room'] = [polar((trunk_radius_at(spec, 0) + rr) / 2, j + 15, 0.02) for j in range(0, 360, 30)
-                   if abs((j + 15 - hd + 180) % 360 - 180) > 40]   # the hearth corner is furniture
-    b.add_blob(polar(rr - 0.7, hd, 1.0), 0.7, (1.1, 0.8, 1.4), (HP['stone_dk'], HP['stone']), rnd, 2, None, 0.05)
-    b.add_blob(polar(rr - 0.9, hd, 2.2), 0.9, (1.3, 1.0, 0.45), (HP['cap_dk'], HP['cap']), rnd, 2, None, 0.05)
-    b.mat = 1
-    box(b, polar(rr - 1.35, hd, 0.55), (0.3, 0.8, 0.5), HP['glow'], zrot(hd), mat=1)
-    b.mat = 0
+    # walking ring along the trunk: furniture must leave it clear (checked below)
+    pts['room'] = [polar(trunk_radius_at(spec, 0) + PLAYER['radius'] + 0.1, j + 15, 0.02) for j in range(0, 360, 20)]
+    furnish(b, spec, rnd)
     if not spec['balcony']:
         return pts
     entry, steps, lz, land0 = stair_plan(spec)
@@ -497,6 +664,8 @@ def build_house(name, spec, rnd):
     inside = interior(b, spec, rnd)
     if isinstance(inside, tuple):
         inside = inside[0]
+    if spec['balcony']:
+        shaft_details(b, spec, rnd, stair_plan(spec)[0])
     for i, c in enumerate(spec['caps']):
         shade = (0.55, 0.1, 0.75, 0.25)[i % 4] if i < len(spec['caps']) - 1 else 0.05
         roof_cap(b, Vector(c[:3]) + trunk_off(spec, c[2]), c[3], c[4], c[5], c[6], rnd, shade, spec=spec)
@@ -577,6 +746,57 @@ def main():
         so.render(cam, fig, cuts, (3, 0, 0), (-21, -6, 0), os.path.join(prev, 'kesit_ic_mekan.png'), zoom=0.5, view=(0.15, -1.0))
         for c in cuts:
             bpy.data.objects.remove(c)
+        # inside views: each ground room with everything above 2.7 m sliced off, seen from
+        # above the door; and the tower shaft cut open. A warm fill light stands in for
+        # the game's interior lighting.
+        fill = bpy.data.objects.new('preview_fill', bpy.data.lights.new('fill', 'AREA'))
+        fill.data.energy, fill.data.color, fill.data.size = 1500, (1.0, 0.85, 0.7), 8
+        bpy.context.scene.collection.objects.link(fill)
+
+        def sliced(ob, co, no):
+            cp = ob.copy()
+            cp.data = ob.data.copy()
+            cp.hide_render = False
+            bpy.context.scene.collection.objects.link(cp)
+            bm = bmesh.new()
+            bm.from_mesh(cp.data)
+            for c, n in zip(co, no):
+                bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=c, plane_no=n, clear_outer=True)
+            bm.to_mesh(cp.data)
+            bm.free()
+            return cp
+
+        for o2 in lods.values():
+            o2[0].hide_render = True
+        for name, objs in lods.items():
+            spec = HOUSES[name]
+            cp = sliced(objs[0], [(0, 0, 2.7)], [(0, 0, 1)])
+            cp.location = (0, 0, 0)
+            rr = spec['room'][0]
+            d = spec['door_angle']
+            fill.location = (0, 0, 9)
+            cam.location = polar(rr * 1.05, d, rr * 1.9)
+            cam.data.lens = 24
+            cam.rotation_euler = (polar(rr * 0.25, d + 180, 0) - cam.location).to_track_quat('-Z', 'Y').to_euler()
+            bpy.context.scene.render.filepath = os.path.join(prev, name + '_ic.png')
+            bpy.ops.render.render(write_still=True)
+            bpy.data.objects.remove(cp)
+        # tower shaft: half the house cut away, camera close on the stair
+        spec = HOUSES['ev_kule']
+        off = trunk_off(spec, 5)
+        cp = sliced(lods['ev_kule'][0], [(0, off.y, 0)], [(0, -1, 0)])
+        cp.location = (0, 0, 0)
+        fill.location = off + Vector((0, -6, 6))
+        fill.rotation_euler = (math.radians(60), 0, 0)
+        cam.location = off + Vector((2, -13, 6.5))
+        cam.data.lens = 30
+        cam.rotation_euler = (off + Vector((0, 0, 5.5)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
+        bpy.context.scene.render.filepath = os.path.join(prev, 'ev_kule_merdiven.png')
+        bpy.ops.render.render(write_still=True)
+        bpy.data.objects.remove(cp)
+        bpy.data.objects.remove(fill)
+        for o2 in lods.values():
+            o2[0].hide_render = False
         for name, objs in lods.items():
             objs[0].location.x = xs[name]
             objs[0].hide_render = False
