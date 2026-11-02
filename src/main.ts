@@ -60,6 +60,7 @@ import { createGameHud, fmtTime, SKILL_KEYS } from './game-hud';
 import bundledMapRaw from './assets/maps/harita-47216.json?raw';
 import bundledMap8011Raw from './assets/maps/harita-8011.json?raw';
 import type { MapFile } from './mapgen/generate';
+import { PLANNER_SAVE_KEY, parseMapFile } from './mapgen/mapfile';
 
 // ---- Tuning (movement and camera) -------------------------------------------
 const MOVE = {
@@ -139,12 +140,29 @@ const AIM = { distance: 2.8, shoulder: 1.15, fov: 0.55, moveMult: 0.55, blendSpe
 
 const params = new URLSearchParams(location.search);
 const mapId = params.get('map')?.replace(/^harita-/, '');
-const selectedMap = mapId === '47216'
-  ? { id: '47216', raw: bundledMapRaw }
-  : mapId === '8011'
-    ? { id: '8011', raw: bundledMap8011Raw }
-    : undefined;
-const playingMap = selectedMap ? (JSON.parse(selectedMap.raw) as MapFile) : undefined;
+// ?map=47216 | 8011 plays a bundled planner map, ?map=planner the planner's browser autosave.
+// A missing or broken file falls back to the city block and says why.
+const BUNDLED_MAPS: Record<string, string> = { '47216': bundledMapRaw, '8011': bundledMap8011Raw };
+let playingMap: MapFile | undefined;
+let mapError = '';
+if (mapId) {
+  let raw: string | null | undefined = Object.hasOwn(BUNDLED_MAPS, mapId) ? BUNDLED_MAPS[mapId] : undefined;
+  if (mapId === 'planner') {
+    try {
+      raw = localStorage.getItem(PLANNER_SAVE_KEY);
+    } catch {
+      raw = null;
+    }
+  }
+  if (raw === undefined) mapError = `unknown map "${mapId}"`;
+  else {
+    const parsed = parseMapFile(raw);
+    if (parsed.ok) playingMap = parsed.map;
+    else mapError = parsed.reason;
+  }
+  if (mapError) console.warn(`Map ${mapId} could not be loaded: ${mapError}. Using the city block.`);
+}
+const mapLabel = mapId === 'planner' ? T('plannerMap') : `#${mapId}`;
 const seed = Number(params.get('seed')) || playingMap?.gen.seed || Math.floor(Math.random() * 1e6) + 1;
 setRandomSeed(seed);
 const DEBUG = params.has('debug');
@@ -176,7 +194,7 @@ placeHouses(scene, world)
 placeProps(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('Street props failed to load', e));
-const seedText = () => ($('seed').textContent = `${playingMap ? `Harita #${selectedMap!.id}` : `${T('city')} #${seed} · ${T('newCity')}`}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
+const seedText = () => ($('seed').textContent = `${playingMap ? `${T('map')} ${mapLabel}` : `${mapError ? `${T('mapFailed')} · ` : ''}${T('city')} #${seed} · ${T('newCity')}`}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
 seedText();
 
 const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
@@ -1034,7 +1052,7 @@ function start() {
     setWeapon(style.weapon);
     $('styles').classList.add('hidden');
     overlayText.textContent = '';
-    toast(T('startedWith', { c: kit.name, s: style.name, k: kit.skills[style.skill].name }), 2.5);
+    toast(mapError ? T('mapFailed') : T('startedWith', { c: kit.name, s: style.name, k: kit.skills[style.skill].name }), mapError ? 4 : 2.5);
   }
   running = true;
   overlay.classList.add('hidden');

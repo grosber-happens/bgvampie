@@ -20,6 +20,7 @@ import { BIOMES, DEFAULT_PARAMS, Field, KINDS, KIND_LIST, NB, applyOps, generate
 import { Atmosphere, DEFAULT_ATMOS, PRESETS, type Atmos, type PresetId } from './atmos';
 import { MapView } from './build';
 import { vendorCount } from '../mapgen/vendors.ts';
+import { PLANNER_SAVE_KEY, parseMapFile } from '../mapgen/mapfile';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('view');
@@ -50,7 +51,7 @@ atmos.exclude(view.water);
 
 // ---- State --------------------------------------------------------------------------------
 type State = { gen: Params; ops: Op[]; atmos: Atmos };
-const SAVE_KEY = 'bgv-planner-map';
+const SAVE_KEY = PLANNER_SAVE_KEY;
 function load(): State {
   const fresh = (): State => ({ gen: structuredClone(DEFAULT_PARAMS), ops: [], atmos: { ...DEFAULT_ATMOS } });
   try {
@@ -711,12 +712,19 @@ $('btn-export').addEventListener('click', () => {
   a.click();
   URL.revokeObjectURL(a.href);
 });
+// Play this map in the game: the game reads the same autosave with ?map=planner.
+$('btn-play').addEventListener('click', () => {
+  save();
+  location.href = './?map=planner';
+});
 $('btn-import').addEventListener('click', () => $<HTMLInputElement>('file').click());
 $<HTMLInputElement>('file').addEventListener('change', async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
   try {
-    const f = JSON.parse(await file.text()) as MapFile;
+    const parsed = parseMapFile(await file.text());
+    if (!parsed.ok) return flash(`Bu dosya okunamadı: ${parsed.reason}`);
+    const f = parsed.map;
     commit();
     S = { gen: { ...DEFAULT_PARAMS, ...f.gen }, ops: f.ops ?? [], atmos: { ...DEFAULT_ATMOS, ...(f.atmos as Partial<Atmos>) } };
     refreshInputs();
