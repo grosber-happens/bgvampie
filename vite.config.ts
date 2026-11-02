@@ -19,6 +19,6 @@ export default defineConfig({
     // PAGE=planner or PAGE=armory with SINGLE=1 builds that page as one file instead of the game.
     rollupOptions: process.env.SINGLE
       ? { input: resolve(__dirname, process.env.PAGE ? `${process.env.PAGE}.html` : 'index.html'), output: { inlineDynamicImports: true } }
-      : { input: { main: resolve(__dirname, 'index.html'), planner: resolve(__dirname, 'planner.html'), armory: resolve(__dirname, 'armory.html') } },
+      : { input: { main: resolve(__dirname, 'index.html'), planner: resolve(__dirname, 'planner.html'), armory: resolve(__dirname, 'armory.html'), perf: resolve(__dirname, 'perf.html') } },
   },
 });

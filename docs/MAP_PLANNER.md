@@ -25,8 +25,8 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 ## Map size and chunks
 
 - The default map is 4 × 4 km (`size: 4000`); the "Harita boyu" slider goes from 160 m to 4 km.
-- `MapView` (`src/planner/build.ts`) splits the map into chunks: terrain chunks of 64 cells (cells are about 2.5 m on small maps, 5 m on big ones, at most 920 per side), and object buckets half that size. A brush stroke, a placed or a moved object rebuilds only the chunks it touches.
-- The planner builds and draws objects only near the camera (220 to 700 m, following the zoom), two buckets per frame, nearest first. The minimap shows the whole map. The game builds every bucket at once.
+- `MapView` (`src/planner/build.ts`) splits the map into chunks: terrain chunks of 64 cells (cells are about 2.5 m on small maps, 5 m on big ones, at most 920 per side), and object buckets a quarter of that size (80 m on a 4 km map). A brush stroke, a placed or a moved object rebuilds only the chunks it touches.
+- Object buckets stream around the camera (planner) or the player (game), with LODs for objects and terrain and one thin-instance batch per shape, material and LOD. The rules and numbers are in [`PERFORMANCE.md`](PERFORMANCE.md). The planner loads 220 to 700 m around the camera, following the zoom; the minimap shows the whole map.
 - Objects grow on the natural terrain: `generate()` ignores hand lifts, so a terrain stroke moves the objects in it up or down instead of re-rolling the map.
 - A 4 km map at default density has about 344,000 objects; growing it takes several seconds after each slider change. Making it light enough for the game (chunk streaming, colliders, density) is Phase 1 work in `docs/ROADMAP.md`.
 

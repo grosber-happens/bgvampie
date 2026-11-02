@@ -1,3 +1,4 @@
+import { PERF_MAP } from './mapgen/perfmap';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -141,9 +142,9 @@ const AIM = { distance: 2.8, shoulder: 1.15, fov: 0.55, moveMult: 0.55, blendSpe
 
 const params = new URLSearchParams(location.search);
 const mapId = params.get('map')?.replace(/^harita-/, '');
-// ?map=47216 | 8011 plays a bundled planner map, ?map=planner the planner's browser autosave.
+// ?map=47216 | 8011 plays a bundled planner map, ?map=perf the 4×4 km performance test map, ?map=planner the planner's browser autosave.
 // A missing or broken file falls back to the city block and says why.
-const BUNDLED_MAPS: Record<string, string> = { '47216': bundledMapRaw, '8011': bundledMap8011Raw };
+const BUNDLED_MAPS: Record<string, string> = { '47216': bundledMapRaw, '8011': bundledMap8011Raw, perf: JSON.stringify(PERF_MAP) };
 let playingMap: MapFile | undefined;
 let mapError = '';
 if (mapId) {
@@ -1142,6 +1143,7 @@ engine.runRenderLoop(() => {
   }
   input.endFrame();
   updateCamera(dt);
+  world.stream?.(player.pos.x, player.pos.z);
   gameHud.update(live ? dt : 0);
   scene.render();
 });

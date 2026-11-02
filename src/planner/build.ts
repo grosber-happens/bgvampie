@@ -1,7 +1,7 @@
 /** Turns map data into Babylon meshes: vertex-colored terrain, water, and thin-instanced objects. */
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
-import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Scene } from '@babylonjs/core/scene';
@@ -12,50 +12,66 @@ import { FresnelParameters } from '@babylonjs/core/Materials/fresnelParameters';
 import { BIOMES, NB, type Field, type Obj } from '../mapgen/generate';
 import { fbm, rng, smooth } from '../mapgen/noise';
 import { drawObject, type Mat, type Shape, type Sink } from './kit';
+import { STREAM, TERRAIN_STRIDE, lodFor, rectDistance, streamChunks, strideSteps, unloadRadius, type Rect } from '../mapgen/stream';
+import type { Kind } from '../mapgen/generate';
 import { clayify } from '../look';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 const hex = (h: string) => Color3.FromHexString(h);
 const BIOME_COLORS = BIOMES.map((b) => b.ground.map(hex));
 
-export function baseShape(scene: Scene, shape: Shape): Mesh {
+/**
+ * Detail of each kit shape per LOD (0 = near). Far levels use fewer sides; a box is always 12 triangles.
+ * cyl/cone/taper: sides, sphere: segments, hemi: profile steps × sides, torus: sides, rock: subdivisions.
+ */
+const SHAPE_DETAIL = {
+  cyl: [16, 8, 5],
+  sphere: [10, 4, 3],
+  hemi: [[12, 24], [4, 8], [3, 6]],
+  torus: [32, 14, 7],
+  rock: [2, 1, 1],
+} as const;
+
+export function baseShape(scene: Scene, shape: Shape, lod = 0): Mesh {
   let m: Mesh;
   const up = Matrix.Translation(0, 0.5, 0);
+  const sides = SHAPE_DETAIL.cyl[lod];
   switch (shape) {
     case 'box':
       m = MeshBuilder.CreateBox('kit-box', { size: 1 }, scene);
       break;
     case 'cyl':
-      m = MeshBuilder.CreateCylinder('kit-cyl', { height: 1, diameter: 1, tessellation: 16 }, scene);
+      m = MeshBuilder.CreateCylinder('kit-cyl', { height: 1, diameter: 1, tessellation: sides }, scene);
       m.bakeTransformIntoVertices(up);
       break;
     case 'cone':
-      m = MeshBuilder.CreateCylinder('kit-cone', { height: 1, diameterTop: 0, diameterBottom: 1, tessellation: 16 }, scene);
+      m = MeshBuilder.CreateCylinder('kit-cone', { height: 1, diameterTop: 0, diameterBottom: 1, tessellation: sides }, scene);
       m.bakeTransformIntoVertices(up);
       break;
     case 'taper':
-      m = MeshBuilder.CreateCylinder('kit-taper', { height: 1, diameterTop: 0.62, diameterBottom: 1, tessellation: 16 }, scene);
+      m = MeshBuilder.CreateCylinder('kit-taper', { height: 1, diameterTop: 0.62, diameterBottom: 1, tessellation: sides }, scene);
       m.bakeTransformIntoVertices(up);
       break;
     case 'sphere':
-      m = MeshBuilder.CreateSphere('kit-sphere', { diameter: 1, segments: 10 }, scene);
+      m = MeshBuilder.CreateSphere('kit-sphere', { diameter: 1, segments: SHAPE_DETAIL.sphere[lod] }, scene);
       break;
     case 'hemi': {
+      const [steps, around] = SHAPE_DETAIL.hemi[lod];
       const pts: Vector3[] = [];
-      for (let i = 0; i <= 12; i++) {
-        const t = (i / 12) * (Math.PI / 2);
+      for (let i = 0; i <= steps; i++) {
+        const t = (i / steps) * (Math.PI / 2);
         pts.push(new Vector3(Math.cos(t) * 0.5, Math.sin(t), 0));
       }
-      m = MeshBuilder.CreateLathe('kit-hemi', { shape: pts, tessellation: 24, closed: true, cap: Mesh.CAP_START }, scene);
+      m = MeshBuilder.CreateLathe('kit-hemi', { shape: pts, tessellation: around, closed: true, cap: Mesh.CAP_START }, scene);
       break;
     }
     case 'torus':
-      m = MeshBuilder.CreateTorus('kit-torus', { diameter: 0.9, thickness: 0.1, tessellation: 32 }, scene);
+      m = MeshBuilder.CreateTorus('kit-torus', { diameter: 0.9, thickness: 0.1, tessellation: SHAPE_DETAIL.torus[lod] }, scene);
       // Height normalized to 1, so a part's y scale is the tube height in meters.
       m.bakeTransformIntoVertices(Matrix.Scaling(1, 10, 1));
       break;
     case 'rock': {
-      m = MeshBuilder.CreateIcoSphere('kit-rock', { radius: 0.5, subdivisions: 2, flat: false }, scene);
+      m = MeshBuilder.CreateIcoSphere('kit-rock', { radius: 0.5, subdivisions: SHAPE_DETAIL.rock[lod], flat: false }, scene);
       const pos = m.getVerticesData(VertexBuffer.PositionKind)!;
       for (let i = 0; i < pos.length; i += 3) {
         const k = 1 + 0.22 * fbm(pos[i] * 3 + 7, pos[i + 2] * 3 + pos[i + 1] * 2, 3, 2);
@@ -73,35 +89,122 @@ export function baseShape(scene: Scene, shape: Shape): Mesh {
   return m;
 }
 
-type Group = { mesh: Mesh; mats: number[]; cols: number[] };
+/** One object chunk's parts for one batch: 16 matrix floats and 4 color floats per part. */
+type Parts = { mats: number[]; cols: number[] };
+
+/**
+ * One draw call: every part of one shape and material at one LOD, from every loaded chunk,
+ * packed into one thin-instance buffer. Repacked only when a chunk loads, unloads or changes LOD.
+ */
+type Batch = { key: string; lod: number; mesh: Mesh; mats: Float32Array; cols: Float32Array | null; dirty: boolean };
+
+/**
+ * A Blender model with three LOD levels (see src/models.ts): lods[level] holds its part meshes,
+ * `scale` turns a map object's size into model units.
+ */
+export type LodModel = { name: string; lods: Mesh[][]; scale: number };
 
 /** A circle on the map that changed (brush stroke, placed or moved object). */
 export type Area = { x: number; z: number; r: number };
 
 /** Terrain cells per chunk side. One chunk is one terrain mesh. */
 const CHUNK_CELLS = 64;
-/** Object buckets per terrain chunk side: objects are culled and rebuilt in these smaller squares. */
-const SPLIT = 2;
+/** Object buckets per terrain chunk side: objects are streamed and rebuilt in these smaller squares. */
+const SPLIT = 4;
 
-type Rect = { x0: number; z0: number; x1: number; z1: number };
 type Chunk = Rect & {
   i0: number; // first terrain cell column
   j0: number; // first terrain cell row
   ni: number;
   nj: number;
   terrain: Mesh;
+  /** Terrain LOD shown now (index into TERRAIN_STRIDE). */
+  lod: number;
 };
-type Bucket = Rect & { objs: Obj[]; groups: Map<string, Group>; dirty: boolean; shown: boolean };
+type Bucket = Rect & {
+  objs: Obj[];
+  /** Parts per batch key, at `lod`; null while the bucket is not loaded. */
+  parts: Map<string, Parts> | null;
+  lod: number;
+  /** An edit touched it: rebuild even if the LOD stays. */
+  dirty: boolean;
+};
+
+/** Rim vertices and index lists per chunk size and stride, shared by every chunk of that size. */
+const rimCache = new Map<string, { rim: number[]; skirtOf: Int32Array }>();
+const indexCache = new Map<string, Uint32Array>();
+
+/** Grid vertices on the border of an ni × nj vertex grid, and where each one's skirt vertex sits. */
+function rimOf(ni: number, nj: number) {
+  const key = `${ni}x${nj}`;
+  let r = rimCache.get(key);
+  if (!r) {
+    const n = ni * nj;
+    const skirtOf = new Int32Array(n).fill(-1);
+    const rim: number[] = [];
+    const add = (k: number) => {
+      if (skirtOf[k] >= 0) return;
+      skirtOf[k] = n + rim.length;
+      rim.push(k);
+    };
+    for (let i = 0; i < ni; i++) add(i), add((nj - 1) * ni + i);
+    for (let j = 0; j < nj; j++) add(j * ni), add(j * ni + ni - 1);
+    r = { rim, skirtOf };
+    rimCache.set(key, r);
+  }
+  return r;
+}
+
+/** Triangles of one terrain chunk at a stride, with skirts on all four edges. */
+function terrainIndices(cells: number, rows: number, stride: number): Uint32Array {
+  const key = `${cells}x${rows}@${stride}`;
+  let idx = indexCache.get(key);
+  if (idx) return idx;
+  const ni = cells + 1;
+  const { skirtOf } = rimOf(ni, rows + 1);
+  const cs = strideSteps(cells, stride), rs = strideSteps(rows, stride);
+  const out: number[] = [];
+  for (let b = 0; b + 1 < rs.length; b++)
+    for (let a = 0; a + 1 < cs.length; a++) {
+      const v00 = rs[b] * ni + cs[a], v10 = rs[b] * ni + cs[a + 1], v01 = rs[b + 1] * ni + cs[a], v11 = rs[b + 1] * ni + cs[a + 1];
+      out.push(v00, v10, v01, v10, v11, v01);
+    }
+  // Skirts face both ways, so a crack is covered from either side.
+  const skirt = (p: number, q: number) => {
+    const sp = skirtOf[p], sq = skirtOf[q];
+    out.push(p, q, sp, q, sq, sp, p, sp, q, q, sp, sq);
+  };
+  for (let a = 0; a + 1 < cs.length; a++) {
+    skirt(cs[a], cs[a + 1]);
+    skirt(rows * ni + cs[a], rows * ni + cs[a + 1]);
+  }
+  for (let b = 0; b + 1 < rs.length; b++) {
+    skirt(rs[b] * ni, rs[b + 1] * ni);
+    skirt(rs[b] * ni + cells, rs[b + 1] * ni + cells);
+  }
+  idx = new Uint32Array(out);
+  indexCache.set(key, idx);
+  return idx;
+}
+
+/** Longest side of a part in meters, from its world matrix. */
+function partSize(m: ArrayLike<number>): number {
+  return Math.max(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
+}
 
 /**
- * Terrain and objects of one map, split into square chunks so a 4 km map stays editable:
- * an edit rebuilds only the chunks it touches, and with `viewRadius` set only chunks near the
- * camera build and draw their objects (`update`).
+ * Terrain and objects of one map, split into square chunks so a 4 km map stays editable and
+ * playable. An edit rebuilds only the chunks it touches. `update` streams object chunks around a
+ * point (load and unload radii from mapgen/stream.ts), picks LODs for objects and terrain with a
+ * hysteresis band, and packs every loaded chunk into one thin-instance batch per shape, material
+ * and LOD, so draw calls stay flat however big the map is.
  */
 export class MapView {
   readonly water: Mesh;
   private chunks: Chunk[] = [];
   private buckets: Bucket[] = [];
+  private batches = new Map<string, Batch>();
+  private models = new Map<Kind, LodModel[]>();
   private nc = 0; // chunks per side
   private nb = 0; // object buckets per side
   private extent = 0; // terrain side in meters
@@ -110,10 +213,16 @@ export class MapView {
   private glowMat: StandardMaterial;
   private terrainMat: StandardMaterial;
   private field: Field | null = null;
-  /** Object meshes are built and drawn only within this distance of `update`'s point. */
+  /** Object chunks load within this distance of `update`'s point and unload past unloadRadius(viewRadius). */
   viewRadius = Infinity;
+  /** Batches below this LOD cast shadows (the game uses 1: only near objects, so the shadow map stays sharp). */
+  castLods = 3;
+  /** Terrain chunks cast shadows too (off in the game: on a 4 km map they would stretch the shadow map). */
+  terrainCasts = true;
   onCasters: (meshes: Mesh[]) => void = () => {};
   count = 0;
+  /** Chunk builds and batch repacks since the last `update`, for the perf page. */
+  stats = { builds: 0, repacks: 0, loaded: 0 };
 
   constructor(private scene: Scene) {
     this.clayMat = new StandardMaterial('kit-clay', scene);
@@ -191,7 +300,8 @@ export class MapView {
     const res = Math.max(200, Math.min(920, Math.round(extent / 5)));
     if (extent === this.extent && res === this.res) return false;
     for (const c of this.chunks) c.terrain.dispose();
-    for (const b of this.buckets) for (const g of b.groups.values()) g.mesh.dispose();
+    for (const b of this.batches.values()) b.mesh.dispose();
+    this.batches.clear();
     this.extent = extent;
     this.res = res;
     this.nc = Math.ceil(res / CHUNK_CELLS);
@@ -206,7 +316,7 @@ export class MapView {
         terrain.material = this.terrainMat;
         terrain.metadata = 'terrain';
         const x0 = -extent / 2 + i0 * cell, z0 = -extent / 2 + j0 * cell;
-        this.chunks.push({ i0, j0, ni, nj, x0, z0, x1: x0 + ni * cell, z1: z0 + nj * cell, terrain });
+        this.chunks.push({ i0, j0, ni, nj, x0, z0, x1: x0 + ni * cell, z1: z0 + nj * cell, terrain, lod: 0 });
       }
     this.nb = this.nc * SPLIT;
     this.buckets = [];
@@ -214,7 +324,7 @@ export class MapView {
     for (let bj = 0; bj < this.nb; bj++)
       for (let bi = 0; bi < this.nb; bi++) {
         const x0 = -extent / 2 + bi * bs, z0 = -extent / 2 + bj * bs;
-        this.buckets.push({ x0, z0, x1: x0 + bs, z1: z0 + bs, objs: [], groups: new Map(), dirty: true, shown: false });
+        this.buckets.push({ x0, z0, x1: x0 + bs, z1: z0 + bs, objs: [], parts: null, lod: -1, dirty: true });
       }
     return true;
   }
@@ -231,7 +341,7 @@ export class MapView {
     for (const c of fresh ? this.chunks : this.touched(this.chunks, areas)) this.buildChunkTerrain(field, c);
     this.water.scaling.set(this.extent * 1.4, 1, this.extent * 1.4);
     this.water.position.y = p.water;
-    if (fresh) this.onCasters(this.terrainMeshes);
+    if (fresh && this.terrainCasts) this.onCasters(this.terrainMeshes);
   }
 
   private buildChunkTerrain(field: Field, c: Chunk) {
@@ -246,7 +356,9 @@ export class MapView {
     for (let j = -1; j <= nj; j++)
       for (let i = -1; i <= ni; i++) hs[(j + 1) * mi + i + 1] = field.height(-size / 2 + (c.i0 + i) * step, -size / 2 + (c.j0 + j) * step);
     const H = (i: number, j: number) => hs[(j + 1) * mi + i + 1];
-    const n = ni * nj;
+    const ng = ni * nj;
+    const { rim } = rimOf(ni, nj);
+    const n = ng + rim.length;
     const pos = new Float32Array(n * 3);
     const col = new Float32Array(n * 4);
     const uv = new Float32Array(n * 2);
@@ -309,16 +421,20 @@ export class MapView {
         col[k * 4 + 2] = b;
         col[k * 4 + 3] = 1;
       }
+    // Skirt vertices: copies of the rim, hanging below it.
+    for (let t = 0; t < rim.length; t++) {
+      const k = rim[t], q = ng + t;
+      pos[q * 3] = pos[k * 3];
+      pos[q * 3 + 1] = pos[k * 3 + 1] - STREAM.skirt;
+      pos[q * 3 + 2] = pos[k * 3 + 2];
+      for (let e = 0; e < 4; e++) col[q * 4 + e] = col[k * 4 + e];
+      uv[q * 2] = uv[k * 2];
+      uv[q * 2 + 1] = uv[k * 2 + 1];
+      for (let e = 0; e < 3; e++) normals[q * 3 + e] = normals[k * 3 + e];
+    }
     const m = c.terrain;
     if (!m.getTotalVertices()) {
-      const idx = new Uint32Array(c.ni * c.nj * 6);
-      let q = 0;
-      for (let j = 0; j < c.nj; j++)
-        for (let i = 0; i < c.ni; i++) {
-          const a = j * ni + i, b2 = a + 1, cc = a + ni, d = cc + 1;
-          idx[q++] = a; idx[q++] = b2; idx[q++] = cc;
-          idx[q++] = b2; idx[q++] = d; idx[q++] = cc;
-        }
+      const idx = terrainIndices(c.ni, c.nj, TERRAIN_STRIDE[c.lod]);
       m.setIndices(idx, n);
       m.setVerticesData(VertexBuffer.PositionKind, pos, true);
       m.setVerticesData(VertexBuffer.ColorKind, col, true);
@@ -339,6 +455,13 @@ export class MapView {
     return this.buckets[bj * this.nb + bi];
   }
 
+  /** Draw every object of this kind with Blender models (three LODs each) instead of its kit recipe; variants pick by the object's number. */
+  useModels(kind: Kind, models: LodModel[]) {
+    if (!models.length) return;
+    this.models.set(kind, models);
+    for (const b of this.buckets) if (b.objs.some((o) => o.k === kind)) b.dirty = true;
+  }
+
   /**
    * Hand the objects to their chunks. With areas, only chunks those areas touch are redrawn;
    * without, all of them. Build terrain first: the chunk layout comes from it.
@@ -353,71 +476,176 @@ export class MapView {
   }
 
   /**
-   * Show object chunks near (x, z) and hide far ones. Builds at most `budget` dirty chunks per call,
-   * nearest first, so a big map fills in over a few frames instead of freezing.
+   * Stream around a viewer at (x, z), `eye` meters above the ground: load chunks inside viewRadius,
+   * free them past unloadRadius, update object and terrain LODs, then repack the batches that changed.
+   * At most `budget` chunk builds happen per call, nearest first, so a big map fills in over a few
+   * frames instead of freezing one.
    */
-  update(x: number, z: number, budget = Infinity) {
-    const R = this.viewRadius;
-    const near: [number, Bucket][] = [];
-    for (const c of this.buckets) {
-      const dx = Math.max(c.x0 - x, 0, x - c.x1), dz = Math.max(c.z0 - z, 0, z - c.z1);
-      const d = Math.hypot(dx, dz);
-      const show = d <= R;
-      if (show) near.push([d, c]);
-      if (show !== c.shown) {
-        c.shown = show;
-        for (const g of c.groups.values()) g.mesh.setEnabled(show && g.cols.length > 0);
+  update(x: number, z: number, budget = Infinity, eye = 0) {
+    this.stats.builds = this.stats.repacks = 0;
+    const dist = (r: Rect) => Math.hypot(rectDistance(r, x, z), eye);
+
+    for (const c of this.chunks) {
+      const lod = lodFor(dist(c), c.lod, STREAM.terrainBands);
+      if (lod !== c.lod && c.terrain.getTotalVertices()) {
+        c.lod = lod;
+        c.terrain.setIndices(terrainIndices(c.ni, c.nj, TERRAIN_STRIDE[lod]), c.terrain.getTotalVertices());
       }
     }
-    near.sort((a, b) => a[0] - b[0]);
-    for (const [, c] of near) {
-      if (budget <= 0) break;
-      if (!c.dirty || !this.field) continue;
-      this.buildBucket(this.field, c);
-      budget--;
+
+    const load = this.viewRadius;
+    const { load: toLoad, unload } = streamChunks(this.buckets, (b) => b.parts !== null, x, z, load, unloadRadius(load));
+    for (const b of unload) {
+      this.markBatches(b);
+      b.parts = null;
+      b.lod = -1;
+      b.dirty = true;
+    }
+    // Loaded chunks that need a rebuild: edited, or their LOD moved past the hysteresis band.
+    const work: [number, Bucket, number][] = [];
+    for (const b of toLoad) {
+      const d = dist(b);
+      work.push([d, b, lodFor(d, -1, STREAM.objectBands)]);
+    }
+    for (const b of this.buckets) {
+      if (!b.parts) continue;
+      const d = dist(b);
+      const lod = lodFor(d, b.lod, STREAM.objectBands);
+      if (lod !== b.lod || b.dirty) work.push([d, b, lod]);
+    }
+    work.sort((p, q) => p[0] - q[0]);
+    for (const [, b, lod] of work) {
+      if (budget-- <= 0) break;
+      if (this.field) this.buildBucket(this.field, b, lod);
+    }
+
+    let loaded = 0;
+    for (const b of this.buckets) if (b.parts) loaded++;
+    this.stats.loaded = loaded;
+    for (const batch of this.batches.values()) if (batch.dirty) this.repack(batch);
+  }
+
+  private markBatches(b: Bucket) {
+    if (!b.parts) return;
+    for (const key of b.parts.keys()) {
+      const batch = this.batches.get(key + '|' + b.lod);
+      if (batch) batch.dirty = true;
     }
   }
 
-  private buildBucket(field: Field, c: Bucket) {
-    c.dirty = false;
-    for (const g of c.groups.values()) {
-      g.mats.length = 0;
-      g.cols.length = 0;
+  private batch(key: string, lod: number): Batch {
+    const id = key + '|' + lod;
+    let batch = this.batches.get(id);
+    if (!batch) {
+      let mesh: Mesh;
+      if (key.startsWith('model|')) {
+        // model|<kind>|<variant>|<part>
+        const [, kind, variant, part] = key.split('|');
+        const src = this.models.get(kind as Kind)![Number(variant)].lods[lod][Number(part)];
+        mesh = src.clone(`map-${id}`, null, true, false) as Mesh;
+        mesh.makeGeometryUnique();
+        mesh.setEnabled(true);
+      } else {
+        const [shape, mat] = key.split('|') as [Shape, Mat];
+        mesh = baseShape(this.scene, shape, lod);
+        mesh.material = mat === 'glow' ? this.glowMat : this.clayMat;
+        mesh.receiveShadows = mat !== 'glow';
+      }
+      mesh.name = `map-${id}`;
+      mesh.isPickable = false;
+      batch = { key, lod, mesh, mats: new Float32Array(0), cols: null, dirty: true };
+      this.batches.set(id, batch);
+      if (lod < this.castLods) this.onCasters([mesh]);
     }
+    return batch;
+  }
+
+  private buildBucket(field: Field, b: Bucket, lod: number) {
+    this.markBatches(b);
+    const parts = new Map<string, Parts>();
+    const minPart = STREAM.minPart[lod];
+    const put = (key: string, a: ArrayLike<number>, r: number, g: number, bl: number) => {
+      let p = parts.get(key);
+      if (!p) parts.set(key, (p = { mats: [], cols: [] }));
+      for (let i = 0; i < 16; i++) p.mats.push(a[i]);
+      p.cols.push(r, g, bl, 1);
+    };
     const sink: Sink = {
-      part: (shape: Shape, mat: Mat, r: number, g: number, b: number, m: Matrix) => {
-        const key = shape + '|' + mat;
-        let grp = c.groups.get(key);
-        if (!grp) {
-          const mesh = baseShape(this.scene, shape);
-          mesh.name = `kit-${key}`;
-          mesh.material = mat === 'glow' ? this.glowMat : this.clayMat;
-          mesh.receiveShadows = mat !== 'glow';
-          grp = { mesh, mats: [], cols: [] };
-          c.groups.set(key, grp);
-          this.onCasters([mesh]);
-        }
-        const a = m.m;
-        for (let i = 0; i < 16; i++) grp.mats.push(a[i]);
-        grp.cols.push(r, g, b, 1);
+      part: (shape: Shape, mat: Mat, r: number, g: number, bl: number, m: Matrix) => {
+        // Small parts vanish at distance; glowing ones stay, lamps read from far away.
+        if (mat !== 'glow' && minPart > 0 && partSize(m.m) < minPart) return;
+        put(shape + '|' + mat, m.m, r, g, bl);
       },
     };
-    for (const o of c.objs) {
+    const tmp = new Matrix();
+    for (const o of b.objs) {
       // Sink depth comes from the object's own number, so redrawing one chunk never shifts another.
       const y = field.height(o.x, o.z) - (o.k === 'nokta' ? 0 : 0.15 + ((o.v * 7919) % 100) / 1000);
+      const variants = this.models.get(o.k);
+      if (variants) {
+        const vi = Math.abs(o.v) % variants.length;
+        const model = variants[vi];
+        const s = o.s * model.scale;
+        Matrix.ComposeToRef(new Vector3(s, s, s), Quaternion.RotationYawPitchRoll(o.r, 0, 0), new Vector3(o.x, y, o.z), tmp);
+        for (let i = 0; i < model.lods[lod].length; i++) put(`model|${o.k}|${vi}|${i}`, tmp.m, 1, 1, 1);
+        continue;
+      }
       drawObject(sink, o, o.k === 'nokta' ? y + 0.03 : y, field.biome(o.x, o.z));
     }
-    for (const g of c.groups.values()) {
-      const n = g.cols.length / 4;
-      g.mesh.setEnabled(c.shown && n > 0);
-      if (!n) continue;
-      g.mesh.thinInstanceSetBuffer('matrix', new Float32Array(g.mats), 16, false);
-      g.mesh.thinInstanceSetBuffer('color', new Float32Array(g.cols), 4, false);
-      g.mesh.thinInstanceRefreshBoundingInfo(false);
-    }
+    b.parts = parts;
+    b.lod = lod;
+    b.dirty = false;
+    for (const key of parts.keys()) this.batch(key, lod).dirty = true;
+    this.stats.builds++;
   }
 
+  /** Copy every loaded chunk's parts for this batch into its buffers. */
+  private repack(batch: Batch) {
+    batch.dirty = false;
+    this.stats.repacks++;
+    let n = 0;
+    for (const b of this.buckets) {
+      if (b.lod !== batch.lod || !b.parts) continue;
+      const p = b.parts.get(batch.key);
+      if (p) n += p.cols.length / 4;
+    }
+    const mesh = batch.mesh;
+    if (!n) {
+      mesh.setEnabled(false);
+      return;
+    }
+    const model = batch.key.startsWith('model|');
+    const grow = batch.mats.length < n * 16;
+    if (grow) {
+      // Room to grow, so walking around rarely reallocates.
+      const cap = Math.ceil(n * 1.5) + 16;
+      batch.mats = new Float32Array(cap * 16);
+      batch.cols = model ? null : new Float32Array(cap * 4);
+    }
+    let q = 0;
+    for (const b of this.buckets) {
+      if (b.lod !== batch.lod || !b.parts) continue;
+      const p = b.parts.get(batch.key);
+      if (!p) continue;
+      batch.mats.set(p.mats, q * 16);
+      batch.cols?.set(p.cols, q * 4);
+      q += p.cols.length / 4;
+    }
+    if (grow) {
+      mesh.thinInstanceSetBuffer('matrix', batch.mats, 16, false);
+      if (batch.cols) mesh.thinInstanceSetBuffer('color', batch.cols, 4, false);
+    }
+    mesh.thinInstanceCount = n;
+    if (!grow) {
+      mesh.thinInstanceBufferUpdated('matrix');
+      if (batch.cols) mesh.thinInstanceBufferUpdated('color');
+    }
+    mesh.thinInstanceRefreshBoundingInfo(false);
+    mesh.setEnabled(true);
+  }
+
+  /** Every object batch mesh. */
   meshes(): Mesh[] {
-    return this.buckets.flatMap((c) => [...c.groups.values()].map((g) => g.mesh));
+    return [...this.batches.values()].map((b) => b.mesh);
   }
 }

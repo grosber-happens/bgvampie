@@ -11,6 +11,7 @@ import houseColliders from './assets/house-colliders.json';
 import { Field, KINDS, SPOR_KINDS, applyOps, generate, type MapFile, type Obj, type SporKind } from './mapgen/generate';
 import sporCollide from './assets/spor/carpisma.json';
 import { MapView } from './planner/build';
+import { STREAM, loadRadiusForFog } from './mapgen/stream';
 
 /** Baked collision boxes per Spor Ormanı model: [x, z, hw, hd, y0, y1] in model units (tools/blender/spor_carpisma.py). */
 const SPOR_COLLIDE = sporCollide as Record<string, number[][] | undefined>;
@@ -62,6 +63,9 @@ export type World = {
   field?: Field;
   mapObjects?: Obj[];
   spawn?: Vector3;
+  /** Planner maps: stream object chunks, LODs and batches around the player (call every frame). */
+  stream?: (x: number, z: number) => void;
+  view?: MapView;
 };
 
 const mapFields = new WeakMap<Box[], { field: Field; half: number }>();
@@ -111,12 +115,16 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     const file = opts.mapFile;
     const field = new Field(file.gen, file.ops ?? []);
     const mapObjects = applyOps(generate(field), file.ops ?? []);
+    scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
     const view = new MapView(scene);
+    // Only near objects cast shadows, so the shadow map covers the fight, not the whole 4 km map.
+    view.castLods = 1;
+    view.terrainCasts = false;
+    view.viewRadius = loadRadiusForFog(scene.fogDensity);
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
     // Spor Ormanı Blender models are loaded by spor.ts.
     view.buildObjects(field, mapObjects.filter((o) => !(o.k in SPOR_KINDS)));
-    scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
     const boxes: Box[] = [];
     const half = file.gen.size / 2;
     for (const o of mapObjects) {
@@ -152,9 +160,12 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
       boxes.push({ x: o.x, z: o.z, hw: h, hd: h, y0, y1: y + Math.max(1.4, r * 1.15) });
     }
     mapFields.set(boxes, { field, half });
-    const world: World = { boxes, houses: [], props: [], shadows, seed, field, mapObjects };
+    const world: World = { boxes, houses: [], props: [], shadows, seed, field, mapObjects, view };
     const spawnRand = rng(seed + 913);
     world.spawn = findOpenSpot(boxes, spawnRand, 0.65);
+    // Everything in sight of the spawn builds now; the rest streams in a few chunks per frame.
+    view.update(world.spawn.x, world.spawn.z);
+    world.stream = (x, z) => view.update(x, z, STREAM.buildsPerFrame);
     return world;
   }
 
