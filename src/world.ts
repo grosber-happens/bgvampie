@@ -8,7 +8,7 @@ import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import houseColliders from './assets/house-colliders.json';
-import { Field, KINDS, applyOps, generate, type MapFile, type Obj } from './mapgen/generate';
+import { Field, KINDS, SPOR_KINDS, applyOps, generate, type MapFile, type Obj, type SporKind } from './mapgen/generate';
 import { MapView } from './planner/build';
 
 /** Every solid thing in the city is an axis-aligned box: center x/z, half sizes, bottom and top height. */
@@ -110,13 +110,23 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     const view = new MapView(scene);
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
-    view.buildObjects(field, mapObjects);
+    // Spor Ormanı Blender models are loaded by spor.ts.
+    view.buildObjects(field, mapObjects.filter((o) => !(o.k in SPOR_KINDS)));
     shadows.addShadowCaster(view.terrain);
     scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
     const boxes: Box[] = [];
     const half = file.gen.size / 2;
     for (const o of mapObjects) {
       if (o.k === 'nokta') continue;
+      if (o.k in SPOR_KINDS) {
+        // Only the trunk/stem is solid for now; rooms, stairs and bridge decks need their own boxes later.
+        const solid = SPOR_KINDS[o.k as SporKind].solid;
+        if (solid) {
+          const y = field.height(o.x, o.z);
+          boxes.push({ x: o.x, z: o.z, hw: solid[0] * o.s, hd: solid[0] * o.s, y0: y - 0.2, y1: y + solid[1] * o.s });
+        }
+        continue;
+      }
       const r = KINDS[o.k].r * o.s;
       const h = Math.max(0.3, r * 0.72);
       const y = field.height(o.x, o.z);
