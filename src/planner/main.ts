@@ -16,6 +16,7 @@ import '@fontsource/fredoka/400.css';
 import '@fontsource/fredoka/600.css';
 import './planner.css';
 import { setLookScene } from '../look';
+import { isLucky } from '../shop.ts';
 import { BIOMES, DEFAULT_PARAMS, Field, KINDS, KIND_LIST, NB, applyOps, generate, type Category, type Kind, type MapFile, type Obj, type Op, type Params } from '../mapgen/generate';
 import { Atmosphere, DEFAULT_ATMOS, PRESETS, type Atmos, type PresetId } from './atmos';
 import { MapView } from './build';
@@ -103,7 +104,7 @@ function rebuild(terrain = true) {
   camera.upperRadiusLimit = S.gen.size * 2;
   drawMinimap();
   mirrorLines();
-  $('stat-count').textContent = `${objs.length} nesne · ${objs.filter((o) => o.k === 'satici').length} satıcı`;
+  $('stat-count').textContent = `${objs.length} nesne · ${objs.filter((o) => o.k === 'satici' || o.k === 'sansli').length} satıcı`;
   $('stat-time').textContent = `${Math.round(performance.now() - t0)} ms`;
   save();
 }
@@ -676,12 +677,12 @@ function drawMinimap() {
     ctx.arc(((o.x + size / 2) / size) * N, ((size / 2 - o.z) / size) * N, r, 0, Math.PI * 2);
     ctx.fill();
   }
-  // Vendor machines: amber dots with an ink rim.
+  // Vendor machines: amber dots (violet = lucky) with an ink rim.
   for (const o of objs) {
-    if (o.k !== 'satici') continue;
+    if (o.k !== 'satici' && o.k !== 'sansli') continue;
     ctx.beginPath();
     ctx.arc(((o.x + size / 2) / size) * N, ((size / 2 - o.z) / size) * N, 2.6, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffb347';
+    ctx.fillStyle = o.k === 'sansli' || (!o.m && isLucky(o.v)) ? '#c58cf0' : '#ffb347';
     ctx.fill();
     ctx.lineWidth = 1;
     ctx.strokeStyle = '#15131a';

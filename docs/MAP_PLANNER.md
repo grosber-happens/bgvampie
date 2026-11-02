@@ -9,7 +9,7 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
   - `noise.ts`: seeded random and value/fractal/ridged noise.
 - Landscapes follow `design/dunya-tasarimi.md`: Kızıl Kanyon in the middle; clockwise from north Spor Ormanı, Asma Köyler, Turkuaz Lagün, Kehribar Kumu, Kemik Şehir. Borders are wobbly and blended, never hard lines. Each landscape has its own terrain shape (canyon cuts, rolling spore hills, high village ridges, lagoon islands, dunes, city terraces).
 - Landmarks: the Kızıl Katedral in the canyon center and the Fallen Giant (Düşmüş Dev, design §11.1). The ground flattens under them.
-- Vendor machines (Kurbağa Loncası, `src/mapgen/vendors.ts`): placed before everything else on dry, flat ground away from landmarks, spread evenly (best-candidate sampling) with at least one per landscape. The count follows the map size: one machine for about every 0.1 km² (nearest machine about 130 m away on average, 200 m at worst). The "Satıcı makineleri" slider scales the count (0 = none); the minimap shows them as amber dots. See `docs/SHOP.md`.
+- Vendor machines (Kurbağa Loncası, `src/mapgen/vendors.ts`): placed before everything else on dry, flat ground away from landmarks, spread evenly (best-candidate sampling) with at least one per landscape. The count follows the map size: one machine for about every 0.1 km² (nearest machine about 130 m away on average, 200 m at worst). The "Satıcı makineleri" slider scales the count (0 = none); the minimap shows them as amber dots, lucky ones (one in four) violet. You can also place machines by hand: Yerleştir (2) → Simge → "Satıcı makinesi" (normal) or "Şanslı makine" (lucky, violet shell). A hand-placed machine is exactly the kind you picked. See `docs/SHOP.md`.
 - Objects are made only of primitives (box, cylinder, cone, sphere, dome, ring, rock) in `src/planner/kit.ts`: 27 kinds, such as tower mushrooms with balconies and windows, Moebius flat-top trees, giant flowers, Gardener robots, walking houses, buried gears, blood pipes, boilers, antenna towers, monowheels, stone heads and hands, clay domes, brutalist blocks, hanging highways, capsule houses, red gates, lagoon arches, moss hills with faces and Kusama polka dots. All parts are thin instances: about one draw call per shape.
 
 ## Editor
@@ -30,7 +30,7 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 - `src/mapgen/mapfile.ts` checks every file before the game builds it (`parseMapFile`): version 1, numeric seed, size 50–8000 m, one flag per landscape, and well-formed hand edits with known kinds. Missing generator settings take the planner defaults. The planner's import uses the same check.
 - A broken, empty or unknown map never crashes the game: it plays the old city block, the title line and the start toast say "Harita yüklenemedi, şehir bloğu açıldı", and the console logs why.
 - `src/world.ts` builds the terrain and objects with the planner's `MapView`. Actors walk on the terrain height, and the map edge stops them (`resolveWalls`).
-- Every object except Kusama dots becomes one solid box from its footprint (`r × 0.72` half size). The box starts at the lowest ground under its footprint, so nothing slips under it on a slope. Vendor machines come from the map's `satici` objects.
+- Every object except Kusama dots becomes one solid box from its footprint (`r × 0.72` half size). The box starts at the lowest ground under its footprint, so nothing slips under it on a slope. Vendor machines come from the map's `satici` and `sansli` objects.
 
 ## Not yet
 

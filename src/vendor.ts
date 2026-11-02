@@ -40,10 +40,11 @@ export function buildVendors(scene: Scene, world: World, seed: number, count = 2
   shopSeed = seed;
   if (world.mapObjects && world.field) {
     for (const o of world.mapObjects) {
-      if (o.k !== 'satici') continue;
-      MACHINES.push({ id: o.v, pos: new Vector3(o.x, world.field.height(o.x, o.z), o.z), yaw: o.r, lucky: isLucky(o.v) });
+      if (o.k !== 'satici' && o.k !== 'sansli') continue;
+      // Placed by hand in the planner: the kind decides. Placed by the generator: one in four is lucky.
+      const lucky = o.k === 'sansli' || (!o.m && isLucky(o.v));
+      MACHINES.push({ id: MACHINES.length, pos: new Vector3(o.x, world.field.height(o.x, o.z), o.z), yaw: o.r, lucky });
     }
-    oneLucky();
     return;
   }
   const spots = placeVendors({
@@ -98,11 +99,6 @@ export function buildVendors(scene: Scene, world: World, seed: number, count = 2
     g.mesh.thinInstanceSetBuffer('color', new Float32Array(g.cols), 4, false);
     g.mesh.thinInstanceRefreshBoundingInfo(false);
   }
-}
-
-/** Small maps with fewer than 4 machines still get one lucky machine (the last one). */
-function oneLucky() {
-  if (MACHINES.length && !MACHINES.some((m) => m.lucky)) MACHINES[MACHINES.length - 1].lucky = true;
 }
 
 /** The machine the player stands at, if any. */

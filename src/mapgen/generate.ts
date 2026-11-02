@@ -117,7 +117,8 @@ export const KINDS = {
   nokta: { name: 'Puantiye', cat: 'dots', aff: [0, 1, 0.1, 0, 0, 0], cell: 3.2, r: 0.6, s: [0.4, 1.6] },
   katedral: { name: 'Kızıl Katedral', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 16, s: [1, 1] },
   dev: { name: 'Düşmüş Dev', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 30, s: [1, 1] },
-  satici: { name: 'Kurbağa Loncası makinesi', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
+  satici: { name: 'Satıcı makinesi', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
+  sansli: { name: 'Şanslı makine', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
 } as const satisfies Record<string, { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] }>;
 export type Kind = keyof typeof KINDS;
 export const KIND_LIST = Object.keys(KINDS) as Kind[];
