@@ -24,6 +24,16 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 
 `src/planner/atmos.ts`: watercolor sky shader with the huge amber sun in the west, depth-based height fog that glows toward the sun, Moebius-style ink outlines from depth edges, god rays, spores in the air, up to three koi high in the sky, and the Kızıl Sis ring at the map edge.
 
+## In the game
+
+- `?map=47216` and `?map=8011` play the two maps bundled in `src/assets/maps/` (also buttons on the title screen). `?map=planner` plays the planner's browser autosave; the planner's **Oyunda oyna** button saves and opens it (same browser only).
+- `src/mapgen/mapfile.ts` checks every file before the game builds it (`parseMapFile`): version 1, numeric seed, size 50–8000 m, one flag per landscape, and well-formed hand edits with known kinds. Missing generator settings take the planner defaults. The planner's import uses the same check.
+- A broken, empty or unknown map never crashes the game: it plays the old city block, the title line and the start toast say "Harita yüklenemedi, şehir bloğu açıldı", and the console logs why.
+- `src/world.ts` builds the terrain and objects with the planner's `MapView`. Actors walk on the terrain height, and the map edge stops them (`resolveWalls`).
+- Every object except Kusama dots becomes one solid box from its footprint (`r × 0.72` half size). The box starts at the lowest ground under its footprint, so nothing slips under it on a slope. Vendor machines come from the map's `satici` objects.
+
 ## Not yet
 
-- The game still uses its old city block. Next step: load a planner `MapFile` in `src/world.ts` (terrain height for walking, colliders from object footprints).
+- Bridges (kopru), arches (kemer), the Kızıl Katedral and the Fallen Giant are single solid boxes: you cannot walk under or climb them yet.
+- The planner atmosphere (sky shader, ink lines, god rays, koi) is not in the game; only the fog density carries over.
+- Water is only visual: the lagoon bed is walkable ground.

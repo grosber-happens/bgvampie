@@ -128,6 +128,9 @@ const UI: Dict = {
   yourCopy: ['Kopyan', 'Your copy'],
   city: ['Şehir', 'City'],
   newCity: ['N: yeni şehir', 'N: new city'],
+  map: ['Harita', 'Map'],
+  plannerMap: ['planlayıcıdan', 'from the planner'],
+  mapFailed: ['Harita yüklenemedi, şehir bloğu açıldı', 'Map could not be loaded, playing the city block'],
   hint: [
     'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (havada tekrar: çift zıplama, duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan (yakın silahla: özel saldırı) · F silah · R şarjör · Q E 1 2 3 yetenek · X pills · I çanta · G set yeteneği · Tab basılı tut: kart · Esc duraklat',
     'WASD move · W W sprint · A/D + Space side dash · Space jump (again in the air: double jump, Space Space at a wall: wall kick) · Left click fire · Right click aim (melee: special attack) · F weapon · R reload · Q E 1 2 3 skills · X pills · I bag · G set skill · hold Tab: cards · Esc pause',

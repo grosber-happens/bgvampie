@@ -118,8 +118,11 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     for (const o of mapObjects) {
       if (o.k === 'nokta') continue;
       const r = KINDS[o.k].r * o.s;
+      const h = Math.max(0.3, r * 0.72);
       const y = field.height(o.x, o.z);
-      boxes.push({ x: o.x, z: o.z, hw: Math.max(0.3, r * 0.72), hd: Math.max(0.3, r * 0.72), y0: y, y1: y + Math.max(1.4, r * 1.15) });
+      // On a slope the box starts at the lowest ground under its footprint, so nothing slips underneath.
+      const y0 = Math.min(y, field.height(o.x - h, o.z - h), field.height(o.x + h, o.z - h), field.height(o.x - h, o.z + h), field.height(o.x + h, o.z + h));
+      boxes.push({ x: o.x, z: o.z, hw: h, hd: h, y0, y1: y + Math.max(1.4, r * 1.15) });
     }
     mapFields.set(boxes, { field, half });
     const world: World = { boxes, houses: [], props: [], shadows, seed, field, mapObjects };

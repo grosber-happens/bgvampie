@@ -18,7 +18,7 @@ WASD move · mouse aim · left click attack · F switch melee/ranged · R reload
 
 Map planner: `/planner.html` grows a map from sliders and a seed and lets you edit it (see [`docs/MAP_PLANNER.md`](docs/MAP_PLANNER.md)).
 
-`?debug=1` adds test keys: L gives a level, B spawns the boss, K gives 100 currency. `?seed=N` fixes the map.
+`?debug=1` adds test keys: L gives a level, B spawns the boss, K gives 100 currency. `?seed=N` fixes the map. `?map=47216`, `?map=8011` or `?map=planner` plays a planner map instead of the city block (see [`docs/MAP_PLANNER.md`](docs/MAP_PLANNER.md)).
 
 ## What is in it
 
