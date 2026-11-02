@@ -15,11 +15,21 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 
 ## Editor
 
-- Tools (left): view (WASD pans the camera, Shift moves faster), place (pick a kind), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo, walk (WASD, Shift to run), photo, hide UI.
+- Tools (left): view, place (pick a kind), move (grab an object and drag it), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo, walk (WASD, Shift to run), photo, hide UI.
+- Camera, in every tool: WASD or the arrows move forward, back, left and right along the view, like walking (speed follows the zoom, Shift is three times faster). Right drag turns the camera, middle drag pans, the wheel zooms. In the view tool left drag also turns.
+- Move tool: click an object to select it, drag to move it. Resize it with the wheel while holding it, `[` / `]`, or the "Nesne boyu" slider (0.2× to 6×). It writes a `move` op (`{ t: 'move', k, x, z, nx, nz, ns? }`): the object of kind `k` at (x, z) goes to (nx, nz) and, with `ns`, gets that size. It edits one object; mirror does not apply. The game uses the new size for drawing and for the collision box.
 - Panel (right): seed and dice, symmetry for fair maps, landscape toggles, terrain sliders, density sliders, atmosphere presets (Altın Saat, Koi Tutulması, Kızıl Sis, Spor Sabahı) and sliders for fog, sun, bloom, god rays, ink lines, spores, koi and paper grain.
-- Keys: 1–5 tools, M mirror, Y walk, P photo, H hide UI, R new seed, Ctrl+Z / Ctrl+Y.
+- Keys: 1–6 tools (6 is move), M mirror, Y walk, P photo, H hide UI, R new seed, Ctrl+Z / Ctrl+Y.
 - The map autosaves in the browser. Export / import writes a JSON `MapFile` (`{ v, gen, ops, atmos }`): the generator settings plus the ordered hand edits, so files stay small.
 - `?q=low` renders at lower resolution with lighter shadows.
+
+## Map size and chunks
+
+- The default map is 4 × 4 km (`size: 4000`); the "Harita boyu" slider goes from 160 m to 4 km.
+- `MapView` (`src/planner/build.ts`) splits the map into chunks: terrain chunks of 64 cells (cells are about 2.5 m on small maps, 5 m on big ones, at most 920 per side), and object buckets half that size. A brush stroke, a placed or a moved object rebuilds only the chunks it touches.
+- The planner builds and draws objects only near the camera (220 to 700 m, following the zoom), two buckets per frame, nearest first. The minimap shows the whole map. The game builds every bucket at once.
+- Objects grow on the natural terrain: `generate()` ignores hand lifts, so a terrain stroke moves the objects in it up or down instead of re-rolling the map.
+- A 4 km map at default density has about 344,000 objects; growing it takes several seconds after each slider change. Making it light enough for the game (chunk streaming, colliders, density) is Phase 1 work in `docs/ROADMAP.md`.
 
 ## Look
 
@@ -31,6 +41,7 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 - `src/mapgen/mapfile.ts` checks every file before the game builds it (`parseMapFile`): version 1, numeric seed, size 50–8000 m, one flag per landscape, and well-formed hand edits with known kinds. Missing generator settings take the planner defaults. The planner's import uses the same check.
 - A broken, empty or unknown map never crashes the game: it plays the old city block, the title line and the start toast say "Harita yüklenemedi, şehir bloğu açıldı", and the console logs why.
 - `src/world.ts` builds the terrain and objects with the planner's `MapView`. Actors walk on the terrain height, and the map edge stops them (`resolveWalls`).
+- Spor Ormanı Blender models (`SPOR_KINDS` in `src/mapgen/generate.ts`, loaded by `src/spor.ts` from `src/assets/spor/`): 3 mushroom houses, 3 bridges, a giant mushroom cluster, 3 single mushrooms and 4 enoki clusters. Placed by hand only; the planner shows a simple stand-in, the game loads the .glb with its LOD0/1/2 meshes. Houses and bridges use collision boxes baked from the model (`src/assets/spor/carpisma.json`, made by `tools/blender/spor_carpisma.py`): you can walk in the door, up the stairs to the balcony, and across the bridge decks. Mushrooms only have a solid stem. Source scripts: `tools/blender/`.
 - Every object except Kusama dots becomes one solid box from its footprint (`r × 0.72` half size). The box starts at the lowest ground under its footprint, so nothing slips under it on a slope. Vendor machines come from the map's `satici` objects.
 
 ## Not yet

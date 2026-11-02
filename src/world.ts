@@ -8,9 +8,13 @@ import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import houseColliders from './assets/house-colliders.json';
-import { Field, KINDS, applyOps, generate, type MapFile, type Obj } from './mapgen/generate';
+import { Field, KINDS, SPOR_KINDS, applyOps, generate, type MapFile, type Obj, type SporKind } from './mapgen/generate';
+import sporCollide from './assets/spor/carpisma.json';
 import { MapView } from './planner/build';
 import { BOUNCE } from './balance';
+
+/** Baked collision boxes per Spor Ormanı model: [x, z, hw, hd, y0, y1] in model units (tools/blender/spor_carpisma.py). */
+const SPOR_COLLIDE = sporCollide as Record<string, number[][] | undefined>;
 
 /** Every solid thing in the city is an axis-aligned box: center x/z, half sizes, bottom and top height. */
 export type Box = { x: number; z: number; hw: number; hd: number; y0: number; y1: number; /** Index in World.pads when this box is a bouncy morel. */ pad?: number };
@@ -115,9 +119,8 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     const view = new MapView(scene);
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
-    // Bouncy morels are drawn by pads.ts, which can squash them.
-    view.buildObjects(field, mapObjects.filter((o) => o.k !== 'morel'));
-    shadows.addShadowCaster(view.terrain);
+    // Spor Ormanı Blender models are loaded by spor.ts; bouncy morels are drawn by pads.ts, which can squash them.
+    view.buildObjects(field, mapObjects.filter((o) => o.k !== 'morel' && !(o.k in SPOR_KINDS)));
     scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
     const boxes: Box[] = [];
     const pads: PadSlot[] = [];
@@ -129,6 +132,29 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
         const hw = BOUNCE.padRadius * o.s;
         pads.push({ x: o.x, z: o.z, y, top: y + BOUNCE.padTop * o.s, s: o.s, r: o.r, v: o.v });
         boxes.push({ x: o.x, z: o.z, hw, hd: hw, y0: y - 0.2, y1: y + BOUNCE.padTop * o.s, pad: pads.length - 1 });
+        continue;
+      }
+      if (o.k in SPOR_KINDS) {
+        const y = field.height(o.x, o.z);
+        const shape = SPOR_COLLIDE[o.k];
+        if (shape) {
+          // Houses and bridges: floors, stairs, balconies, decks and walls baked from the model.
+          const c = Math.cos(o.r), sn = Math.sin(o.r);
+          for (const [lx, lz, hw, hd, y0, y1] of shape) {
+            boxes.push({
+              x: o.x + (lx * c + lz * sn) * o.s,
+              z: o.z + (-lx * sn + lz * c) * o.s,
+              hw: (Math.abs(c) * hw + Math.abs(sn) * hd) * o.s,
+              hd: (Math.abs(sn) * hw + Math.abs(c) * hd) * o.s,
+              y0: y + y0 * o.s,
+              y1: y + y1 * o.s,
+            });
+          }
+          continue;
+        }
+        // Mushrooms: only the stem is solid.
+        const solid = SPOR_KINDS[o.k as SporKind].solid;
+        if (solid) boxes.push({ x: o.x, z: o.z, hw: solid[0] * o.s, hd: solid[0] * o.s, y0: y - 0.2, y1: y + solid[1] * o.s });
         continue;
       }
       const r = KINDS[o.k].r * o.s;

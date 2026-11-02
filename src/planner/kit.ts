@@ -5,7 +5,7 @@
  */
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { rng } from '../mapgen/noise';
-import type { Kind, Obj } from '../mapgen/generate';
+import { SPOR_KINDS, type Kind, type Obj, type SporKind } from '../mapgen/generate';
 
 /** Centered: box, sphere, torus, rock. Standing on y = 0: cyl, cone, taper, hemi. */
 export type Shape = 'box' | 'cyl' | 'cone' | 'taper' | 'sphere' | 'hemi' | 'torus' | 'rock';
@@ -219,7 +219,24 @@ export function morel(d: Draw) {
   }
 }
 
+/**
+ * Planner stand-ins for the Spor Ormanı Blender models (the game loads the real .glb, src/spor.ts):
+ * a stem and a cap for houses and mushrooms, a deck for bridges, a glowing tuft for enoki.
+ */
+function sporMarker(k: SporKind): Recipe {
+  const r = SPOR_KINDS[k].r;
+  if (k.startsWith('kopru')) return (d) => d.part('box', k === 'kopru_ahsap' ? '#8a5a3a' : '#a59c8c', [0, 1.2, 0], [r * 2, 0.6, 2.6]);
+  if (k.startsWith('enoki')) return (d) => d.glow('sphere', '#d8f0e0', [0, r, 0], [r * 1.6, r * 2, r * 1.6]);
+  const solid = SPOR_KINDS[k].solid as readonly [number, number];
+  const [w, h] = solid;
+  return (d) => {
+    d.part('cyl', '#8a6450', [0, h / 2, 0], [w * 2, h, w * 2]);
+    d.part('hemi', '#c95a4e', [0, h, 0], [r * 2, r * 0.7, r * 2]);
+  };
+}
+
 const RECIPES: Record<Kind, Recipe> = {
+  ...(Object.fromEntries((Object.keys(SPOR_KINDS) as SporKind[]).map((k) => [k, sporMarker(k)])) as Record<SporKind, Recipe>),
   satici(d) {
     vendorMachine(d);
   },
