@@ -75,14 +75,43 @@ export function baseShape(scene: Scene, shape: Shape): Mesh {
 
 type Group = { mesh: Mesh; mats: number[]; cols: number[] };
 
+/** A circle on the map that changed (brush stroke, placed or moved object). */
+export type Area = { x: number; z: number; r: number };
+
+/** Terrain cells per chunk side. One chunk is one terrain mesh. */
+const CHUNK_CELLS = 64;
+/** Object buckets per terrain chunk side: objects are culled and rebuilt in these smaller squares. */
+const SPLIT = 2;
+
+type Rect = { x0: number; z0: number; x1: number; z1: number };
+type Chunk = Rect & {
+  i0: number; // first terrain cell column
+  j0: number; // first terrain cell row
+  ni: number;
+  nj: number;
+  terrain: Mesh;
+};
+type Bucket = Rect & { objs: Obj[]; groups: Map<string, Group>; dirty: boolean; shown: boolean };
+
+/**
+ * Terrain and objects of one map, split into square chunks so a 4 km map stays editable:
+ * an edit rebuilds only the chunks it touches, and with `viewRadius` set only chunks near the
+ * camera build and draw their objects (`update`).
+ */
 export class MapView {
-  readonly terrain: Mesh;
   readonly water: Mesh;
-  private groups = new Map<string, Group>();
+  private chunks: Chunk[] = [];
+  private buckets: Bucket[] = [];
+  private nc = 0; // chunks per side
+  private nb = 0; // object buckets per side
+  private extent = 0; // terrain side in meters
+  private res = 0; // terrain cells per side
   private clayMat: StandardMaterial;
   private glowMat: StandardMaterial;
-  private terrainRes = 200;
-  private terrainSize = 0;
+  private terrainMat: StandardMaterial;
+  private field: Field | null = null;
+  /** Object meshes are built and drawn only within this distance of `update`'s point. */
+  viewRadius = Infinity;
   onCasters: (meshes: Mesh[]) => void = () => {};
   count = 0;
 
@@ -96,14 +125,12 @@ export class MapView {
     this.glowMat.diffuseColor = Color3.Black();
     this.glowMat.emissiveColor = new Color3(1.6, 1.6, 1.6);
 
-    this.terrain = new Mesh('terrain', scene);
-    this.terrain.receiveShadows = true;
     const tm = new StandardMaterial('terrain-mat', scene);
     tm.diffuseColor = Color3.White();
     tm.specularColor = new Color3(0.03, 0.03, 0.03);
     clayify(tm, 40);
     if (tm.bumpTexture) tm.bumpTexture.level = 0.25;
-    this.terrain.material = tm;
+    this.terrainMat = tm;
 
     this.water = MeshBuilder.CreateGround('water', { width: 1, height: 1, subdivisions: 1 }, scene);
     const wm = new StandardMaterial('water-mat', scene);
@@ -148,45 +175,110 @@ export class MapView {
     return t;
   }
 
-  /** Rebuild the terrain heights and colors. */
-  buildTerrain(field: Field) {
+  /** Every terrain chunk mesh. */
+  get terrainMeshes(): Mesh[] {
+    return this.chunks.map((c) => c.terrain);
+  }
+
+  isTerrain(m: { metadata?: unknown }): boolean {
+    return m.metadata === 'terrain';
+  }
+
+  /** The terrain extends past the playable square so the edge never shows the void. */
+  private layout(size: number) {
+    const extent = size + 2 * Math.min(size * 0.35, 300);
+    // About 2.5 m cells on small maps, 5 m on big ones, never more than 920 cells per side.
+    const res = Math.max(200, Math.min(920, Math.round(extent / 5)));
+    if (extent === this.extent && res === this.res) return false;
+    for (const c of this.chunks) c.terrain.dispose();
+    for (const b of this.buckets) for (const g of b.groups.values()) g.mesh.dispose();
+    this.extent = extent;
+    this.res = res;
+    this.nc = Math.ceil(res / CHUNK_CELLS);
+    this.chunks = [];
+    const cell = extent / res;
+    for (let cj = 0; cj < this.nc; cj++)
+      for (let ci = 0; ci < this.nc; ci++) {
+        const i0 = ci * CHUNK_CELLS, j0 = cj * CHUNK_CELLS;
+        const ni = Math.min(CHUNK_CELLS, res - i0), nj = Math.min(CHUNK_CELLS, res - j0);
+        const terrain = new Mesh(`terrain-${ci}-${cj}`, this.scene);
+        terrain.receiveShadows = true;
+        terrain.material = this.terrainMat;
+        terrain.metadata = 'terrain';
+        const x0 = -extent / 2 + i0 * cell, z0 = -extent / 2 + j0 * cell;
+        this.chunks.push({ i0, j0, ni, nj, x0, z0, x1: x0 + ni * cell, z1: z0 + nj * cell, terrain });
+      }
+    this.nb = this.nc * SPLIT;
+    this.buckets = [];
+    const bs = (cell * CHUNK_CELLS) / SPLIT;
+    for (let bj = 0; bj < this.nb; bj++)
+      for (let bi = 0; bi < this.nb; bi++) {
+        const x0 = -extent / 2 + bi * bs, z0 = -extent / 2 + bj * bs;
+        this.buckets.push({ x0, z0, x1: x0 + bs, z1: z0 + bs, objs: [], groups: new Map(), dirty: true, shown: false });
+      }
+    return true;
+  }
+
+  private touched<T extends Rect>(list: T[], areas: Area[] | undefined): T[] {
+    if (!areas) return list;
+    return list.filter((c) => areas.some((a) => a.x + a.r >= c.x0 && a.x - a.r <= c.x1 && a.z + a.r >= c.z0 && a.z - a.r <= c.z1));
+  }
+
+  /** Rebuild the terrain heights and colors: everywhere, or only the chunks the areas touch. */
+  buildTerrain(field: Field, areas?: Area[]) {
     const p = field.p;
-    const size = p.size * 1.7;
-    const res = this.terrainRes;
-    const n = res + 1;
-    const pos = new Float32Array(n * n * 3);
-    const col = new Float32Array(n * n * 4);
-    const uv = new Float32Array(n * n * 2);
+    const fresh = this.layout(p.size);
+    for (const c of fresh ? this.chunks : this.touched(this.chunks, areas)) this.buildChunkTerrain(field, c);
+    this.water.scaling.set(this.extent * 1.4, 1, this.extent * 1.4);
+    this.water.position.y = p.water;
+    if (fresh) this.onCasters(this.terrainMeshes);
+  }
+
+  private buildChunkTerrain(field: Field, c: Chunk) {
+    const p = field.p;
+    const size = this.extent;
+    const res = this.res;
+    const step = size / res;
+    const ni = c.ni + 1, nj = c.nj + 1;
+    // Heights with a one-cell margin, so normals match across chunk edges.
+    const mi = ni + 2;
+    const hs = new Float32Array(mi * (nj + 2));
+    for (let j = -1; j <= nj; j++)
+      for (let i = -1; i <= ni; i++) hs[(j + 1) * mi + i + 1] = field.height(-size / 2 + (c.i0 + i) * step, -size / 2 + (c.j0 + j) * step);
+    const H = (i: number, j: number) => hs[(j + 1) * mi + i + 1];
+    const n = ni * nj;
+    const pos = new Float32Array(n * 3);
+    const col = new Float32Array(n * 4);
+    const uv = new Float32Array(n * 2);
+    const normals = new Float32Array(n * 3);
     const w = new Float32Array(NB);
     const half = p.size / 2;
-    const hs = new Float32Array(n * n);
-    for (let j = 0; j < n; j++)
-      for (let i = 0; i < n; i++) {
-        const x = -size / 2 + (i / res) * size, z = -size / 2 + (j / res) * size;
-        hs[j * n + i] = field.height(x, z);
-      }
-    const step = size / res;
-    for (let j = 0; j < n; j++)
-      for (let i = 0; i < n; i++) {
-        const k = j * n + i;
-        const x = -size / 2 + (i / res) * size, z = -size / 2 + (j / res) * size;
-        const h = hs[k];
+    for (let j = 0; j < nj; j++)
+      for (let i = 0; i < ni; i++) {
+        const k = j * ni + i;
+        const gi = c.i0 + i, gj = c.j0 + j;
+        const x = -size / 2 + gi * step, z = -size / 2 + gj * step;
+        const h = H(i, j);
         pos[k * 3] = x;
         pos[k * 3 + 1] = h;
         pos[k * 3 + 2] = z;
-        uv[k * 2] = i / res;
-        uv[k * 2 + 1] = j / res;
+        uv[k * 2] = gi / res;
+        uv[k * 2 + 1] = gj / res;
+        const hx = H(i + 1, j) - H(i - 1, j);
+        const hz = H(i, j + 1) - H(i, j - 1);
+        const nl = Math.hypot(hx, 2 * step, hz);
+        normals[k * 3] = -hx / nl;
+        normals[k * 3 + 1] = (2 * step) / nl;
+        normals[k * 3 + 2] = -hz / nl;
         field.weights(x, z, w);
-        const hx = hs[j * n + Math.min(res, i + 1)] - hs[j * n + Math.max(0, i - 1)];
-        const hz = hs[Math.min(res, j + 1) * n + i] - hs[Math.max(0, j - 1) * n + i];
         const slope = Math.hypot(hx, hz) / (2 * step);
         const nz = fbm(x / 9, z / 9, 41, 3);
         const t = 0.5 + nz * 0.9 + (h - 2) * 0.05;
         let r = 0, g = 0, b = 0;
         for (let bi = 0; bi < NB; bi++) {
           if (w[bi] < 0.002) continue;
-          const c = BIOME_COLORS[bi];
-          const lo = t < 0.5 ? c[0] : c[1], hi = t < 0.5 ? c[1] : c[2];
+          const cc = BIOME_COLORS[bi];
+          const lo = t < 0.5 ? cc[0] : cc[1], hi = t < 0.5 ? cc[1] : cc[2];
           const f = t < 0.5 ? smooth(0, 0.5, t) : smooth(0.5, 1, t);
           r += w[bi] * (lo.r + (hi.r - lo.r) * f);
           g += w[bi] * (lo.g + (hi.g - lo.g) * f);
@@ -217,61 +309,92 @@ export class MapView {
         col[k * 4 + 2] = b;
         col[k * 4 + 3] = 1;
       }
-    if (this.terrainSize !== size || !this.terrain.getTotalVertices()) {
-      const idx = new Uint32Array(res * res * 6);
+    const m = c.terrain;
+    if (!m.getTotalVertices()) {
+      const idx = new Uint32Array(c.ni * c.nj * 6);
       let q = 0;
-      for (let j = 0; j < res; j++)
-        for (let i = 0; i < res; i++) {
-          const a = j * n + i, b2 = a + 1, c = a + n, d = c + 1;
-          idx[q++] = a; idx[q++] = b2; idx[q++] = c;
-          idx[q++] = b2; idx[q++] = d; idx[q++] = c;
+      for (let j = 0; j < c.nj; j++)
+        for (let i = 0; i < c.ni; i++) {
+          const a = j * ni + i, b2 = a + 1, cc = a + ni, d = cc + 1;
+          idx[q++] = a; idx[q++] = b2; idx[q++] = cc;
+          idx[q++] = b2; idx[q++] = d; idx[q++] = cc;
         }
-      this.terrain.setIndices(idx, n * n);
-      this.terrain.setVerticesData(VertexBuffer.PositionKind, pos, true);
-      this.terrain.setVerticesData(VertexBuffer.ColorKind, col, true);
-      this.terrain.setVerticesData(VertexBuffer.UVKind, uv, false);
-      this.terrainSize = size;
+      m.setIndices(idx, n);
+      m.setVerticesData(VertexBuffer.PositionKind, pos, true);
+      m.setVerticesData(VertexBuffer.ColorKind, col, true);
+      m.setVerticesData(VertexBuffer.UVKind, uv, false);
+      m.setVerticesData(VertexBuffer.NormalKind, normals, true);
     } else {
-      this.terrain.updateVerticesData(VertexBuffer.PositionKind, pos);
-      this.terrain.updateVerticesData(VertexBuffer.ColorKind, col);
+      m.updateVerticesData(VertexBuffer.PositionKind, pos);
+      m.updateVerticesData(VertexBuffer.ColorKind, col);
+      m.updateVerticesData(VertexBuffer.NormalKind, normals);
     }
-    const normals = new Float32Array(n * n * 3);
-    // Normals from the height grid (cheaper and smoother than face normals).
-    for (let j = 0; j < n; j++)
-      for (let i = 0; i < n; i++) {
-        const k = j * n + i;
-        const hx = hs[j * n + Math.min(res, i + 1)] - hs[j * n + Math.max(0, i - 1)];
-        const hz = hs[Math.min(res, j + 1) * n + i] - hs[Math.max(0, j - 1) * n + i];
-        const nx = -hx, ny = 2 * step, nzz = -hz;
-        const l = Math.hypot(nx, ny, nzz);
-        normals[k * 3] = nx / l;
-        normals[k * 3 + 1] = ny / l;
-        normals[k * 3 + 2] = nzz / l;
-      }
-    if (this.terrain.isVerticesDataPresent(VertexBuffer.NormalKind)) this.terrain.updateVerticesData(VertexBuffer.NormalKind, normals);
-    else this.terrain.setVerticesData(VertexBuffer.NormalKind, normals, true);
-    this.terrain.refreshBoundingInfo();
-    this.water.scaling.set(size * 1.4, 1, size * 1.4);
-    this.water.position.y = p.water;
+    m.refreshBoundingInfo();
   }
 
-  /** Rebuild every object as thin instances. */
-  buildObjects(field: Field, objs: Obj[]) {
-    for (const g of this.groups.values()) {
+  private bucketAt(x: number, z: number): Bucket {
+    const bs = ((this.extent / this.res) * CHUNK_CELLS) / SPLIT;
+    const bi = Math.max(0, Math.min(this.nb - 1, Math.floor((x + this.extent / 2) / bs)));
+    const bj = Math.max(0, Math.min(this.nb - 1, Math.floor((z + this.extent / 2) / bs)));
+    return this.buckets[bj * this.nb + bi];
+  }
+
+  /**
+   * Hand the objects to their chunks. With areas, only chunks those areas touch are redrawn;
+   * without, all of them. Build terrain first: the chunk layout comes from it.
+   */
+  buildObjects(field: Field, objs: Obj[], areas?: Area[]) {
+    this.field = field;
+    for (const b of this.buckets) b.objs = [];
+    for (const o of objs) this.bucketAt(o.x, o.z).objs.push(o);
+    for (const b of this.touched(this.buckets, areas)) b.dirty = true;
+    this.count = objs.length;
+    if (this.viewRadius === Infinity) this.update(0, 0);
+  }
+
+  /**
+   * Show object chunks near (x, z) and hide far ones. Builds at most `budget` dirty chunks per call,
+   * nearest first, so a big map fills in over a few frames instead of freezing.
+   */
+  update(x: number, z: number, budget = Infinity) {
+    const R = this.viewRadius;
+    const near: [number, Bucket][] = [];
+    for (const c of this.buckets) {
+      const dx = Math.max(c.x0 - x, 0, x - c.x1), dz = Math.max(c.z0 - z, 0, z - c.z1);
+      const d = Math.hypot(dx, dz);
+      const show = d <= R;
+      if (show) near.push([d, c]);
+      if (show !== c.shown) {
+        c.shown = show;
+        for (const g of c.groups.values()) g.mesh.setEnabled(show && g.cols.length > 0);
+      }
+    }
+    near.sort((a, b) => a[0] - b[0]);
+    for (const [, c] of near) {
+      if (budget <= 0) break;
+      if (!c.dirty || !this.field) continue;
+      this.buildBucket(this.field, c);
+      budget--;
+    }
+  }
+
+  private buildBucket(field: Field, c: Bucket) {
+    c.dirty = false;
+    for (const g of c.groups.values()) {
       g.mats.length = 0;
       g.cols.length = 0;
     }
     const sink: Sink = {
       part: (shape: Shape, mat: Mat, r: number, g: number, b: number, m: Matrix) => {
         const key = shape + '|' + mat;
-        let grp = this.groups.get(key);
+        let grp = c.groups.get(key);
         if (!grp) {
           const mesh = baseShape(this.scene, shape);
           mesh.name = `kit-${key}`;
           mesh.material = mat === 'glow' ? this.glowMat : this.clayMat;
           mesh.receiveShadows = mat !== 'glow';
           grp = { mesh, mats: [], cols: [] };
-          this.groups.set(key, grp);
+          c.groups.set(key, grp);
           this.onCasters([mesh]);
         }
         const a = m.m;
@@ -279,15 +402,14 @@ export class MapView {
         grp.cols.push(r, g, b, 1);
       },
     };
-    const rand = rng(7);
-    for (const o of objs) {
-      const y = field.height(o.x, o.z) - (o.k === 'nokta' ? 0 : 0.15 + rand() * 0.1);
+    for (const o of c.objs) {
+      // Sink depth comes from the object's own number, so redrawing one chunk never shifts another.
+      const y = field.height(o.x, o.z) - (o.k === 'nokta' ? 0 : 0.15 + ((o.v * 7919) % 100) / 1000);
       drawObject(sink, o, o.k === 'nokta' ? y + 0.03 : y, field.biome(o.x, o.z));
     }
-    this.count = objs.length;
-    for (const g of this.groups.values()) {
+    for (const g of c.groups.values()) {
       const n = g.cols.length / 4;
-      g.mesh.setEnabled(n > 0);
+      g.mesh.setEnabled(c.shown && n > 0);
       if (!n) continue;
       g.mesh.thinInstanceSetBuffer('matrix', new Float32Array(g.mats), 16, false);
       g.mesh.thinInstanceSetBuffer('color', new Float32Array(g.cols), 4, false);
@@ -296,6 +418,6 @@ export class MapView {
   }
 
   meshes(): Mesh[] {
-    return [...this.groups.values()].map((g) => g.mesh);
+    return this.buckets.flatMap((c) => [...c.groups.values()].map((g) => g.mesh));
   }
 }

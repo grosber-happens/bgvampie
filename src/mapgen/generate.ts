@@ -59,7 +59,7 @@ export type Params = {
 
 export const DEFAULT_PARAMS: Params = {
   seed: 1907,
-  size: 300,
+  size: 4000,
   relief: 1,
   roughness: 1,
   water: 0,
@@ -161,7 +161,9 @@ export type Obj = { k: Kind; x: number; z: number; s: number; r: number; v: numb
 export type Op =
   | { t: 'add'; o: Obj }
   | { t: 'erase'; x: number; z: number; r: number }
-  | { t: 'lift'; x: number; z: number; r: number; a: number };
+  | { t: 'lift'; x: number; z: number; r: number; a: number }
+  /** Move the object of kind k standing at (x, z) to (nx, nz), and resize it to ns when given. */
+  | { t: 'move'; k: Kind; x: number; z: number; nx: number; nz: number; ns?: number };
 
 /** Mirror a point into the generated half/quarter. */
 function canon(sym: number, x: number, z: number): [number, number] {
@@ -176,6 +178,8 @@ export class Field {
   private sites: { b: number; x: number; z: number; k: number }[] = [];
   private lifts: Extract<Op, { t: 'lift' }>[];
   private flat: { x: number; z: number; r: number; h: number }[] = [];
+  /** Scratch distances for weights(), one per site. */
+  private ds = new Float64Array(NB + 1);
 
   constructor(p: Params, ops: Op[] = []) {
     this.p = p;
@@ -206,19 +210,21 @@ export class Field {
     const wz = z + p.warp * s * 0.14 * fbm(x / s * 3.1 + 9, z / s * 3.1 - 4, p.seed + 91, 3);
     out.fill(0);
     let dmin = Infinity;
-    const ds: number[] = [];
-    for (const st of this.sites) {
+    const sites = this.sites;
+    const ds = this.ds;
+    for (let i = 0; i < sites.length; i++) {
+      const st = sites[i];
       const d = Math.hypot(wx - st.x, wz - st.z) * st.k;
-      ds.push(d);
+      ds[i] = d;
       if (d < dmin) dmin = d;
     }
     const blend = s * 0.035;
     let sum = 0;
-    this.sites.forEach((st, i) => {
+    for (let i = 0; i < sites.length; i++) {
       const w = Math.exp(-(ds[i] - dmin) / blend);
-      out[st.b] += w;
+      out[sites[i].b] += w;
       sum += w;
-    });
+    }
     for (let i = 0; i < NB; i++) out[i] /= sum;
     return out;
   }
@@ -333,6 +339,9 @@ const WET: Partial<Record<Kind, number>> = { kemer: 3, kaya: 1.2, kafa: 2.5, dis
 
 /** Build the generated objects for these parameters (no hand edits). */
 export function generate(field: Field, p: Params = field.p): Obj[] {
+  // Objects grow on the natural terrain, without hand lifts: a terrain stroke moves objects up or down
+  // but never re-rolls the map, which keeps sculpting fast on a 4 km map.
+  field = new Field(p);
   const out: Obj[] = landmarks(p);
   const occ = new Occupancy();
   for (const o of out) occ.add(o.x, o.z, KINDS[o.k].r * o.s);
@@ -404,13 +413,20 @@ export function generate(field: Field, p: Params = field.p): Obj[] {
 
 /** Apply hand edits in order: placements add, erase circles remove everything under them. */
 export function applyOps(objs: Obj[], ops: Op[]): Obj[] {
-  let list = objs;
+  let list = objs.slice();
   for (const op of ops) {
-    if (op.t === 'add') list = [...list, op.o];
+    if (op.t === 'add') list.push(op.o);
     else if (op.t === 'erase') list = list.filter((o) => (o.x - op.x) ** 2 + (o.z - op.z) ** 2 > op.r * op.r);
+    else if (op.t === 'move') {
+      const i = list.findIndex((o) => o.k === op.k && Math.abs(o.x - op.x) < MOVE_EPS && Math.abs(o.z - op.z) < MOVE_EPS);
+      if (i >= 0) list[i] = { ...list[i], x: op.nx, z: op.nz, s: op.ns ?? list[i].s };
+    }
   }
   return list;
 }
+
+/** How close a move op's (x, z) must be to the object it moves, in meters. */
+const MOVE_EPS = 0.05;
 
 /** Saved map file (planner export, and what the game will load later). */
 export type MapFile = { v: 1; gen: Params; ops: Op[]; atmos?: Record<string, number | string | boolean> };

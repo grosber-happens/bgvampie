@@ -116,7 +116,6 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     view.buildTerrain(field);
     // Spor Ormanı Blender models are loaded by spor.ts.
     view.buildObjects(field, mapObjects.filter((o) => !(o.k in SPOR_KINDS)));
-    shadows.addShadowCaster(view.terrain);
     scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
     const boxes: Box[] = [];
     const half = file.gen.size / 2;
