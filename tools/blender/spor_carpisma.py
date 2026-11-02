@@ -4,7 +4,7 @@ Samples each model's LOD0 surface on a 0.5 m grid:
 - upward faces become thin floor slabs (room floors, stairs, balconies, bridge decks, cap tops),
 - steep faces become wall boxes (trunk shell, railings, furniture).
 Writes src/assets/spor/carpisma.json: {kind: [[x, z, hw, hd, y0, y1], ...]} in the model's own
-units, x/z already in the game's frame (glTF z flipped, as the loader's root does).
+units, x/z already in the game's frame (the glTF loader's root turns the model 180 degrees).
 
 Run: python3 tools/blender/spor_carpisma.py
 """
@@ -154,8 +154,8 @@ def boxes_for(kind):
             out.append([(ix + 0.5) * CELL, (iy + 0.5) * CELL, CELL / 2, CELL / 2, h - SLAB, h])
     dl = doors(kind)
     out = [b for b in out if not in_door(b, dl)]
-    # Blender (x, y, z) -> game local (x, z=y, height=z): glTF z = -y, then the loader root flips z back.
-    return [[round(b[0], 2), round(b[1], 2), round(b[2], 2), round(b[3], 2), round(b[4], 2), round(b[5], 2)] for b in out]
+    # Blender (x, y, z) -> game local (-x, height z, -y): the glTF loader's root turns the model 180 degrees.
+    return [[round(-b[0], 2), round(-b[1], 2), round(b[2], 2), round(b[3], 2), round(b[4], 2), round(b[5], 2)] for b in out]
 
 
 if __name__ == '__main__':
