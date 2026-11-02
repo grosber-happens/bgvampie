@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Performans testi · Vampire Battleground</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #222; color: #eee; font: 13px/1.4 monospace; }
+      canvas { width: 100%; height: 100%; display: block; }
+      #out { position: fixed; left: 8px; top: 8px; white-space: pre; background: #000a; padding: 6px 8px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="out">…</div>
+    <script type="module" src="/src/perf.ts"></script>
+  </body>
+</html>

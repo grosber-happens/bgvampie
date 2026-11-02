@@ -24,9 +24,9 @@ Büyük harita ve 40–50 karakter tarayıcıda akıcı dönsün diye. Önce bir
 
 | Konu | Neden |
 |---|---|
-| Chunk streaming | Harita parça parça yüklenir, uzak parçalar bellekten çıkar |
-| LOD | Uzak objeler basit modelle çizilir |
-| Instancing | Aynı objenin binlerce kopyası tek çizimde (planlayıcı zaten kullanıyor) |
+| Chunk streaming ✓ | Harita parça parça yüklenir, uzak parçalar bellekten çıkar ([PERFORMANCE.md](PERFORMANCE.md)) |
+| LOD ✓ | Uzak objeler ve arazi basit modelle çizilir; Blender `_LOD0/1/2` modelleri de |
+| Instancing ✓ | Aynı şeklin binlerce kopyası, bütün yüklü parçalardan tek çizimde |
 | Frame budget | Her kare için ms bütçesi: çizim, AI, fizik; aşınca uyarı |
 | Fixed timestep | Oyun mantığı sabit adımla döner; sim ve ileride sunucu aynı sonucu verir |
 | Time slicing + spatial partitioning | 50 botun AI'ı karelere bölünür; yakın birim aramaları ızgarayla |

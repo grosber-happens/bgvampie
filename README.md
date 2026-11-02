@@ -20,6 +20,8 @@ Map planner: `/planner.html` grows a map from sliders and a seed and lets you ed
 
 `?debug=1` adds test keys: L gives a level, B spawns the boss, K gives 100 currency. `?seed=N` fixes the map. `?map=47216`, `?map=8011` or `?map=planner` plays a planner map instead of the city block (see [`docs/MAP_PLANNER.md`](docs/MAP_PLANNER.md)).
 
+Performance: `?map=perf` plays the 4×4 km test map; `/perf.html` flies a camera over it and reports frame time, draw calls and triangles (see [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)).
+
 ## What is in it
 
 - Over-the-shoulder camera, aimed attacks, shooting feel (tracers, muzzle flash, recoil, shake, sounds)

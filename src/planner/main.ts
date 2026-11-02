@@ -725,7 +725,7 @@ function exitWalk() {
 scene.onBeforeRenderObservable.add(() => {
   // Objects build and show only near the camera, a few chunks per frame.
   view.viewRadius = Math.max(220, Math.min(700, camera.radius * 1.3));
-  view.update(camera.target.x, camera.target.z, 2);
+  view.update(camera.target.x, camera.target.z, 2, Math.max(0, camera.position.y - camera.target.y));
   const dt = engine.getDeltaTime() / 1000;
   const fwd = camera.getForwardRay(1).direction;
   fwd.y = 0;
