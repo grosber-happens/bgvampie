@@ -130,8 +130,8 @@ export type Op =
   | { t: 'add'; o: Obj }
   | { t: 'erase'; x: number; z: number; r: number }
   | { t: 'lift'; x: number; z: number; r: number; a: number }
-  /** Move the object of kind k standing at (x, z) to (nx, nz). */
-  | { t: 'move'; k: Kind; x: number; z: number; nx: number; nz: number };
+  /** Move the object of kind k standing at (x, z) to (nx, nz), and resize it to ns when given. */
+  | { t: 'move'; k: Kind; x: number; z: number; nx: number; nz: number; ns?: number };
 
 /** Mirror a point into the generated half/quarter. */
 function canon(sym: number, x: number, z: number): [number, number] {
@@ -387,7 +387,7 @@ export function applyOps(objs: Obj[], ops: Op[]): Obj[] {
     else if (op.t === 'erase') list = list.filter((o) => (o.x - op.x) ** 2 + (o.z - op.z) ** 2 > op.r * op.r);
     else if (op.t === 'move') {
       const i = list.findIndex((o) => o.k === op.k && Math.abs(o.x - op.x) < MOVE_EPS && Math.abs(o.z - op.z) < MOVE_EPS);
-      if (i >= 0) list[i] = { ...list[i], x: op.nx, z: op.nz };
+      if (i >= 0) list[i] = { ...list[i], x: op.nx, z: op.nz, s: op.ns ?? list[i].s };
     }
   }
   return list;

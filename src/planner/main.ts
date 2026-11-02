@@ -375,6 +375,13 @@ function buildToolbar() {
     }
     pal.appendChild(grid);
   }
+  // Size of the selected object (move tool).
+  const sizeCard = document.createElement('div');
+  sizeCard.id = 'size-card';
+  sizeCard.className = 'card hidden';
+  sizeCard.innerHTML = '<h4 id="size-name"></h4>';
+  $('brush').after(sizeCard);
+  slider(sizeCard, { key: 'objsize', label: 'Nesne boyu', min: SIZE_MIN, max: SIZE_MAX, step: 0.05, fmt: (v) => `${v.toFixed(2)}×` }, () => sel?.s ?? 1, (v) => resizeSel(v, false));
   const brushRow = $('brush');
   slider(brushRow, { key: 'brush', label: 'Fırça çapı', min: 1, max: 30, step: 0.5, fmt: (v) => `${v} m` }, () => brush, (v) => {
     brush = v;
@@ -403,10 +410,11 @@ function syncToolbar() {
   document.querySelectorAll<HTMLButtonElement>('#palette button').forEach((b) => b.classList.toggle('on', b.dataset.kind === placeKind));
   $('palette-wrap').classList.toggle('hidden', tool !== 'place');
   $('brush').classList.toggle('hidden', !['erase', 'raise', 'lower', 'place'].includes(tool));
+  $('size-card').classList.toggle('hidden', !(tool === 'move' && sel));
   const hints: Record<Tool, string> = {
     view: 'WASD: ileri, geri, sağa, sola git · Shift: çok hızlı · sol ya da sağ tık sürükle: döndür · orta tık: kaydır · tekerlek: yakınlaş',
     place: `${KINDS[placeKind].name}: tıkla ya da sürükleyerek dağıt · sağ tık sürükle: döndür · WASD: git`,
-    move: 'Bir nesneyi tutup sürükle, bırakınca yerine oturur · sağ tık sürükle: döndür · WASD: git',
+    move: 'Nesneye tıkla: seç · sürükle: taşı · tutarken tekerlek ya da [ ]: boyunu değiştir · sağ tık sürükle: döndür · WASD: git',
     erase: 'Sürükleyerek sil · sağ tık sürükle: döndür · WASD: git',
     raise: 'Sürükleyerek araziyi yükselt · sağ tık sürükle: döndür · WASD: git',
     lower: 'Sürükleyerek araziyi alçalt (su birikir) · sağ tık sürükle: döndür · WASD: git',
@@ -428,6 +436,7 @@ function setTool(t: Tool) {
 }
 
 function doUndo() {
+  select(null);
   const s = undo.pop();
   if (!s) return flash('Geri alınacak bir şey yok');
   redo.push(snap());
@@ -437,6 +446,7 @@ function doUndo() {
   rebuild();
 }
 function doRedo() {
+  select(null);
   const s = redo.pop();
   if (!s) return;
   undo.push(snap());
@@ -478,7 +488,7 @@ cursor.isPickable = false;
 cursor.setEnabled(false);
 atmos.exclude(cursor);
 function cursorScale() {
-  const r = tool === 'place' ? Math.max(1, KINDS[placeKind].r * S.gen.scale) : tool === 'move' ? (grab ? Math.max(1, KINDS[grab.k].r * grab.s) : 2) : brush;
+  const r = tool === 'place' ? Math.max(1, KINDS[placeKind].r * S.gen.scale) : tool === 'move' ? (sel ? Math.max(1, KINDS[sel.k].r * sel.s) : 2) : brush;
   cursor.scaling.set(r, 1, r);
 }
 
@@ -555,10 +565,16 @@ function paintAt(p: Vector3) {
   }
 }
 
-// ---- Move tool: grab the object under the cursor and drag it -----------------------------
-let grab: Obj | null = null;
-let grabOp: Extract<Op, { t: 'move' }> | null = null;
+// ---- Move tool: select an object, drag it, resize it -------------------------------------
+type MoveOp = Extract<Op, { t: 'move' }>;
+/** The selected object as it stands now (position and size after every op). */
+let sel: { k: Kind; x: number; z: number; s: number } | null = null;
+/** The move op that holds the selection's changes. Edited in place while it is the last op. */
+let selOp: MoveOp | null = null;
+let dragging = false;
 let lastMove = 0;
+const SIZE_MIN = 0.2;
+const SIZE_MAX = 6;
 /** The object under the cursor: the nearest one whose footprint holds the point. */
 function objectAt(p: Vector3): Obj | null {
   let best: Obj | null = null;
@@ -575,29 +591,69 @@ function objectAt(p: Vector3): Obj | null {
   }
   return best;
 }
+const selArea = (x: number, z: number) => ({ x, z, r: sel ? KINDS[sel.k].r * sel.s * 2.5 + 2 : 4 });
+/** The op to edit for the selection: the last op if it is ours, else a new one (with an undo step). */
+function selEdit(doCommit: boolean): MoveOp | null {
+  if (!sel) return null;
+  if (!selOp || S.ops[S.ops.length - 1] !== selOp) {
+    if (doCommit) commit();
+    selOp = { t: 'move', k: sel.k, x: sel.x, z: sel.z, nx: sel.x, nz: sel.z };
+    S.ops.push(selOp);
+  }
+  return selOp;
+}
 function moveTo(p: Vector3, final: boolean) {
-  if (!grab || !grabOp) return;
-  const before = { x: grabOp.nx, z: grabOp.nz, r: KINDS[grab.k].r * grab.s * 2.5 + 2 };
-  grabOp.nx = p.x;
-  grabOp.nz = p.z;
+  const op = selOp;
+  if (!sel || !op) return;
+  const before = selArea(op.nx, op.nz);
+  op.nx = p.x;
+  op.nz = p.z;
   const now = performance.now();
   if (!final && now - lastMove < 50) return;
   lastMove = now;
-  rebuild(false, [before, { ...before, x: p.x, z: p.z }], final);
+  rebuild(false, [before, selArea(p.x, p.z)], final);
 }
-
+/** Set the selected object's size (its `s`), saved in the map file as the move op's `ns`. */
+function resizeSel(v: number, doCommit: boolean) {
+  const op = selEdit(doCommit);
+  if (!sel || !op) return;
+  const area = selArea(op.nx, op.nz);
+  sel.s = op.ns = Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round(v * 100) / 100));
+  rebuild(false, [area, selArea(op.nx, op.nz)], false);
+  inputs.get('objsize')?.();
+  cursorScale();
+}
+function select(o: Obj | null) {
+  sel = o && { k: o.k, x: o.x, z: o.z, s: o.s };
+  selOp = null;
+  $('size-card').classList.toggle('hidden', !(tool === 'move' && sel));
+  if (sel) $('size-name').textContent = KINDS[sel.k].name;
+  inputs.get('objsize')?.();
+  cursorScale();
+}
+// The wheel resizes the object while you hold it, instead of zooming.
+canvas.addEventListener(
+  'wheel',
+  (e) => {
+    if (!dragging || !sel) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    resizeSel(sel.s * (e.deltaY < 0 ? 1.08 : 1 / 1.08), false);
+  },
+  { capture: true, passive: false },
+);
 
 scene.onPointerObservable.add((ev) => {
   const e = ev.event as PointerEvent;
   if (ev.type === 1 /* down */ && e.button === 0 && tool === 'move') {
     const p = groundPick();
     const o = p && objectAt(p);
+    select(o ?? null);
     if (!o) return;
     commit();
-    grab = o;
-    grabOp = { t: 'move', k: o.k, x: o.x, z: o.z, nx: o.x, nz: o.z };
-    S.ops.push(grabOp);
-    cursorScale();
+    selEdit(false);
+    dragging = true;
+    camera.inputs.attached.mousewheel?.detachControl();
   } else if (ev.type === 1 /* down */ && e.button === 0 && ['place', 'erase', 'raise', 'lower'].includes(tool)) {
     const p = groundPick();
     if (!p) return;
@@ -614,17 +670,20 @@ scene.onPointerObservable.add((ev) => {
       const b = BIOMES[field.biome(p.x, p.z)];
       $('stat-here').textContent = `${b.name} · ${p.y.toFixed(1)} m`;
       if (painting) paintAt(p);
-      if (grab) moveTo(p, false);
+      if (dragging) moveTo(p, false);
     }
-  } else if (ev.type === 2 /* up */ && grab && grabOp) {
-    if (Math.hypot(grabOp.nx - grabOp.x, grabOp.nz - grabOp.z) < 0.05) {
-      // A click without a drag changes nothing: drop the op and its undo step.
+  } else if (ev.type === 2 /* up */ && dragging && sel && selOp) {
+    dragging = false;
+    camera.inputs.attached.mousewheel?.attachControl(true);
+    const op = selOp;
+    if (Math.hypot(op.nx - op.x, op.nz - op.z) < 0.05 && op.ns === undefined) {
+      // A click without a drag or resize only selects: drop the op and its undo step.
       S.ops.pop();
       undo.pop();
-    } else moveTo(new Vector3(grabOp.nx, 0, grabOp.nz), true);
-    grab = null;
-    grabOp = null;
-    cursorScale();
+      selOp = null;
+    } else moveTo(new Vector3(op.nx, 0, op.nz), true);
+    sel.x = op.nx;
+    sel.z = op.nz;
   } else if (ev.type === 2 /* up */ && painting) {
     painting = false;
     rebuild(tool === 'raise' || tool === 'lower', stroke);
@@ -712,6 +771,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'Digit4') setTool('raise');
   else if (e.code === 'Digit5') setTool('lower');
   else if (e.code === 'Digit6') setTool('move');
+  else if (tool === 'move' && sel && (e.code === 'BracketLeft' || e.code === 'BracketRight')) resizeSel(sel.s * (e.code === 'BracketRight' ? 1.08 : 1 / 1.08), true);
   else if (e.code === 'KeyM') toolAction('mirror');
   else if (e.code === 'KeyY') setTool(tool === 'walk' ? 'view' : 'walk');
   else if (e.code === 'KeyP') photo();

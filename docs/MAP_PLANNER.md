@@ -16,7 +16,7 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 
 - Tools (left): view, place (pick a kind), move (grab an object and drag it), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo, walk (WASD, Shift to run), photo, hide UI.
 - Camera, in every tool: WASD or the arrows move forward, back, left and right along the view, like walking (speed follows the zoom, Shift is three times faster). Right drag turns the camera, middle drag pans, the wheel zooms. In the view tool left drag also turns.
-- The move tool writes a `move` op (`{ t: 'move', k, x, z, nx, nz }`): the object of kind `k` at (x, z) goes to (nx, nz). It moves one object; mirror does not apply.
+- Move tool: click an object to select it, drag to move it. Resize it with the wheel while holding it, `[` / `]`, or the "Nesne boyu" slider (0.2× to 6×). It writes a `move` op (`{ t: 'move', k, x, z, nx, nz, ns? }`): the object of kind `k` at (x, z) goes to (nx, nz) and, with `ns`, gets that size. It edits one object; mirror does not apply. The game uses the new size for drawing and for the collision box.
 - Panel (right): seed and dice, symmetry for fair maps, landscape toggles, terrain sliders, density sliders, atmosphere presets (Altın Saat, Koi Tutulması, Kızıl Sis, Spor Sabahı) and sliders for fog, sun, bloom, god rays, ink lines, spores, koi and paper grain.
 - Keys: 1–6 tools (6 is move), M mirror, Y walk, P photo, H hide UI, R new seed, Ctrl+Z / Ctrl+Y.
 - The map autosaves in the browser. Export / import writes a JSON `MapFile` (`{ v, gen, ops, atmos }`): the generator settings plus the ordered hand edits, so files stay small.
