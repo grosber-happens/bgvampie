@@ -42,6 +42,18 @@ Headless Chromium draws with SwiftShader (on the CPU), so its frame times are 50
 
 With the Blender mushrooms on the 1 km map: 65 draw calls, 7–8 M triangles. `mantar_kumesi` LOD0 is 30 500 triangles; 100 of them near the camera are 3 M triangles, the heaviest batch on the map. LOD0 of a repeated prop should stay near 5 000.
 
+## Planner editing on 4 km (2026-11-02)
+
+Default 4 km planner map (344 000 objects), 30 strokes of erase, place and raise (190 hand edits), measured in headless Chromium (CPU only, so real machines are faster; compare the columns).
+
+| | Before | After |
+|---|---|---|
+| Undo (one step) | 4.0–8.9 s | 0.10–0.20 s |
+| Redo (one step) | 3.7–4.3 s | 0.09–0.17 s |
+| One brush dab | 311 ms | 49 ms |
+
+What changed: undo and redo redraw only the chunks the differing edits touch (before: the whole terrain and every object). `applyOps` finds objects with a grid instead of scanning all of them for every erase and move, and `Field` finds hand lifts with a grid instead of looping over every lift for every height sample (same results, checked against the old code). The minimap draws objects into a pixel buffer and keeps its ground layer when only objects changed (before: one canvas call per object, up to 37 s in one case). Numbers are in `EDIT` in `src/mapgen/generate.ts`.
+
 ## Next
 
 - Map build on 4 km takes about 12 s (object placement is 8 s of it): move `generate()` to a worker or cache the result.

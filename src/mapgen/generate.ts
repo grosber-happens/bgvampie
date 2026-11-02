@@ -168,6 +168,21 @@ export type Op =
   /** Move the object of kind k standing at (x, z) to (nx, nz), and resize it to ns when given. */
   | { t: 'move'; k: Kind; x: number; z: number; nx: number; nz: number; ns?: number };
 
+/** Editing numbers for the planner and map loading. */
+export const EDIT = {
+  /** Grid cell for finding hand edits and objects near a point, in meters. */
+  cell: 16,
+  /** Undo steps the planner keeps. */
+  undoSteps: 120,
+  /** An undo that touches more areas than this redraws the whole map instead (one pass beats thousands of small ones). */
+  undoMaxAreas: 400,
+  /** WASD flying keeps its height; it climbs only to keep the planner camera this far above the ground, in meters. */
+  flyClearance: 3,
+};
+const cellOf = (v: number) => Math.floor(v / EDIT.cell);
+/** One number per grid cell; fine for maps up to ~500 km. */
+const cellKey = (i: number, j: number) => (i + 32768) * 65536 + (j + 32768);
+
 /** Mirror a point into the generated half/quarter. */
 function canon(sym: number, x: number, z: number): [number, number] {
   if (sym >= 1) x = -Math.abs(x);
@@ -179,14 +194,27 @@ function canon(sym: number, x: number, z: number): [number, number] {
 export class Field {
   readonly p: Params;
   private sites: { b: number; x: number; z: number; k: number }[] = [];
-  private lifts: Extract<Op, { t: 'lift' }>[];
+  /** Hand lifts by grid cell (EDIT.cell meters), in op order, so a height sample only visits nearby lifts. */
+  private liftGrid = new Map<number, Extract<Op, { t: 'lift' }>[]>();
   private flat: { x: number; z: number; r: number; h: number }[] = [];
   /** Scratch distances for weights(), one per site. */
   private ds = new Float64Array(NB + 1);
 
   constructor(p: Params, ops: Op[] = []) {
     this.p = p;
-    this.lifts = ops.filter((o): o is Extract<Op, { t: 'lift' }> => o.t === 'lift');
+    for (const o of ops) {
+      if (o.t !== 'lift') continue;
+      // A lift reaches 2r (see rawHeight); file it under every cell that reach overlaps.
+      const reach = o.r * 2;
+      const i0 = cellOf(o.x - reach), i1 = cellOf(o.x + reach), j0 = cellOf(o.z - reach), j1 = cellOf(o.z + reach);
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) {
+          const key = cellKey(i, j);
+          const list = this.liftGrid.get(key);
+          if (list) list.push(o);
+          else this.liftGrid.set(key, [o]);
+        }
+    }
     const r = rng(p.seed * 13 + 5);
     const R = p.size * 0.33;
     const a0 = (r() - 0.5) * 0.9;
@@ -270,7 +298,8 @@ export class Field {
       const q = Math.round(t / step) * step;
       h += w[5] * (q + (t - q) * 0.2);
     }
-    for (const l of this.lifts) {
+    const lifts = this.liftGrid.get(cellKey(cellOf(x0), cellOf(z0)));
+    if (lifts) for (const l of lifts) {
       const d2 = ((x0 - l.x) ** 2 + (z0 - l.z) ** 2) / (l.r * l.r);
       if (d2 < 4) h += l.a * Math.exp(-d2 * 2.2);
     }
@@ -416,16 +445,52 @@ export function generate(field: Field, p: Params = field.p): Obj[] {
 
 /** Apply hand edits in order: placements add, erase circles remove everything under them. */
 export function applyOps(objs: Obj[], ops: Op[]): Obj[] {
-  let list = objs.slice();
+  if (!ops.length) return objs.slice();
+  // Objects by grid cell, so an erase or a move only looks at its neighbourhood instead of the whole map.
+  // Same result as walking the list for every op: erase drops every object in reach at that point,
+  // move takes the first match in list order, adds go to the end.
+  const list = objs.slice();
+  const alive = new Uint8Array(list.length + ops.length).fill(1);
+  const grid = new Map<number, number[]>();
+  const put = (i: number) => {
+    const key = cellKey(cellOf(list[i].x), cellOf(list[i].z));
+    const cell = grid.get(key);
+    if (cell) cell.push(i);
+    else grid.set(key, [i]);
+  };
+  const near = (x: number, z: number, r: number, fn: (i: number) => void) => {
+    const i0 = cellOf(x - r), i1 = cellOf(x + r), j0 = cellOf(z - r), j1 = cellOf(z + r);
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const cell = grid.get(cellKey(i, j));
+        if (cell) for (const k of cell) if (alive[k]) fn(k);
+      }
+  };
+  for (let i = 0; i < list.length; i++) put(i);
   for (const op of ops) {
-    if (op.t === 'add') list.push(op.o);
-    else if (op.t === 'erase') list = list.filter((o) => (o.x - op.x) ** 2 + (o.z - op.z) ** 2 > op.r * op.r);
-    else if (op.t === 'move') {
-      const i = list.findIndex((o) => o.k === op.k && Math.abs(o.x - op.x) < MOVE_EPS && Math.abs(o.z - op.z) < MOVE_EPS);
-      if (i >= 0) list[i] = { ...list[i], x: op.nx, z: op.nz, s: op.ns ?? list[i].s };
+    if (op.t === 'add') {
+      list.push(op.o);
+      put(list.length - 1);
+    } else if (op.t === 'erase') {
+      near(op.x, op.z, op.r, (k) => {
+        const o = list[k];
+        if ((o.x - op.x) ** 2 + (o.z - op.z) ** 2 <= op.r * op.r) alive[k] = 0;
+      });
+    } else if (op.t === 'move') {
+      let best = -1;
+      near(op.x, op.z, MOVE_EPS, (k) => {
+        const o = list[k];
+        if ((best < 0 || k < best) && o.k === op.k && Math.abs(o.x - op.x) < MOVE_EPS && Math.abs(o.z - op.z) < MOVE_EPS) best = k;
+      });
+      if (best < 0) continue;
+      // Move it in place (it keeps its spot in the list) and refile it under its new cell.
+      const was = grid.get(cellKey(cellOf(list[best].x), cellOf(list[best].z)))!;
+      was.splice(was.indexOf(best), 1);
+      list[best] = { ...list[best], x: op.nx, z: op.nz, s: op.ns ?? list[best].s };
+      put(best);
     }
   }
-  return list;
+  return list.filter((_, i) => alive[i]);
 }
 
 /** How close a move op's (x, z) must be to the object it moves, in meters. */

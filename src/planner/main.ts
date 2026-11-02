@@ -18,7 +18,7 @@ import '@fontsource/fredoka/600.css';
 import './planner.css';
 import { setLookScene } from '../look';
 import { isLucky } from '../shop.ts';
-import { BIOMES, DEFAULT_PARAMS, Field, KINDS, KIND_LIST, NB, applyOps, generate, type Category, type Kind, type MapFile, type Obj, type Op, type Params } from '../mapgen/generate';
+import { BIOMES, DEFAULT_PARAMS, EDIT, Field, KINDS, KIND_LIST, NB, applyOps, generate, type Category, type Kind, type MapFile, type Obj, type Op, type Params } from '../mapgen/generate';
 import { Atmosphere, DEFAULT_ATMOS, PRESETS, type Atmos, type PresetId } from './atmos';
 import { MapView, type Area } from './build';
 import { vendorCount } from '../mapgen/vendors.ts';
@@ -31,6 +31,8 @@ const scene = new Scene(engine);
 setLookScene(scene);
 
 const MIN_ORBIT_RADIUS = 2;
+/** Minimap side in pixels. */
+const MINIMAP_PX = 128;
 const camera = new ArcRotateCamera('cam', -Math.PI / 2 + 0.6, 1.05, 230, new Vector3(0, 0, 0), scene);
 camera.minZ = 0.3;
 camera.maxZ = 3000;
@@ -83,7 +85,7 @@ const redo: string[] = [];
 const snap = () => JSON.stringify(S);
 function commit() {
   undo.push(snap());
-  if (undo.length > 120) undo.shift();
+  if (undo.length > EDIT.undoSteps) undo.shift();
   redo.length = 0;
 }
 function save() {
@@ -120,7 +122,7 @@ function rebuild(terrain = true, areas?: Area[], mini = true) {
   atmos.setMapSize(S.gen.size);
   camera.upperRadiusLimit = Math.min(S.gen.size * 2, 3000);
   camera.maxZ = Math.max(3000, camera.upperRadiusLimit + S.gen.size);
-  if (mini) drawMinimap();
+  if (mini) drawMinimap(terrain);
   mirrorLines();
   $('stat-count').textContent = `${objs.length} nesne · ${objs.filter((o) => o.k === 'satici' || o.k === 'sansli').length} satıcı`;
   $('stat-time').textContent = `${Math.round(performance.now() - t0)} ms`;
@@ -447,20 +449,50 @@ function doUndo() {
   const s = undo.pop();
   if (!s) return flash('Geri alınacak bir şey yok');
   redo.push(snap());
-  S = JSON.parse(s);
-  refreshInputs();
-  applyAtmos();
-  rebuild();
+  restore(JSON.parse(s));
 }
 function doRedo() {
   select(null);
   const s = redo.pop();
   if (!s) return;
   undo.push(snap());
-  S = JSON.parse(s);
+  restore(JSON.parse(s));
+}
+
+/** Map areas an op changes (objects are drawn by their center, so a small circle finds their chunk). Returns true when it moves the ground. */
+function opAreas(op: Op, out: Area[]): boolean {
+  if (op.t === 'add') out.push({ x: op.o.x, z: op.o.z, r: 2 });
+  else if (op.t === 'erase') out.push({ x: op.x, z: op.z, r: op.r + 2 });
+  else if (op.t === 'move') out.push({ x: op.x, z: op.z, r: 2 }, { x: op.nx, z: op.nz, r: 2 });
+  else {
+    // A lift reaches twice its radius (Field.rawHeight).
+    out.push({ x: op.x, z: op.z, r: op.r * 2 + 2 });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Switch to an undo or redo state. Only the chunks the differing hand edits touch are redrawn;
+ * the whole map is rebuilt only when the settings differ (or the edits are too many to redraw one by one).
+ */
+function restore(next: State) {
+  const prev = S;
+  S = next;
   refreshInputs();
   applyAtmos();
-  rebuild();
+  if (JSON.stringify(prev.gen) !== JSON.stringify(next.gen)) return rebuild();
+  const a = prev.ops, b = next.ops;
+  const n = Math.min(a.length, b.length);
+  let k = 0;
+  while (k < n && JSON.stringify(a[k]) === JSON.stringify(b[k])) k++;
+  if (k === a.length && k === b.length) return; // only the atmosphere changed
+  const areas: Area[] = [];
+  let terrain = false;
+  for (let i = k; i < a.length; i++) terrain = opAreas(a[i], areas) || terrain;
+  for (let i = k; i < b.length; i++) terrain = opAreas(b[i], areas) || terrain;
+  if (areas.length > EDIT.undoMaxAreas) rebuild();
+  else rebuild(terrain, areas);
 }
 
 let flashTimer = 0;
@@ -749,9 +781,17 @@ scene.onBeforeRenderObservable.add(() => {
   const speed = tool === 'walk' ? (fast ? 22 : 9) : Math.max(25, Math.min(1500, camera.radius * 0.9)) * (fast ? 3 : 1);
   v.normalize().scaleInPlace(speed * dt);
   const t = camera.target.add(v);
-  const ground = Math.max(field.height(t.x, t.z), S.gen.water - 1);
-  const targetHeight = ground + (tool === 'walk' ? 1.7 : 0.5);
-  t.y += (targetHeight - t.y) * Math.min(1, dt * 10);
+  if (tool === 'walk') {
+    // Walking follows the ground at eye height.
+    const ground = Math.max(field.height(t.x, t.z), S.gen.water - 1);
+    t.y += (ground + 1.7 - t.y) * Math.min(1, dt * 10);
+  } else {
+    // Flying keeps its height, so hills do not bob the view up and down. It only climbs when the
+    // camera itself would go into a hill.
+    const eye = camera.position.add(v);
+    const floor = Math.max(field.height(eye.x, eye.z), S.gen.water) + EDIT.flyClearance;
+    if (eye.y < floor) t.y += floor - eye.y;
+  }
   camera.target = t;
 });
 
@@ -790,48 +830,68 @@ window.addEventListener('blur', () => keys.clear());
 
 // ---- Minimap ------------------------------------------------------------------------------
 const mini = $<HTMLCanvasElement>('minimap');
-function drawMinimap() {
-  const N = 128;
-  mini.width = mini.height = N;
+/** The minimap's ground layer, kept while only objects change. */
+let miniGround: ImageData | null = null;
+/** Draw the minimap. The ground is sampled again only when `terrain` is set (or never drawn yet). */
+function drawMinimap(terrain = true) {
+  const N = MINIMAP_PX;
+  if (mini.width !== N) mini.width = mini.height = N;
   const ctx = mini.getContext('2d')!;
-  const img = ctx.createImageData(N, N);
   const size = S.gen.size;
-  const w = new Float32Array(NB);
-  const cols = BIOMES.map((b) => Color3.FromHexString(b.ground[1]));
-  for (let j = 0; j < N; j++)
-    for (let i = 0; i < N; i++) {
-      const x = -size / 2 + ((i + 0.5) / N) * size;
-      const z = size / 2 - ((j + 0.5) / N) * size;
-      field.weights(x, z, w);
-      const h = field.height(x, z);
-      let r = 0, g = 0, b = 0;
-      for (let k = 0; k < NB; k++) {
-        r += w[k] * cols[k].r;
-        g += w[k] * cols[k].g;
-        b += w[k] * cols[k].b;
+  if (terrain || !miniGround) {
+    miniGround = ctx.createImageData(N, N);
+    const data = miniGround.data;
+    const w = new Float32Array(NB);
+    const cols = BIOMES.map((b) => Color3.FromHexString(b.ground[1]));
+    for (let j = 0; j < N; j++)
+      for (let i = 0; i < N; i++) {
+        const x = -size / 2 + ((i + 0.5) / N) * size;
+        const z = size / 2 - ((j + 0.5) / N) * size;
+        field.weights(x, z, w);
+        const h = field.height(x, z);
+        let r = 0, g = 0, b = 0;
+        for (let k = 0; k < NB; k++) {
+          r += w[k] * cols[k].r;
+          g += w[k] * cols[k].g;
+          b += w[k] * cols[k].b;
+        }
+        const shade = 0.75 + Math.max(-0.3, Math.min(0.35, h * 0.03));
+        const wet = h < S.gen.water;
+        const o = (j * N + i) * 4;
+        data[o] = wet ? 63 : r * 255 * shade;
+        data[o + 1] = wet ? 184 : g * 255 * shade;
+        data[o + 2] = wet ? 175 : b * 255 * shade;
+        data[o + 3] = 255;
       }
-      const shade = 0.75 + Math.max(-0.3, Math.min(0.35, h * 0.03));
-      const wet = h < S.gen.water;
-      const o = (j * N + i) * 4;
-      img.data[o] = wet ? 63 : r * 255 * shade;
-      img.data[o + 1] = wet ? 184 : g * 255 * shade;
-      img.data[o + 2] = wet ? 175 : b * 255 * shade;
-      img.data[o + 3] = 255;
-    }
-  ctx.putImageData(img, 0, 0);
-  ctx.fillStyle = 'rgba(21,19,26,0.4)';
+  }
+  // Objects as ink in a pixel buffer: each one darkens the pixels it covers, like a 40% ink dab.
+  // Hundreds of thousands of canvas calls took seconds on a 4 km map; this is one pass.
+  const ink = new Uint16Array(N * N);
   for (const o of objs) {
     if (o.k === 'nokta') continue;
     const r = (KINDS[o.k].r * o.s * N) / size;
     const px = ((o.x + size / 2) / size) * N, py = ((size / 2 - o.z) / size) * N;
-    // Small objects on a big map are single pixels: far cheaper than arcs.
-    if (r < 0.8) ctx.fillRect(px, py, 1, 1);
-    else {
-      ctx.beginPath();
-      ctx.arc(px, py, r, 0, Math.PI * 2);
-      ctx.fill();
+    if (r < 0.8) {
+      const i = Math.floor(px), j = Math.floor(py);
+      if (i >= 0 && j >= 0 && i < N && j < N) ink[j * N + i]++;
+      continue;
     }
+    const i0 = Math.max(0, Math.floor(px - r)), i1 = Math.min(N - 1, Math.floor(px + r));
+    const j0 = Math.max(0, Math.floor(py - r)), j1 = Math.min(N - 1, Math.floor(py + r));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) if ((i + 0.5 - px) ** 2 + (j + 0.5 - py) ** 2 <= r * r) ink[j * N + i]++;
   }
+  const img = new ImageData(new Uint8ClampedArray(miniGround.data), N, N);
+  const d = img.data;
+  for (let p = 0; p < N * N; p++) {
+    const n = ink[p];
+    if (!n) continue;
+    const keep = 0.6 ** Math.min(n, 12);
+    d[p * 4] = d[p * 4] * keep + 21 * (1 - keep);
+    d[p * 4 + 1] = d[p * 4 + 1] * keep + 19 * (1 - keep);
+    d[p * 4 + 2] = d[p * 4 + 2] * keep + 26 * (1 - keep);
+  }
+  ctx.putImageData(img, 0, 0);
   // Vendor machines: amber dots (violet = lucky) with an ink rim.
   for (const o of objs) {
     if (o.k !== 'satici' && o.k !== 'sansli') continue;
@@ -926,4 +986,4 @@ engine.runRenderLoop(() => {
 });
 window.addEventListener('resize', () => engine.resize());
 // For tests and screenshots.
-Object.assign(window, { planner: { get S() { return S; }, engine, scene, camera, rebuild, setTool, field: () => field, objs: () => objs, setState: (s: Partial<State>) => { S = { ...S, ...s }; refreshInputs(); applyAtmos(); rebuild(); } } });
+Object.assign(window, { planner: { get S() { return S; }, engine, scene, camera, rebuild, setTool, commit, undo: doUndo, redo: doRedo, paintAt: (x: number, z: number) => paintAt(new Vector3(x, 0, z)), field: () => field, objs: () => objs, setState: (s: Partial<State>) => { S = { ...S, ...s }; refreshInputs(); applyAtmos(); rebuild(); } } });
