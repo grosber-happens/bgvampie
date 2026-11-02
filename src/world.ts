@@ -16,6 +16,8 @@ import { STREAM, loadRadiusForFog } from './mapgen/stream';
 
 /** Baked collision boxes per Spor Ormanı model: [x, z, hw, hd, y0, y1] in model units (tools/blender/spor_carpisma.py). */
 const SPOR_COLLIDE = sporCollide as Record<string, number[][] | undefined>;
+/** Kinds you walk through: drawn by cimen.ts, never solid. */
+const GROUND_COVER = new Set<string>(['cimen', 'atesbocegi']);
 
 /** Every solid thing in the city is an axis-aligned box: center x/z, half sizes, bottom and top height. */
 export type Box = { x: number; z: number; hw: number; hd: number; y0: number; y1: number; /** Index in World.pads when this box is a bouncy morel. */ pad?: number };
@@ -128,13 +130,14 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     view.viewRadius = loadRadiusForFog(scene.fogDensity);
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
-    // Spor Ormanı Blender models are loaded by spor.ts; bouncy morels are drawn by pads.ts, which can squash them.
-    view.buildObjects(field, mapObjects.filter((o) => o.k !== 'morel' && !(o.k in SPOR_KINDS)));
+    // Spor Ormanı Blender models are loaded by spor.ts; bouncy morels are drawn by pads.ts, which can squash them;
+    // grass patches and firefly swarms by cimen.ts.
+    view.buildObjects(field, mapObjects.filter((o) => o.k !== 'morel' && !GROUND_COVER.has(o.k) && !(o.k in SPOR_KINDS)));
     const boxes: Box[] = [];
     const pads: PadSlot[] = [];
     const half = file.gen.size / 2;
     for (const o of mapObjects) {
-      if (o.k === 'nokta') continue;
+      if (o.k === 'nokta' || GROUND_COVER.has(o.k)) continue;
       if (o.k === 'morel') {
         const y = field.height(o.x, o.z);
         const hw = BOUNCE.padRadius * o.s;

@@ -150,6 +150,10 @@ export const KINDS = {
   dev: { name: 'Düşmüş Dev', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 30, s: [1, 1] },
   /** Bouncy morel jump pad (bounce.ts): placed by hand in the planner, never scattered. */
   morel: { name: 'Zıplama mantarı', cat: 'mushrooms', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 0.6, s: [1, 1] },
+  /** Spor Ormanı grass patch (cimen.ts): the game scatters dark grass clumps over a circle of radius r × size. */
+  cimen: { name: 'Çimen alanı', cat: 'mushrooms', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 6, s: [1, 1] },
+  /** Firefly swarm (cimen.ts): glowing lights that wander over a circle of radius r × size, near the player only. */
+  atesbocegi: { name: 'Ateş böcekleri', cat: 'mushrooms', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: 8, s: [1, 1] },
   ...sporKinds(),
   satici: { name: 'Satıcı makinesi', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },
   sansli: { name: 'Şanslı makine', cat: 'landmark', aff: [0, 0, 0, 0, 0, 0], cell: 0, r: VENDOR.r, s: [1, 1] },

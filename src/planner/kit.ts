@@ -5,7 +5,7 @@
  */
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { rng } from '../mapgen/noise';
-import { SPOR_KINDS, type Kind, type Obj, type SporKind } from '../mapgen/generate';
+import { KINDS, SPOR_KINDS, type Kind, type Obj, type SporKind } from '../mapgen/generate';
 
 /** Centered: box, sphere, torus, rock. Standing on y = 0: cyl, cone, taper, hemi. */
 export type Shape = 'box' | 'cyl' | 'cone' | 'taper' | 'sphere' | 'hemi' | 'torus' | 'rock';
@@ -244,6 +244,23 @@ const RECIPES: Record<Kind, Recipe> = {
   },
   morel(d) {
     morel(d);
+  },
+  cimen(d) {
+    // Stand-in for the scattered grass (the game draws the Blender clumps, src/cimen.ts): a dark disc and a few tufts.
+    const r = KINDS.cimen.r;
+    d.part('cyl', '#1f3d22', [0, 0.05, 0], [r * 2, 0.1, r * 2]);
+    for (let i = 0; i < 7; i++) {
+      const a = d.between(0, Math.PI * 2), q = r * Math.sqrt(d.between(0, 0.8));
+      d.part('cone', d.pick(['#24502a', '#2f5e2c', '#1e4a3a']), [Math.cos(a) * q, 0, Math.sin(a) * q], [0.5, d.between(0.5, 0.9), 0.5]);
+    }
+  },
+  atesbocegi(d) {
+    // Stand-in for a firefly swarm (src/cimen.ts): a few floating glow dots.
+    const r = KINDS.atesbocegi.r * 0.6;
+    for (let i = 0; i < 6; i++) {
+      const a = d.between(0, Math.PI * 2), q = r * Math.sqrt(d.between(0, 1));
+      d.glow('sphere', '#d9ff6b', [Math.cos(a) * q, d.between(0.6, 2), Math.sin(a) * q], [0.25, 0.25, 0.25]);
+    }
   },
   sansli(d) {
     vendorMachine(d, true);
