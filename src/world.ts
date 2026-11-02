@@ -11,13 +11,14 @@ import houseColliders from './assets/house-colliders.json';
 import { Field, KINDS, SPOR_KINDS, applyOps, generate, type MapFile, type Obj, type SporKind } from './mapgen/generate';
 import sporCollide from './assets/spor/carpisma.json';
 import { MapView } from './planner/build';
+import { BOUNCE } from './balance';
 import { STREAM, loadRadiusForFog } from './mapgen/stream';
 
 /** Baked collision boxes per Spor Ormanı model: [x, z, hw, hd, y0, y1] in model units (tools/blender/spor_carpisma.py). */
 const SPOR_COLLIDE = sporCollide as Record<string, number[][] | undefined>;
 
 /** Every solid thing in the city is an axis-aligned box: center x/z, half sizes, bottom and top height. */
-export type Box = { x: number; z: number; hw: number; hd: number; y0: number; y1: number };
+export type Box = { x: number; z: number; hw: number; hd: number; y0: number; y1: number; /** Index in World.pads when this box is a bouncy morel. */ pad?: number };
 
 /** Half size of the square city district. */
 export const CITY_HALF = 40;
@@ -54,8 +55,12 @@ export type PropName = keyof typeof PROPS;
 /** Where a prop model goes (its collision box is already in `boxes`). */
 export type PropSlot = { name: PropName; x: number; y: number; z: number; rotY: number; scale: number };
 
+/** A bouncy morel jump pad (bounce.ts): `y` is the ground under it, `top` the cap's top. */
+export type PadSlot = { x: number; z: number; y: number; top: number; s: number; r: number; v: number };
+
 export type World = {
   boxes: Box[];
+  pads: PadSlot[];
   houses: HouseSlot[];
   props: PropSlot[];
   shadows: ShadowGenerator;
@@ -123,12 +128,20 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     view.viewRadius = loadRadiusForFog(scene.fogDensity);
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
-    // Spor Ormanı Blender models are loaded by spor.ts.
-    view.buildObjects(field, mapObjects.filter((o) => !(o.k in SPOR_KINDS)));
+    // Spor Ormanı Blender models are loaded by spor.ts; bouncy morels are drawn by pads.ts, which can squash them.
+    view.buildObjects(field, mapObjects.filter((o) => o.k !== 'morel' && !(o.k in SPOR_KINDS)));
     const boxes: Box[] = [];
+    const pads: PadSlot[] = [];
     const half = file.gen.size / 2;
     for (const o of mapObjects) {
       if (o.k === 'nokta') continue;
+      if (o.k === 'morel') {
+        const y = field.height(o.x, o.z);
+        const hw = BOUNCE.padRadius * o.s;
+        pads.push({ x: o.x, z: o.z, y, top: y + BOUNCE.padTop * o.s, s: o.s, r: o.r, v: o.v });
+        boxes.push({ x: o.x, z: o.z, hw, hd: hw, y0: y - 0.2, y1: y + BOUNCE.padTop * o.s, pad: pads.length - 1 });
+        continue;
+      }
       if (o.k in SPOR_KINDS) {
         const y = field.height(o.x, o.z);
         const shape = SPOR_COLLIDE[o.k];
@@ -160,7 +173,7 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
       boxes.push({ x: o.x, z: o.z, hw: h, hd: h, y0, y1: y + Math.max(1.4, r * 1.15) });
     }
     mapFields.set(boxes, { field, half });
-    const world: World = { boxes, houses: [], props: [], shadows, seed, field, mapObjects, view };
+    const world: World = { boxes, pads, houses: [], props: [], shadows, seed, field, mapObjects, view };
     const spawnRand = rng(seed + 913);
     world.spawn = findOpenSpot(boxes, spawnRand, 0.65);
     // Everything in sight of the spawn builds now; the rest streams in a few chunks per frame.
@@ -319,7 +332,7 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
   }
 
   for (const m of statics) m.freezeWorldMatrix();
-  return { boxes, houses, props, shadows, seed };
+  return { boxes, pads: [], houses, props, shadows, seed };
 }
 
 // ---- Broadphase: boxes bucketed into a coarse grid so lookups only check nearby boxes.
@@ -373,6 +386,14 @@ export function groundHeight(pos: Vector3, radius: number, boxes: Box[]): number
     if (b.y1 > g && b.y1 <= pos.y + STEP_HEIGHT && overlapsFootprint(b, pos.x, pos.z, radius * 0.7)) g = b.y1;
   }
   return g;
+}
+
+/** The bouncy morel an actor standing at `pos` is on (its top is the floor), or -1. */
+export function padUnder(pos: Vector3, radius: number, boxes: Box[]): number {
+  for (const b of near(boxes, pos.x, pos.z, radius)) {
+    if (b.pad !== undefined && Math.abs(b.y1 - pos.y) < 0.05 && overlapsFootprint(b, pos.x, pos.z, radius * 0.7)) return b.pad;
+  }
+  return -1;
 }
 
 /** Lowest ceiling above the actor's head (for jumping into overhangs), or Infinity. */

@@ -195,6 +195,33 @@ export function vendorMachine(d: Draw, lucky = false) {
 }
 
 /**
+ * Bouncy morel (zıplama mantarı): a 2 m jump pad, after the Blender model in
+ * regions/spor-ormani (spor_morel.py). Cream egg-shaped cap with dark honeycomb pits on a short pale stem.
+ * Top of the cap at y = BOUNCE.padTop. The game draws it with the same recipe so it can squash it.
+ */
+export function morel(d: Draw) {
+  d.part('taper', '#e8b9a6', [0, 0, 0], [0.66, 0.22, 0.66]);
+  d.part('cyl', P.paper, [0, 0.05, 0], [0.5, 0.65, 0.5]);
+  const cy = 1.31, a = 0.5, b = 0.69;
+  d.part('sphere', '#efe3c8', [0, cy, 0], [a * 2, b * 2, a * 2]);
+  const rows = 7;
+  for (let i = 0; i < rows; i++) {
+    const th = 0.42 + (i / (rows - 1)) * 2.2;
+    const ring = Math.sin(th);
+    const n = Math.max(4, Math.round(9 * ring));
+    const off = (i % 2) * 0.5 + d.between(-0.15, 0.15);
+    for (let j = 0; j < n; j++) {
+      const ph = ((j + off + d.between(-0.12, 0.12)) / n) * Math.PI * 2;
+      const nx = (ring * Math.cos(ph)) / a, ny = Math.cos(th) / b, nz = (ring * Math.sin(ph)) / a;
+      const e = Math.atan2(ny, Math.hypot(nx, nz));
+      const w = Math.min(0.27, (Math.PI * 2 * a * ring) / n - 0.08);
+      const col = d.rand() < 0.5 ? '#5a3d3c' : '#6a4656';
+      d.part('sphere', col, [a * ring * Math.cos(ph) * 0.99, cy + b * Math.cos(th) * 0.99, a * ring * Math.sin(ph) * 0.99], [w, d.between(0.17, 0.22), 0.07], [-e, Math.PI / 2 - ph, 0]);
+    }
+  }
+}
+
+/**
  * Planner stand-ins for the Spor Ormanı Blender models (the game loads the real .glb, src/spor.ts):
  * a stem and a cap for houses and mushrooms, a deck for bridges, a glowing tuft for enoki.
  */
@@ -214,6 +241,9 @@ const RECIPES: Record<Kind, Recipe> = {
   ...(Object.fromEntries((Object.keys(SPOR_KINDS) as SporKind[]).map((k) => [k, sporMarker(k)])) as Record<SporKind, Recipe>),
   satici(d) {
     vendorMachine(d);
+  },
+  morel(d) {
+    morel(d);
   },
   sansli(d) {
     vendorMachine(d, true);

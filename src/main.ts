@@ -17,7 +17,7 @@ import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { placeSpor } from './spor';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
-import { buildWorld, ceilingHeight, groundHeight, pointHitsObstacle, resolveWalls } from './world';
+import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, resolveWalls } from './world';
 import { placeNatureAssets } from './nature';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
 
@@ -54,6 +54,9 @@ import { castHooks, meleeTargets } from './kit';
 import { applySkillLanguage, blurb, getLang, onLang, t as T } from './i18n';
 import { SETTINGS, initUi, invUi, paintArt, onSettings, renderInventory, renderShop, shopUi } from './ui';
 import { MACHINES, buildVendors, nearMachine } from './vendor';
+import { BOUNCE } from './balance';
+import { bounceLaunch } from './bounce';
+import { bouncePad, buildPads, updatePads } from './pads';
 import { loadArtIndex } from './icons';
 import { killLog, xpLog, currentOffer, grantXp, prog, resetProgression, rewardKill, xpNeeded } from './progression';
 import { random, setRandomSeed, visualRandom } from './random';
@@ -188,6 +191,7 @@ if (world.field && world.mapObjects) {
   placeNatureAssets(scene, world.field, world.mapObjects).catch((e) => console.error('Nature models failed to load', e));
 }
 buildVendors(scene, world, seed);
+buildPads(scene, world);
 const input = new Input(canvas);
 const levelUpUi = createLevelUpUi(input);
 placeHouses(scene, world)
@@ -242,6 +246,10 @@ const ctl = {
   wallRunDone: false,
   wallN: new Vector3(),
   slamming: false,
+  /** Highest point since leaving the ground (how far a bouncy morel landing fell). */
+  peakY: 0,
+  /** Thrown by a bouncy morel: low air drag until the next landing. */
+  launched: false,
   weapon: 'ranged' as Weapon,
   fireCd: 0,
   dashT: 0,
@@ -579,7 +587,7 @@ function updatePlayer(dt: number) {
     const run = (ctl.sprinting ? S4.sprintMult : ctl.airSprint ? S4.airSprintMult / MOVE.airControl : 1) * (ctl.winded > 0 ? S4.windedSlow : 1);
     const speed = stunned || ctl.slamming ? 0 : MOVE.speed * kit.speedMult() * gearSpeedMult() * run * slow * (ctl.grounded ? 1 : MOVE.airControl) * (isAiming() ? AIM.moveMult : 1) * (ctl.windupT > 0 ? 0.5 : 1);
     player.pos.addInPlace(move.scale(speed * dt)).addInPlace(ctl.velH.scale(dt));
-    ctl.velH.scaleInPlace(Math.max(0, 1 - (ctl.grounded ? 10 : 1.2) * dt));
+    ctl.velH.scaleInPlace(Math.max(0, 1 - (ctl.grounded ? 10 : ctl.launched ? BOUNCE.airDrag : 1.2) * dt));
     player.velY -= MOVE.gravity * (ctl.airSprint && player.velY < 4 ? S4.airSprintGravity : 1) * dt;
   }
   resolveWalls(player.pos, player.radius, player.height, world.boxes);
@@ -596,9 +604,36 @@ function updatePlayer(dt: number) {
     player.pos.y = Math.max(nextY, player.pos.y - 3);
   }
   const floor = groundHeight(new Vector3(player.pos.x, Math.max(player.pos.y, nextY), player.pos.z), player.radius, world.boxes);
-  if (player.pos.y <= floor && player.velY <= 0) {
+  const pad = player.pos.y <= floor && player.velY <= 0 ? padUnder(new Vector3(player.pos.x, floor, player.pos.z), player.radius, world.boxes) : -1;
+  if (pad >= 0) {
+    // Bouncy morel: thrown up and forward, harder the farther the fall (bounce.ts).
+    player.pos.y = floor;
+    const launch = bounceLaunch(ctl.peakY - floor, MOVE.gravity);
+    player.velY = launch.up;
+    if (launch.forward > 0) {
+      const dir = move.lengthSquared() > 0 ? move.normalizeToNew() : fwd.clone();
+      dir.y = 0;
+      ctl.velH = dir.normalize().scale(launch.forward);
+      ctl.launched = true;
+    }
+    if (ctl.slamming) landSlam();
+    ctl.slamming = false;
+    ctl.grounded = false;
+    ctl.sinceGrounded = MOVE.coyoteTime;
+    ctl.peakY = floor;
+    ctl.airDashes = 1;
+    ctl.wallKicks = S4.wallKick.max;
+    ctl.wallRunT = 0;
+    ctl.wallRunDone = false;
+    bouncePad(pad, launch.strength);
+    if (launch.strength > 0) {
+      addShake(0.1 + 0.25 * launch.strength);
+      ringFx(new Vector3(player.pos.x, floor + 0.05, player.pos.z), 0.8 + 1.2 * launch.strength, '#efe3c8', 0.35);
+    }
+  } else if (player.pos.y <= floor && player.velY <= 0) {
     player.pos.y = floor;
     player.velY = 0;
+    ctl.launched = false;
     if (!ctl.grounded && ctl.slamming) {
       landSlam();
       addShake(0.35);
@@ -617,6 +652,7 @@ function updatePlayer(dt: number) {
       ctl.sinceGrounded += dt;
     }
   }
+  ctl.peakY = ctl.grounded ? player.pos.y : Math.max(ctl.peakY, player.pos.y);
   player.yaw = input.yaw;
 
   ctl.aimTime = isAiming() ? ctl.aimTime + dt : 0;
@@ -683,6 +719,7 @@ function updatePlayer(dt: number) {
   // Health comes back out of combat.
   kit.update(dt, ctl.moving, ctl.grounded);
   updateInventory(dt);
+  updatePads(dt);
   // Weapons in hand: ready pose while aiming or attacking, class state on the models.
   updateRig({ dt, pitch: input.pitch, ready: isAiming() || (input.firing && !stunned), hand: ctl.weapon, gauge: kit.gauge?.() ?? {} });
   // Player animation: every class has its own dash.
@@ -1156,8 +1193,8 @@ window.addEventListener('resize', () => engine.resize());
   scene: () => scene,
   start,
   houses: () => world.houses.map((h) => [h.x, h.z, h.scale]),
-  teleport: (x: number, z: number) => {
-    player.pos.set(x, 3, z);
+  teleport: (x: number, z: number, y = 3) => {
+    player.pos.set(x, y, z);
     player.velY = 0;
   },
   levelUp: () => grantXp(player, xpNeeded(player.level) - player.xp),
