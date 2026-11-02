@@ -80,7 +80,7 @@ class Builder:
         self.col = self.bm.loops.layers.color.new('Col')
         self.mat = 0   # 0 = vertex color material, 1 = glow (windows, lanterns)
 
-    def grid(self, rings, close_u=True, colors=None):
+    def grid(self, rings, close_u=True, colors=None, skip=None):
         """rings: list of lists of Vector (same length). colors: same shape."""
         bm = self.bm
         vs = [[bm.verts.new(p) for p in ring] for ring in rings]
@@ -88,6 +88,8 @@ class Builder:
         for i in range(len(rings) - 1):
             for j in range(n if close_u else n - 1):
                 k = (j + 1) % n
+                if skip and skip(i, j):
+                    continue
                 f = bm.faces.new((vs[i][j], vs[i][k], vs[i + 1][k], vs[i + 1][j]))
                 f.material_index = self.mat
                 f.smooth = True
