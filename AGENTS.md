@@ -7,5 +7,6 @@ Read [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) (the game) and [`docs/ROADMAP.
 - Run `pnpm build` before you open a PR. Update the docs your change touches in the same PR.
 - Gameplay numbers live in `src/balance.ts` or the class file's `*NUM` table, never inline.
 - New classes and skills go through the `ClassKit` registry in `src/kit.ts`.
+- Art direction: sky, backgrounds and effects keep the watercolor feel (`src/look.ts`, `src/planner/atmos.ts`). Character design is still open; ask the owner.
 - Every UI string goes through `t()` in `src/i18n.ts` (Turkish and English).
 - Keep `src/gear.ts` and `src/mapgen/` free of Babylon imports; the simulator in `sim/` imports them.
