@@ -36,21 +36,21 @@ HP = {  # house palette, soft watercolor versions of the reference
 # Shapes. Heights in meters. caps: (x, y, z, radius, height ratio, tilt deg, droop)
 HOUSES = {
     'ev_kule': dict(
-        trunk=(19.0, 2.4, 1.3), room=(4.6, 3.4), door_angle=-90,
-        caps=[(0, 0, 3.7, 6.6, 0.36, 4, 0.7), (2.0, 1.0, 6.8, 4.8, 0.38, -8, 0.5),
-              (-1.2, -0.6, 13.6, 7.4, 0.34, 6, 0.8), (0.4, 0.3, 18.2, 10.5, 0.32, -3, 1.2)],
-        windows=[(5.6, -60), (8.4, 150), (11.6, 40), (15.4, -70), (16.0, 60)],
-        balcony=(9.8, -110, 3.6, 150), shelves=[(5.5, 20), (11.5, 100), (14.0, 200)],
+        trunk=(20.0, 2.4, 1.3), room=(4.6, 3.4), door_angle=-90, bend=0.13, bend_ph=3.5, twist=1.6,
+        caps=[(0, 0, 3.7, 6.6, 0.38, 6, 0.9), (1.4, 0.8, 6.6, 4.8, 0.40, -12, 0.8),
+              (-0.8, -0.4, 15.2, 7.0, 0.34, 12, 1.2), (0.3, 0.2, 19.6, 10.5, 0.34, -9, 1.8)],
+        windows=[(5.6, -60), (8.4, 150), (9.0, 40), (13.6, -60), (17.4, 60)],
+        balcony=(10.6, -110, 3.6, 150), shelves=[(5.5, 20), (11.5, 100), (14.0, 200)],
         vines=3, lantern=(-6.5, -5.0)),
     'ev_genis': dict(
-        trunk=(15.0, 3.6, 2.4), room=(5.8, 3.6), door_angle=-80,
-        caps=[(1.0, 0.5, 6.9, 7.5, 0.34, -5, 0.8), (0.0, 0.0, 15.0, 13.0, 0.30, 4, 1.4)],
+        trunk=(15.0, 3.6, 2.4), room=(5.8, 3.6), door_angle=-80, bend=0.10, bend_ph=2.2, twist=1.0,
+        caps=[(0.8, 0.4, 6.9, 7.5, 0.36, -11, 1.1), (0.0, 0.0, 15.4, 13.0, 0.32, 8, 2.2)],
         windows=[(4.6, -40), (5.0, -130), (12.2, 160), (12.0, 20), (11.0, 150)],
         balcony=(9.6, -90, 4.4, 260), shelves=[(4.8, 60), (12.8, -140)],
         vines=4, lantern=(7.0, -6.0)),
     'ev_kulube': dict(
-        trunk=(10.5, 2.0, 1.4), room=(5.0, 3.2), door_angle=-95,
-        caps=[(0, 0, 3.4, 8.2, 0.38, 3, 1.0), (0.6, 0.4, 10.2, 5.2, 0.40, -6, 0.6)],
+        trunk=(10.5, 2.0, 1.4), room=(5.0, 3.2), door_angle=-95, bend=0.14, bend_ph=4.0, twist=1.4,
+        caps=[(0, 0, 3.4, 8.2, 0.40, 5, 1.2), (0.4, 0.3, 10.4, 7.6, 0.38, -12, 1.4)],
         windows=[(1.6, -45, 'wall'), (1.6, -140, 'wall'), (1.6, 30, 'wall'), (8.6, 20)],
         balcony=(6.6, -90, 2.6, 140), shelves=[(5.6, 60)],
         vines=2, lantern=(-5.5, -6.0)),
@@ -97,13 +97,28 @@ def zrot(deg):
     return Matrix.Rotation(math.radians(deg), 3, 'Z')
 
 
+def trunk_off(spec, z):
+    """Sideways offset of the trunk's center line at height z (0 at the ground).
+    One S-curve per house, shared by the trunk and everything attached to it."""
+    h = spec['trunk'][0]
+    t = max(0.0, min(1.2, z / h))
+    a, ph = spec.get('bend', 0.1) * h, spec.get('bend_ph', 0.0)
+    w = t ** 1.3
+    return Vector((a * w * math.sin(t * 3.4 + ph), a * 0.8 * w * math.sin(t * 2.6 + ph + 1.7), 0))
+
+
+def tpolar(spec, r, deg, z=0.0):
+    return polar(r, deg, z) + trunk_off(spec, z)
+
+
 def polar(r, deg, z=0.0):
     a = math.radians(deg)
     return Vector((math.cos(a) * r, math.sin(a) * r, z))
 
 
 # ---------------------------------------------------------------- parts
-def trunk(b, height, r_base, r_top, rnd, max_flare=99.0):
+def trunk(b, spec, rnd, max_flare=99.0):
+    height, r_base, r_top = spec['trunk']
     """Bark trunk with grooves and root flares."""
     segs, rings = 28, 20
     ph = rnd.uniform(0, 6.28)
@@ -111,12 +126,13 @@ def trunk(b, height, r_base, r_top, rnd, max_flare=99.0):
     pts, cols = [], []
     for i in range(rings + 1):
         t = i / rings
-        sway = Vector((math.sin(t * 2.2 + ph), math.cos(t * 1.7 + ph), 0)) * height * 0.025 * t
+        sway = trunk_off(spec, height * t)
+        twist = t * spec.get('twist', 1.2)
         r = r_top + (r_base - r_top) * (1 - t) ** 1.6
         ring, rc = [], []
         for j in range(segs):
             a = j / segs * math.tau
-            groove = math.sin(9 * a + t * 3 + ph) * 0.5 + 0.5
+            groove = math.sin(9 * a + twist * 9 + ph) * 0.5 + 0.5
             flare = sum(max(0, math.cos(a - math.radians(q))) ** 8 for q in roots) * max(0, 1 - t * 6) * min(r_base * 0.7, max_flare)
             rr = r * (1 - 0.07 * groove) + flare
             ring.append(sway + Vector((math.cos(a) * rr, math.sin(a) * rr, height * t - 0.2)))
@@ -125,7 +141,7 @@ def trunk(b, height, r_base, r_top, rnd, max_flare=99.0):
         pts.append(ring)
         cols.append(rc)
     vs = b.grid(pts, colors=cols)
-    b.cap_fan(vs[-1], Vector((0, 0, height)), HP['bark'])
+    b.cap_fan(vs[-1], Vector((0, 0, height)) + trunk_off(spec, height), HP['bark'])
 
 
 def roof_cap(b, center, radius, hr, tilt, droop, rnd, shade=0.0, segs=64, gills=40):
@@ -141,14 +157,15 @@ def roof_cap(b, center, radius, hr, tilt, droop, rnd, shade=0.0, segs=64, gills=
     def R(a):
         return radius * (1 + 0.06 * math.sin(3 * a + ph) + 0.035 * math.sin(7 * a + ph))
 
-    prof = [(i / 10, h * (1 - (i / 10) ** 1.3)) for i in range(1, 11)]
+    prof = [(i / 10, h * (1 - (i / 10) ** 1.1) - droop * 0.5 * (i / 10) ** 3) for i in range(1, 11)]
     prof += [(1.03, -droop * 0.45), (1.02, -droop), (0.97, -droop * 1.05)]
     rings, cols = [], []
     for k, (t, z) in enumerate(prof):
         ring, rc = [], []
         for j in range(segs):
             a = j / segs * math.tau
-            wave = 0.18 * math.sin(5 * a + ph) * t * droop
+            # uneven sag: one side hangs lower, plus a soft wave along the rim
+            wave = (0.22 * math.sin(5 * a + ph) - 0.55 * max(0, math.cos(a - ph * 1.3)) ** 2) * t ** 2 * droop
             ring.append(center + rot @ Vector((math.cos(a) * R(a) * t, math.sin(a) * R(a) * t, z + wave)))
             streak = 0.5 + 0.5 * math.sin(a * 23 + ph) * math.sin(a * 7)
             if k < 10:
@@ -229,10 +246,10 @@ def room(b, radius, height, door_deg, rnd):
             r @ Matrix.Rotation(math.radians(-18), 3, 'Y'))
 
 
-def window(b, pos_deg, z, surf_r, rnd, hood=True):
+def window(b, pos_deg, z, surf_r, rnd, hood=True, off=None):
     """Small window with frame, shutters and glowing glass, facing outwards."""
     r = zrot(pos_deg)
-    c = polar(surf_r, pos_deg, z)
+    c = polar(surf_r, pos_deg, z) + (off if off is not None else Vector())
     box(b, c + r @ Vector((0.05, 0, 0)), (0.3, 1.05, 1.3), HP['timber'], r)
     b.mat = 1
     box(b, c + r @ Vector((0.16, 0, 0)), (0.12, 0.75, 1.0), HP['glow'], r, mat=1)
@@ -257,27 +274,27 @@ def balcony(b, z, deg, depth, span, spec):
     depth = max(depth, RULES['balcony_depth'])
     r_out = r_in + depth
     # walkable sample points: skip the strip hugging the trunk (vines, door hood live there)
-    floor_pts = [polar(r_in + 0.7 + k * (depth - 1.0) / 2, deg + d, z) for d in (-span / 3, 0, span / 3) for k in (0, 1, 2)]
+    floor_pts = [tpolar(spec, r_in + 0.7 + k * (depth - 1.4) / 2, deg + d, z) for d in (-span / 3, 0, span / 3) for k in (0, 1, 2)]
     n = max(6, int(span / 12))
     a0 = deg - span / 2
-    deck = [[polar(r_in, a0 + span * j / n, z) for j in range(n + 1)],
-            [polar(r_out, a0 + span * j / n, z) for j in range(n + 1)]]
+    deck = [[tpolar(spec, r_in, a0 + span * j / n, z) for j in range(n + 1)],
+            [tpolar(spec, r_out, a0 + span * j / n, z) for j in range(n + 1)]]
     deck_lo = [[p - Vector((0, 0, 0.25)) for p in row] for row in deck]
     b.grid([deck[0], deck[1], deck_lo[1], deck_lo[0]], close_u=False,
            colors=[[HP['timber']] * (n + 1)] * 4)
     for j in range(n + 1):
         a = a0 + span * j / n
-        box(b, polar(r_out - 0.1, a, z + RULES['rail_h'] / 2), (0.14, 0.14, RULES['rail_h']), HP['timber'])
+        box(b, tpolar(spec, r_out - 0.1, a, z + RULES['rail_h'] / 2), (0.14, 0.14, RULES['rail_h']), HP['timber'])
         if j % 2 == 0:  # brackets under the deck
-            tube(b, [polar(r_in, a, z - 2.2), polar(r_out - 0.3, a, z - 0.2)], 0.1, HP['timber'], 5)
-    rail = [polar(r_out - 0.1, a0 + span * j / (n * 2), z + RULES['rail_h']) for j in range(n * 2 + 1)]
+            tube(b, [tpolar(spec, r_in, a, z - 2.2), tpolar(spec, r_out - 0.3, a, z - 0.2)], 0.1, HP['timber'], 5)
+    rail = [tpolar(spec, r_out - 0.1, a0 + span * j / (n * 2), z + RULES['rail_h']) for j in range(n * 2 + 1)]
     tube(b, rail, 0.08, HP['timber'], 5)
     rail2 = [p - Vector((0, 0, 0.5)) for p in rail]
     tube(b, rail2, 0.05, HP['timber'], 4)
     # balcony door into the trunk, same size as the ground door
     dw, dh = RULES['door_w'], RULES['door_h']
     rot = zrot(deg)
-    c = polar(trunk_radius_at(spec, z + 1.2) * 0.92, deg, z)
+    c = tpolar(spec, trunk_radius_at(spec, z + 1.2) * 0.92, deg, z)
     for s in (-1, 1):
         box(b, c + rot @ Vector((0.1, s * (dw / 2 + 0.08), dh / 2)), (0.3, 0.16, dh), HP['timber'], rot)
     box(b, c + rot @ Vector((0.1, 0, dh + 0.1)), (0.3, dw + 0.4, 0.2), HP['timber'], rot)
@@ -295,7 +312,7 @@ def shelf_mushroom(b, z, deg, spec, rnd):
         a = deg + rnd.uniform(-15, 15)
         rr = trunk_radius_at(spec, z) * 0.95
         s = rnd.uniform(0.6, 1.1)
-        p = polar(rr + s * 0.5, a, z + k * 0.45 - 0.5)
+        p = tpolar(spec, rr + s * 0.5, a, z + k * 0.45 - 0.5)
         b.add_blob(p, s, (1.0, 0.9, 0.22), (HP['blue'], HP['blue_lt']), rnd, 2, None, 0.08)
 
 
@@ -310,7 +327,7 @@ def vines(b, spec, count, rnd):
             z = 0.3 + t * h * rnd.uniform(0.85, 0.95)
             a = ph + t * turns * math.tau
             rr = trunk_radius_at(spec, z) + 0.12
-            pts.append(Vector((math.cos(a) * rr, math.sin(a) * rr, z)))
+            pts.append(Vector((math.cos(a) * rr, math.sin(a) * rr, z)) + trunk_off(spec, z))
         tube(b, pts, [0.16 - 0.08 * i / 39 for i in range(40)], HP['vine'], 5, HP['vine_lt'])
         for i in range(4, 40, 6):
             b.add_blob(pts[i], 0.28, (1.4, 0.8, 0.3), (HP['vine'], HP['vine_lt']), rnd, 1, None, 0.1)
@@ -318,7 +335,7 @@ def vines(b, spec, count, rnd):
     for (x, y, z, rad, hr, tilt, droop) in spec['caps']:
         for _ in range(int(rad / 2.5)):
             a = rnd.uniform(0, math.tau)
-            top = Vector((x, y, z - droop * 0.9)) + Vector((math.cos(a), math.sin(a), 0)) * rad * 0.97
+            top = Vector((x, y, z - droop * 0.9)) + trunk_off(spec, z) + Vector((math.cos(a), math.sin(a), 0)) * rad * 0.97
             ln = rnd.uniform(1.5, 4.0)
             pts = [top + Vector((math.sin(t * 3) * 0.2, 0, -t * ln)) for t in (i / 8 for i in range(9))]
             tube(b, pts, [0.09 - 0.07 * i / 8 for i in range(9)], HP['vine'], 4, HP['vine_lt'])
@@ -351,15 +368,16 @@ def build_house(name, spec, rnd):
     b = so.Builder()
     h, rb, rt = spec['trunk']
     rr, rh = spec['room']
-    trunk(b, h, rb, rt, rnd, max(0.0, rr - rb - 0.6))
+    trunk(b, spec, rnd, max(0.0, rr - rb - 0.6))
     room(b, rr, rh, spec['door_angle'], rnd)
     for i, c in enumerate(spec['caps']):
         shade = (0.55, 0.1, 0.75, 0.25)[i % 4] if i < len(spec['caps']) - 1 else 0.05
-        roof_cap(b, c[:3], c[3], c[4], c[5], c[6], rnd, shade)
+        roof_cap(b, Vector(c[:3]) + trunk_off(spec, c[2]), c[3], c[4], c[5], c[6], rnd, shade)
     for w in spec['windows']:
         z, deg = w[0], w[1]
-        surf = rr + 0.05 if len(w) > 2 else trunk_radius_at(spec, z) * 0.92
-        window(b, deg, z, surf, rnd)
+        on_wall = len(w) > 2
+        surf = rr + 0.05 if on_wall else trunk_radius_at(spec, z) * 0.92
+        window(b, deg, z, surf, rnd, off=None if on_wall else trunk_off(spec, z))
     checks = {}
     if spec['balcony']:
         checks['balcony'] = balcony(b, *spec['balcony'], spec)

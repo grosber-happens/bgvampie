@@ -145,11 +145,13 @@ def headroom(ob, points):
     """Smallest free height straight up from each floor point to the mesh."""
     deps = bpy.context.evaluated_depsgraph_get()
     tree = BVHTree.FromObject(ob, deps)
-    best = math.inf
+    best, where = math.inf, None
     for p in points:
         hit = tree.ray_cast(Vector(p) + Vector((0, 0, 0.05)), Vector((0, 0, 1)), 50)
-        if hit[0] is not None:
-            best = min(best, hit[3] + 0.05)
+        if hit[0] is not None and hit[3] + 0.05 < best:
+            best, where = hit[3] + 0.05, hit[0]
+    if where is not None and best < RULES['headroom']:
+        print('  lowest hit at', tuple(round(c, 2) for c in where))
     return best
 
 
