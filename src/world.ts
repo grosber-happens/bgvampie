@@ -8,7 +8,7 @@ import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import houseColliders from './assets/house-colliders.json';
-import { Field, KINDS, SPOR_KINDS, applyOps, generate, type MapFile, type Obj, type SporKind } from './mapgen/generate';
+import { Field, KINDS, SPOR_KINDS, applyOps, baseHeight, generate, sporInstanced, type MapFile, type Obj, type SporKind } from './mapgen/generate';
 import sporCollide from './assets/spor/carpisma.json';
 import { MapView } from './planner/build';
 import { BOUNCE } from './balance';
@@ -130,9 +130,10 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     view.viewRadius = loadRadiusForFog(scene.fogDensity);
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
-    // Spor Ormanı Blender models are loaded by spor.ts; bouncy morels are drawn by pads.ts, which can squash them;
-    // grass patches and firefly swarms by cimen.ts.
-    view.buildObjects(field, mapObjects.filter((o) => o.k !== 'morel' && !GROUND_COVER.has(o.k) && !(o.k in SPOR_KINDS)));
+    // Spor Ormanı houses and bridges are placed by spor.ts; its mushrooms, enoki, moss and sprouts stream here as
+    // thin instances (their Blender models arrive through view.useModels). Bouncy morels are drawn by pads.ts,
+    // which can squash them; grass patches and firefly swarms by cimen.ts.
+    view.buildObjects(field, mapObjects.filter((o) => o.k !== 'morel' && !GROUND_COVER.has(o.k) && (!(o.k in SPOR_KINDS) || sporInstanced(o.k))));
     const boxes: Box[] = [];
     const pads: PadSlot[] = [];
     const half = file.gen.size / 2;
@@ -146,7 +147,7 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
         continue;
       }
       if (o.k in SPOR_KINDS) {
-        const y = field.height(o.x, o.z);
+        const y = baseHeight(field, o);
         const shape = SPOR_COLLIDE[o.k];
         if (shape) {
           // Houses and bridges: floors, stairs, balconies, decks and walls baked from the model.
@@ -464,4 +465,11 @@ export function findOpenSpot(boxes: Box[], rand: () => number, radius = 0.6): Ve
 /** True when nothing taller than a curb stands within `r` of the point. */
 export function spotIsOpen(boxes: Box[], x: number, z: number, r: number): boolean {
   return near(boxes, x, z, r).every((b) => b.y1 <= 0.3 || !overlapsFootprint(b, x, z, r));
+}
+
+/** True when nothing taller than a curb stands within `r` of the point, measured from the ground there (maps too). */
+export function spotIsClear(boxes: Box[], x: number, z: number, r: number): boolean {
+  const map = mapFields.get(boxes);
+  const floor = map ? map.field.height(x, z) : 0;
+  return near(boxes, x, z, r).every((b) => b.y1 <= floor + 0.3 || !overlapsFootprint(b, x, z, r));
 }

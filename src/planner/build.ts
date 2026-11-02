@@ -9,7 +9,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { FresnelParameters } from '@babylonjs/core/Materials/fresnelParameters';
-import { BIOMES, NB, type Field, type Obj } from '../mapgen/generate';
+import { BIOMES, NB, baseHeight, type Field, type Obj } from '../mapgen/generate';
 import { fbm, rng, smooth } from '../mapgen/noise';
 import { drawObject, type Mat, type Shape, type Sink } from './kit';
 import { STREAM, TERRAIN_STRIDE, lodFor, rectDistance, streamChunks, strideSteps, unloadRadius, type Rect } from '../mapgen/stream';
@@ -580,7 +580,7 @@ export class MapView {
     const tmp = new Matrix();
     for (const o of b.objs) {
       // Sink depth comes from the object's own number, so redrawing one chunk never shifts another.
-      const y = field.height(o.x, o.z) - (o.k === 'nokta' ? 0 : 0.15 + ((o.v * 7919) % 100) / 1000);
+      const y = baseHeight(field, o) - (o.k === 'nokta' ? 0 : 0.15 + ((o.v * 7919) % 100) / 1000);
       const variants = this.models.get(o.k);
       if (variants) {
         const vi = Math.abs(o.v) % variants.length;

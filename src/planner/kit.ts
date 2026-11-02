@@ -223,12 +223,14 @@ export function morel(d: Draw) {
 
 /**
  * Planner stand-ins for the Spor Ormanı Blender models (the game loads the real .glb, src/spor.ts):
- * a stem and a cap for houses and mushrooms, a deck for bridges, a glowing tuft for enoki.
+ * a stem and a cap for houses and mushrooms, a deck for bridges, a glowing tuft for enoki, a mound for moss, a cone for sprouts.
  */
 function sporMarker(k: SporKind): Recipe {
   const r = SPOR_KINDS[k].r;
   if (k.startsWith('kopru')) return (d) => d.part('box', k === 'kopru_ahsap' ? '#8a5a3a' : '#a59c8c', [0, 1.2, 0], [r * 2, 0.6, 2.6]);
   if (k.startsWith('enoki')) return (d) => d.glow('sphere', '#d8f0e0', [0, r, 0], [r * 1.6, r * 2, r * 1.6]);
+  if (k === 'yosun_tumsek') return (d) => d.part('hemi', '#5f7f4a', [0, 0, 0], [r * 2, 0.8, r * 2]);
+  if (k === 'kizil_filiz') return (d) => d.part('cone', '#b8413a', [0, 0, 0], [0.6, 2, 0.6]);
   const solid = SPOR_KINDS[k].solid as readonly [number, number];
   const [w, h] = solid;
   return (d) => {

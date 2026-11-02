@@ -24,7 +24,7 @@ import type { World } from './world';
 /** Kenney "Animated Characters: Survivors" (CC0): one rig, several skins, idle/run/jump. */
 export const SKINS = { maleB, femaleA, zombieA, zombieC };
 export type SkinName = keyof typeof SKINS;
-export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'dash' | 'dash_mage' | 'dash_fighter' | 'dash_scout' | 'cartwheel' | 'sprint';
+export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'dash' | 'dash_mage' | 'dash_fighter' | 'dash_scout' | 'cartwheel' | 'sprint' | 'attack';
 
 /**
  * Two rigged kits:

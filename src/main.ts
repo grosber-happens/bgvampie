@@ -1,4 +1,5 @@
 import { PERF_MAP } from './mapgen/perfmap';
+import { buildSporMap } from './mapgen/spormap';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -13,9 +14,10 @@ import './style.css';
 import { Input } from './input';
 import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, unlockAudio, updateFeel } from './feel';
 import { createHippoBody, loadCharacterKits } from './characters';
+import { loadCreatures } from './creatures';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
-import { placeSpor } from './spor';
+import { placeSpor, useSporModels } from './spor';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
 import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, resolveWalls } from './world';
 import { placeNatureAssets } from './nature';
@@ -145,14 +147,21 @@ const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
 const AIM = { distance: 2.8, shoulder: 1.15, fov: 0.55, moveMult: 0.55, blendSpeed: 12 };
 
 const params = new URLSearchParams(location.search);
-const mapId = params.get('map')?.replace(/^harita-/, '');
-// ?map=47216 | 8011 plays a bundled planner map, ?map=perf the 4×4 km performance test map, ?map=planner the planner's browser autosave.
+// No ?map plays the Spor Ormanı test map (the default test world), ?map=city the old city block,
+// ?map=47216 | 8011 a bundled planner map, ?map=perf the 4×4 km performance test map, ?map=planner the planner's browser autosave.
 // A missing or broken file falls back to the city block and says why.
-const BUNDLED_MAPS: Record<string, string> = { '47216': bundledMapRaw, '8011': bundledMap8011Raw, perf: JSON.stringify(PERF_MAP) };
+const mapParam = params.get('map')?.replace(/^harita-/, '') ?? 'spor';
+const mapId = mapParam === 'city' ? undefined : mapParam;
+const BUNDLED_MAPS: Record<string, () => string> = {
+  spor: () => JSON.stringify(buildSporMap()),
+  '47216': () => bundledMapRaw,
+  '8011': () => bundledMap8011Raw,
+  perf: () => JSON.stringify(PERF_MAP),
+};
 let playingMap: MapFile | undefined;
 let mapError = '';
 if (mapId) {
-  let raw: string | null | undefined = Object.hasOwn(BUNDLED_MAPS, mapId) ? BUNDLED_MAPS[mapId] : undefined;
+  let raw: string | null | undefined = Object.hasOwn(BUNDLED_MAPS, mapId) ? BUNDLED_MAPS[mapId]() : undefined;
   if (mapId === 'planner') {
     try {
       raw = localStorage.getItem(PLANNER_SAVE_KEY);
@@ -168,7 +177,7 @@ if (mapId) {
   }
   if (mapError) console.warn(`Map ${mapId} could not be loaded: ${mapError}. Using the city block.`);
 }
-const mapLabel = mapId === 'planner' ? T('plannerMap') : `#${mapId}`;
+const mapLabel = mapId === 'planner' ? T('plannerMap') : mapId === 'spor' ? T('sporMap') : `#${mapId}`;
 const seed = Number(params.get('seed')) || playingMap?.gen.seed || Math.floor(Math.random() * 1e6) + 1;
 setRandomSeed(seed);
 const DEBUG = params.has('debug');
@@ -200,6 +209,7 @@ placeHouses(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('House model failed to load', e));
 placeSpor(scene, world).catch((e) => console.error('Spor Ormanı models failed to load', e));
+useSporModels(scene, world).catch((e) => console.error('Spor Ormanı scatter models failed to load', e));
 placeProps(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('Street props failed to load', e));
@@ -1131,11 +1141,11 @@ canvas.addEventListener('click', () => {
   if (running && !input.locked && !panelOpen() && !dead) input.lock();
 });
 
-// Characters (Kenney survivors and zombies) load first; the match is set up once they are in.
+// Characters (Kenney survivors for the bots, the Spor Ormanı creatures for the mobs) load first; the match is set up once they are in.
 let ready = false;
 playBtn.disabled = true;
 playBtn.textContent = T('loading');
-loadCharacterKits(scene)
+Promise.all([loadCharacterKits(scene), loadCreatures(scene)])
   .catch((e) => console.error('Character kit failed to load', e))
   .then(() => {
     usePlayerModel();
@@ -1169,8 +1179,8 @@ engine.runRenderLoop(() => {
   }
   const live = running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen();
   if (live) {
-    if (input.consume('KeyN')) {
-      location.search = '';
+    if (!playingMap && input.consume('KeyN')) {
+      location.search = '?map=city';
       return;
     }
     if (DEBUG) {
@@ -1200,6 +1210,24 @@ window.addEventListener('resize', () => engine.resize());
     player.pos.set(x, y, z);
     player.velY = 0;
   },
+  /** Test hook: turn the view (radians). */
+  aim: (yaw: number, pitch = 0.1) => {
+    input.yaw = player.yaw = yaw;
+    input.pitch = pitch;
+  },
+  /** Test hook: a frozen Spor Ormanı creature `fwd` m ahead and `side` m right of the player, turned by `turn`. */
+  creature: (species: 'geyik' | 'salyangoz', fwd: number, side: number, turn = Math.PI) => {
+    const p = player.pos.add(forwardFromYaw(player.yaw).scale(fwd)).add(rightFromYaw(player.yaw).scale(side));
+    p.y = world.field ? world.field.height(p.x, p.z) : 0;
+    const u = spawnDummy(p, 400, species);
+    u.yaw = player.yaw + turn;
+    u.stunT = 1e6;
+    return u.id;
+  },
+  /** Test hook: where the objects of one map kind stand. */
+  objects: (k: string) => (world.mapObjects ?? []).filter((o) => o.k === k).map((o) => ({ x: o.x, z: o.z, r: o.r })),
+  ground: (x: number, z: number) => world.field?.height(x, z) ?? 0,
+  mobs: () => G.units.filter((u) => u.kind === 'mob').map((u) => ({ name: u.name, x: Math.round(u.pos.x), z: Math.round(u.pos.z), hp: u.hp })),
   levelUp: () => grantXp(player, xpNeeded(player.level) - player.xp),
   /** Test hook: the player cannot die (for movement tests and screenshots). */
   god: () => (player.maxHp = player.hp = 1e9),

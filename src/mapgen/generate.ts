@@ -106,8 +106,28 @@ export const SPOR_KINDS = {
   enoki_orta: { name: 'Enoki (orta)', cat: 'mushrooms', r: 0.4, solid: null },
   enoki_kucuk: { name: 'Enoki (küçük)', cat: 'mushrooms', r: 0.3, solid: null },
   enoki_seyrek: { name: 'Enoki (seyrek)', cat: 'mushrooms', r: 0.3, solid: null },
+  yosun_tumsek: { name: 'Yosun tümseği', cat: 'rocks', r: 4.2, solid: null },
+  kizil_filiz: { name: 'Kızıl filiz', cat: 'mushrooms', r: 1, solid: null },
 } as const satisfies Record<string, { name: string; cat: Category; r: number; solid: readonly [number, number] | null }>;
 export type SporKind = keyof typeof SPOR_KINDS;
+
+/**
+ * Ground height an object stands on. Bridges rest on their banks: the lower of the two ground heights
+ * near the span ends (the model's x axis), so a bridge over a creek never sinks to the creek bed.
+ * Everything else stands on the ground at its center.
+ */
+export function baseHeight(field: Field, o: Obj): number {
+  if (!o.k.startsWith('kopru_')) return field.height(o.x, o.z);
+  const d = SPOR_KINDS[o.k as SporKind].r * 0.85 * o.s;
+  const c = Math.cos(o.r) * d, sn = Math.sin(o.r) * d;
+  return Math.min(field.height(o.x + c, o.z - sn), field.height(o.x - c, o.z + sn));
+}
+
+/**
+ * Spor kinds drawn with thin instances and streamed like the kit objects (mushrooms, enoki, moss, sprouts).
+ * Houses and bridges are few and walkable, so spor.ts places them as full models.
+ */
+export const sporInstanced = (k: string): boolean => k in SPOR_KINDS && SPOR_KINDS[k as SporKind].cat !== 'landmark' && SPOR_KINDS[k as SporKind].cat !== 'ruins';
 
 function sporKinds() {
   const out = {} as { [K in SporKind]: { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] } };
