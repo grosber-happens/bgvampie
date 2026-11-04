@@ -9,18 +9,90 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import houseColliders from './assets/house-colliders.json';
 import { Field, KINDS, SPOR_KINDS, applyOps, baseHeight, generate, sporInstanced, type MapFile, type Obj, type SporKind } from './mapgen/generate';
-import sporCollide from './assets/spor/carpisma.json';
+import { sporShape } from './collide';
 import { MapView } from './planner/build';
 import { BOUNCE } from './balance';
 import { STREAM, loadRadiusForFog } from './mapgen/stream';
 
-/** Baked collision boxes per Spor Ormanı model: [x, z, hw, hd, y0, y1] in model units (tools/assets/bake-collision.mjs). */
-const SPOR_COLLIDE = sporCollide as Record<string, number[][] | undefined>;
 /** Kinds you walk through: drawn by cimen.ts, never solid. */
 const GROUND_COVER = new Set<string>(['cimen', 'atesbocegi']);
 
-/** Every solid thing in the city is an axis-aligned box: center x/z, half sizes, bottom and top height. */
-export type Box = { x: number; z: number; hw: number; hd: number; y0: number; y1: number; /** Index in World.pads when this box is a bouncy morel. */ pad?: number };
+/**
+ * Every solid thing is a box: center x/z, half sizes, bottom and top height. Boxes of a turned model keep
+ * the model's turn (c, s = cos and sin of its yaw), so they hug its shape instead of growing to an
+ * axis-aligned box round it. Local axes: x = dx*c - dz*s, z = dx*s + dz*c.
+ */
+export type Box = {
+  x: number;
+  z: number;
+  hw: number;
+  hd: number;
+  y0: number;
+  y1: number;
+  c?: number;
+  s?: number;
+  /** Index in World.pads when this box is a bouncy morel. */
+  pad?: number;
+  /**
+   * A placed model's baked shape: this box only bounds it in the broadphase, and the model's own boxes
+   * are built the first time something comes near (thousands of mushrooms, so most never are).
+   */
+  parts?: () => Box[];
+};
+
+/**
+ * One placed model's baked boxes ([x, z, hw, hd, y0, y1] in model meters) as a lazy group: turned by
+ * `yaw`, scaled by `scale`, standing at ground height `y`.
+ */
+export function shapeGroup(shape: number[][], x: number, z: number, y: number, yaw: number, scale: number): Box {
+  const c = Math.cos(yaw), sn = Math.sin(yaw);
+  let ex = 0, ez = 0, y0 = Infinity, y1 = -Infinity;
+  for (const [lx, lz, hw, hd, b0, b1] of shape) {
+    ex = Math.max(ex, Math.abs(lx * c + lz * sn) + Math.abs(c) * hw + Math.abs(sn) * hd);
+    ez = Math.max(ez, Math.abs(-lx * sn + lz * c) + Math.abs(sn) * hw + Math.abs(c) * hd);
+    y0 = Math.min(y0, b0);
+    y1 = Math.max(y1, b1);
+  }
+  let built: Box[] | null = null;
+  return {
+    x,
+    z,
+    hw: ex * scale,
+    hd: ez * scale,
+    y0: y + y0 * scale,
+    y1: y + y1 * scale,
+    parts: () =>
+      (built ??= shape.map(([lx, lz, hw, hd, b0, b1]) => ({
+        x: x + (lx * c + lz * sn) * scale,
+        z: z + (-lx * sn + lz * c) * scale,
+        hw: hw * scale,
+        hd: hd * scale,
+        y0: y + b0 * scale,
+        y1: y + b1 * scale,
+        c,
+        s: sn,
+      }))),
+  };
+}
+
+/** Every real box of a list: groups open into their parts. */
+export function solidBoxes(boxes: Box[]): Box[] {
+  return boxes.flatMap((b) => (b.parts ? b.parts() : [b]));
+}
+
+/** Half extents of a box's footprint along the world x and z axes. */
+export function boxExtent(b: Box): [number, number] {
+  if (b.c === undefined) return [b.hw, b.hd];
+  const c = Math.abs(b.c), s = Math.abs(b.s!);
+  return [c * b.hw + s * b.hd, s * b.hw + c * b.hd];
+}
+
+/** A world point in a box's local axes. */
+function toLocal(b: Box, x: number, z: number): [number, number] {
+  const dx = x - b.x, dz = z - b.z;
+  if (b.c === undefined) return [dx, dz];
+  return [dx * b.c - dz * b.s!, dx * b.s! + dz * b.c];
+}
 
 /** Half size of the square city district. */
 export const CITY_HALF = 40;
@@ -152,20 +224,10 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
       }
       if (o.k in SPOR_KINDS) {
         const y = baseHeight(field, o);
-        const shape = SPOR_COLLIDE[o.k];
+        const shape = sporShape(o.k);
         if (shape) {
-          // Walkable models: floors, stairs, balconies, decks and walls baked from the model.
-          const c = Math.cos(o.r), sn = Math.sin(o.r);
-          for (const [lx, lz, hw, hd, y0, y1] of shape) {
-            boxes.push({
-              x: o.x + (lx * c + lz * sn) * o.s,
-              z: o.z + (-lx * sn + lz * c) * o.s,
-              hw: (Math.abs(c) * hw + Math.abs(sn) * hd) * o.s,
-              hd: (Math.abs(sn) * hw + Math.abs(c) * hd) * o.s,
-              y0: y + y0 * o.s,
-              y1: y + y1 * o.s,
-            });
-          }
+          // Floors, stairs, balconies, walls and solid volumes baked from the model.
+          boxes.push(shapeGroup(shape, o.x, o.z, y, o.r, o.s));
           continue;
         }
         // Mushrooms: only the stem is solid.
@@ -344,17 +406,20 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
 }
 
 // ---- Broadphase: boxes bucketed into a coarse grid so lookups only check nearby boxes.
+// A model's own boxes (a group's parts) get a finer grid of their own.
 const CELL = 4;
-const grids = new WeakMap<Box[], { n: number; cells: Map<number, Box[]> }>();
-const key = (ix: number, iz: number) => (ix + 512) * 2048 + (iz + 512);
+const PART_CELL = 1.5;
+const grids = new WeakMap<Box[], { n: number; cell: number; cells: Map<number, Box[]> }>();
+const key = (ix: number, iz: number) => (ix + 8192) * 16384 + (iz + 8192);
 
-function gridOf(boxes: Box[]) {
+function gridOf(boxes: Box[], cell: number) {
   let g = grids.get(boxes);
   if (!g || g.n !== boxes.length) {
     const cells = new Map<number, Box[]>();
     for (const b of boxes) {
-      for (let ix = Math.floor((b.x - b.hw) / CELL); ix <= Math.floor((b.x + b.hw) / CELL); ix++) {
-        for (let iz = Math.floor((b.z - b.hd) / CELL); iz <= Math.floor((b.z + b.hd) / CELL); iz++) {
+      const [ex, ez] = boxExtent(b);
+      for (let ix = Math.floor((b.x - ex) / cell); ix <= Math.floor((b.x + ex) / cell); ix++) {
+        for (let iz = Math.floor((b.z - ez) / cell); iz <= Math.floor((b.z + ez) / cell); iz++) {
           const k = key(ix, iz);
           let list = cells.get(k);
           if (!list) cells.set(k, (list = []));
@@ -362,28 +427,38 @@ function gridOf(boxes: Box[]) {
         }
       }
     }
-    g = { n: boxes.length, cells };
+    g = { n: boxes.length, cell, cells };
     grids.set(boxes, g);
   }
-  return g.cells;
+  return g;
 }
 
 const EMPTY: Box[] = [];
 /** Boxes whose footprint may touch the square around (x, z) with half size r. */
-function near(boxes: Box[], x: number, z: number, r: number): Box[] {
-  const cells = gridOf(boxes);
-  const x0 = Math.floor((x - r) / CELL), x1 = Math.floor((x + r) / CELL);
-  const z0 = Math.floor((z - r) / CELL), z1 = Math.floor((z + r) / CELL);
-  if (x0 === x1 && z0 === z1) return cells.get(key(x0, z0)) ?? EMPTY;
+function near(boxes: Box[], x: number, z: number, r: number, cell = CELL): Box[] {
+  const { cells } = gridOf(boxes, cell);
+  const x0 = Math.floor((x - r) / cell), x1 = Math.floor((x + r) / cell);
+  const z0 = Math.floor((z - r) / cell), z1 = Math.floor((z + r) / cell);
+  if (x0 === x1 && z0 === z1) {
+    const list = cells.get(key(x0, z0)) ?? EMPTY;
+    if (!list.some((b) => b.parts)) return list;
+  }
   const out = new Set<Box>();
-  for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) for (const b of cells.get(key(ix, iz)) ?? EMPTY) out.add(b);
+  for (let ix = x0; ix <= x1; ix++)
+    for (let iz = z0; iz <= z1; iz++)
+      for (const b of cells.get(key(ix, iz)) ?? EMPTY) {
+        if (!b.parts) out.add(b);
+        // a group opens only when the query reaches into its bounds
+        else if (Math.abs(b.x - x) <= b.hw + r && Math.abs(b.z - z) <= b.hd + r) for (const p of near(b.parts(), x, z, r, PART_CELL)) out.add(p);
+      }
   return [...out];
 }
 
 function overlapsFootprint(b: Box, x: number, z: number, r: number) {
-  const cx = Math.max(b.x - b.hw, Math.min(x, b.x + b.hw));
-  const cz = Math.max(b.z - b.hd, Math.min(z, b.z + b.hd));
-  return (x - cx) ** 2 + (z - cz) ** 2 < r * r;
+  const [lx, lz] = toLocal(b, x, z);
+  const cx = Math.max(-b.hw, Math.min(lx, b.hw));
+  const cz = Math.max(-b.hd, Math.min(lz, b.hd));
+  return (lx - cx) ** 2 + (lz - cz) ** 2 < r * r;
 }
 
 /** Height of the highest surface under an actor that it can stand on from its current feet height. */
@@ -418,20 +493,30 @@ export function resolveWalls(pos: Vector3, radius: number, height: number, boxes
   for (const b of near(boxes, pos.x, pos.z, radius)) {
     // Only boxes that overlap the body vertically and are too tall to step onto.
     if (b.y1 <= pos.y + STEP_HEIGHT || b.y0 >= pos.y + height) continue;
-    const cx = Math.max(b.x - b.hw, Math.min(pos.x, b.x + b.hw));
-    const cz = Math.max(b.z - b.hd, Math.min(pos.z, b.z + b.hd));
-    const dx = pos.x - cx;
-    const dz = pos.z - cz;
+    // Work in the box's own axes, then turn the push back into world axes.
+    const [lx, lz] = toLocal(b, pos.x, pos.z);
+    const cx = Math.max(-b.hw, Math.min(lx, b.hw));
+    const cz = Math.max(-b.hd, Math.min(lz, b.hd));
+    const dx = lx - cx;
+    const dz = lz - cz;
     const dist = Math.hypot(dx, dz);
     if (dist >= radius) continue;
+    let mx = 0, mz = 0;
     if (dist > 1e-5) {
-      pos.x = cx + (dx / dist) * radius;
-      pos.z = cz + (dz / dist) * radius;
+      mx = (dx / dist) * (radius - dist);
+      mz = (dz / dist) * (radius - dist);
     } else {
-      const px = b.hw + radius - Math.abs(pos.x - b.x);
-      const pz = b.hd + radius - Math.abs(pos.z - b.z);
-      if (px < pz) pos.x += Math.sign(pos.x - b.x || 1) * px;
-      else pos.z += Math.sign(pos.z - b.z || 1) * pz;
+      const px = b.hw + radius - Math.abs(lx);
+      const pz = b.hd + radius - Math.abs(lz);
+      if (px < pz) mx = Math.sign(lx || 1) * px;
+      else mz = Math.sign(lz || 1) * pz;
+    }
+    if (b.c === undefined) {
+      pos.x += mx;
+      pos.z += mz;
+    } else {
+      pos.x += mx * b.c + mz * b.s!;
+      pos.z += -mx * b.s! + mz * b.c;
     }
   }
   const max = (mapFields.get(boxes)?.half ?? CITY_HALF) - radius;
@@ -444,7 +529,9 @@ export function pointHitsObstacle(p: Vector3, boxes: Box[]): boolean {
   const map = mapFields.get(boxes);
   if (p.y < (map ? map.field.height(p.x, p.z) : 0)) return true;
   for (const b of near(boxes, p.x, p.z, 0)) {
-    if (p.y > b.y0 && p.y < b.y1 && Math.abs(p.x - b.x) < b.hw && Math.abs(p.z - b.z) < b.hd) return true;
+    if (p.y <= b.y0 || p.y >= b.y1) continue;
+    const [lx, lz] = toLocal(b, p.x, p.z);
+    if (Math.abs(lx) < b.hw && Math.abs(lz) < b.hd) return true;
   }
   return false;
 }

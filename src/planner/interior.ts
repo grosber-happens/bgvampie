@@ -18,11 +18,10 @@ import { INTERIOR } from '../balance';
 import { baseHeight, type Field, type Obj } from '../mapgen/generate';
 import { houseKey, worldToLocal, furnToWorld, type Furn, type Interiors } from '../mapgen/interior';
 import { IC, PROP_NAMES, enterable } from '../interiors';
-import sporCollide from '../assets/spor/carpisma.json';
+import { sporShape } from '../collide';
 import { icon } from './icons';
 import { PROPS, kindName, propName, t, type PropGroup } from './strings';
 
-const BOXES = sporCollide as Record<string, number[][] | undefined>;
 
 export type DesignerHost = {
   scene: Scene;
@@ -175,7 +174,7 @@ export class InteriorDesigner {
   /** Wall boxes of this floor in the building's frame: [x, z, hw, hd]. */
   private walls(): number[][] {
     const fy = this.floors[this.floor];
-    return (BOXES[this.house!.k] ?? []).filter(([, , , , y0, y1]) => y1 - y0 >= 1 && y0 < fy + 1.8 && y1 > fy + 0.4);
+    return (sporShape(this.house!.k) ?? []).filter(([, , , , y0, y1]) => y1 - y0 >= 1 && y0 < fy + 1.8 && y1 > fy + 0.4);
   }
 
   /** Where a prop dropped at (x, z) ends up: on the floor, on a table, under the ceiling, or against a wall. */
