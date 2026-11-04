@@ -14,9 +14,9 @@ pnpm build    # typecheck + production build in dist/public
 
 ## Controls
 
-WASD move · mouse aim · left click attack · F switch melee/ranged · R reload · Q, E, 1, 2, 3 skills · W W sprint · A/D + Space side dash · Space jump, double jump, wall kick · Ctrl/C in the air ground slam (heavy legs) · X bandage · I bag · G Last Reel (Noir set) · Tab level-up cards · Esc pause
+WASD move · mouse aim · left click attack · F switch melee/ranged · R reload · Q, E, 1, 2, 3 skills · W W sprint · A/D + Space side dash · Space jump, double jump, wall kick · Ctrl/C in the air ground slam (heavy legs) · X bandage · I bag · G Last Reel (Noir set) · Tab level-up cards · O camera (high or classic) · wheel zoom · Esc pause
 
-Map planner: `/planner.html` grows a map from sliders and a seed and lets you edit it (see [`docs/MAP_PLANNER.md`](docs/MAP_PLANNER.md)).
+Map planner: `/planner.html` grows a map from sliders and a seed and lets you edit it, paint effect regions (spores, fog, fireflies) and furnish building interiors (see [`docs/MAP_PLANNER.md`](docs/MAP_PLANNER.md)).
 
 The game opens on the **Spor Ormanı test map**: 1.5×1.5 km of mushroom forest built only from our Blender models (`src/mapgen/spormap.ts`). `?map=city` plays the old city block, `?map=47216`, `?map=8011` or `?map=planner` a planner map (see [`docs/MAP_PLANNER.md`](docs/MAP_PLANNER.md)).
 
@@ -50,4 +50,4 @@ Performance: `?map=perf` plays the 4×4 km test map; `/perf.html` flies a camera
 - `src/world.ts`, `src/houses.ts`, `src/props.ts`: map, collision, props
 - `src/characters.ts`, `src/actors.ts`, `src/gun.ts`: models and animation
 - `src/feel.ts`: shooting feel and sounds
-- `tools/`: Blender and voxelizer scripts used to prepare the assets
+- `tools/`: Blender and voxelizer scripts used to prepare the assets; `tools/assets/` packs the region models and bakes their collision and interior data (`node tools/assets/pack-spor.mjs`, `bake-collision.mjs`, `bake-interior.mjs`)

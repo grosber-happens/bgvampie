@@ -31,7 +31,7 @@ export function setLang(l: Lang) {
   for (const f of listeners) f();
 }
 
-type Dict = Record<string, [tr: string, en: string]>;
+export type Dict = Record<string, [tr: string, en: string]>;
 const UI: Dict = {
   title: ['Vampire Battleground', 'Vampire Battleground'],
   subtitle: ['Güneş hiç batmadı. Hasat başlıyor.', 'The sun never set. The Harvest begins.'],
@@ -148,8 +148,8 @@ const UI: Dict = {
   playCity: ['Şehir bloğunu oyna', 'Play the city block'],
   mapFailed: ['Harita yüklenemedi, şehir bloğu açıldı', 'Map could not be loaded, playing the city block'],
   hint: [
-    'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan (yakın silahla: özel saldırı) · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab basılı tut: kart · Esc duraklat',
-    'WASD move · W W sprint · A/D + Space side dash · Space jump (Space Space at a wall: wall kick) · Left click fire · Right click aim (melee: special attack) · F weapon · R reload · Q E 1 2 3 skills · X bandage · I bag · G set skill · hold Tab: cards · Esc pause',
+    'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan (yakın silahla: özel saldırı) · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab basılı tut: kart · O kamera · tekerlek yakınlaştır · Esc duraklat',
+    'WASD move · W W sprint · A/D + Space side dash · Space jump (Space Space at a wall: wall kick) · Left click fire · Right click aim (melee: special attack) · F weapon · R reload · Q E 1 2 3 skills · X bandage · I bag · G set skill · hold Tab: cards · O camera · wheel zoom · Esc pause',
   ],
   credits: ['Bir Moebius rüyası, Kim Jung Gi çizgisi, Kopinski tozu.', 'A Moebius dream, a Kim Jung Gi line, Kopinski dust.'],
   postcard: ['Ufuk-i Kehribar’dan selamlar', 'Greetings from Ufuk-i Kehribar'],
@@ -159,12 +159,19 @@ const UI: Dict = {
   cooldown: ['{n} bekleme süresinde', '{n} is on cooldown'],
   loot: ['Eşya', 'Item'],
   slam: ['Yere çakıl! (havada Ctrl)', 'Ground slam! (Ctrl in the air)'],
+  camHigh: ['Kamera: yüksek (tekerlek yakınlaştırır, O klasik)', 'Camera: high (wheel zooms, O for classic)'],
+  camClassic: ['Kamera: klasik omuz arkası (O yüksek)', 'Camera: classic over the shoulder (O for high)'],
 };
+
+/** Add a screen's own strings (the map planner's) to the dictionary. */
+export function addStrings(d: Dict) {
+  Object.assign(UI, d);
+}
 
 export function t(key: string, vars: Record<string, string | number> = {}): string {
   const e = UI[key];
   let s = e ? e[lang === 'tr' ? 0 : 1] : key;
-  for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, String(v));
+  for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
   return s;
 }
 

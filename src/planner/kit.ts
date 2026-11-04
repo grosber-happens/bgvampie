@@ -231,8 +231,10 @@ function sporMarker(k: SporKind): Recipe {
   if (k.startsWith('enoki')) return (d) => d.glow('sphere', '#d8f0e0', [0, r, 0], [r * 1.6, r * 2, r * 1.6]);
   if (k === 'yosun_tumsek') return (d) => d.part('hemi', '#5f7f4a', [0, 0, 0], [r * 2, 0.8, r * 2]);
   if (k === 'kizil_filiz') return (d) => d.part('cone', '#b8413a', [0, 0, 0], [0.6, 2, 0.6]);
-  const solid = SPOR_KINDS[k].solid as readonly [number, number];
-  const [w, h] = solid;
+  const solid = SPOR_KINDS[k].solid;
+  // Walkable models and small props: a plain block until the real model loads.
+  if (!Array.isArray(solid)) return (d) => d.part('box', '#9a8f80', [0, r * 0.5, 0], [r * 1.4, r, r * 1.4]);
+  const [w, h] = solid as readonly [number, number];
   return (d) => {
     d.part('cyl', '#8a6450', [0, h / 2, 0], [w * 2, h, w * 2]);
     d.part('hemi', '#c95a4e', [0, h, 0], [r * 2, r * 0.7, r * 2]);

@@ -8,32 +8,27 @@
   <body>
     <canvas id="view"></canvas>
 
-    <header id="topbar">
+    <header id="topbar" class="sheet">
       <a class="brand" href="./">Vampire <b>Battleground</b></a>
-      <span class="title">Harita Planlayıcı <em>Ufuk-i Kehribar</em></span>
-      <span class="stats"><span id="stat-here">—</span> · <span id="stat-count"></span> · <span id="stat-time"></span> · <span id="stat-fps"></span></span>
+      <span id="crumbs" class="crumbs"></span>
+      <span class="stats"><span id="stat-here">—</span><span id="stat-count"></span><span id="stat-time"></span><span id="stat-fps"></span></span>
+      <button id="lang" class="chip"></button>
     </header>
 
-    <nav id="tools"></nav>
-    <div id="palette-wrap" class="card hidden"><div id="palette"></div></div>
-    <div id="brush" class="card hidden"></div>
+    <nav id="tools" class="sheet"></nav>
+    <section id="drawer" class="sheet hidden"></section>
 
-    <aside id="panel">
-      <button id="panel-toggle" title="Paneli aç/kapat">☰</button>
+    <aside id="panel" class="sheet">
+      <div id="tabs" class="tabs" role="tablist"></div>
       <div id="panel-body"></div>
-      <div class="files">
-        <button id="btn-play">Oyunda oyna</button>
-        <button id="btn-export">Dışa aktar</button>
-        <button id="btn-import">İçe aktar</button>
-        <button id="btn-clear" class="ghost">Elle yapılanları sil</button>
-        <button id="btn-reset" class="ghost">Varsayılana dön</button>
-        <input id="file" type="file" accept="application/json,.json" hidden />
-      </div>
     </aside>
+    <aside id="inside" class="sheet hidden"></aside>
+    <button id="panel-toggle" class="sheet icon-btn"></button>
 
-    <div id="mini-wrap" class="card"><canvas id="minimap" title="Tıkla: oraya git"></canvas><span class="n">K</span></div>
+    <div id="mini-wrap" class="sheet"><canvas id="minimap"></canvas><span class="n">K</span></div>
     <div id="hint"></div>
-    <div id="flash"></div>
+    <div id="flash" role="status" aria-live="polite"></div>
+    <input id="file" type="file" accept="application/json,.json" hidden />
     <script type="module" src="/src/planner/main.ts"></script>
   </body>
 </html>

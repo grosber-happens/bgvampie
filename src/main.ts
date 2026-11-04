@@ -18,6 +18,7 @@ import { loadCreatures } from './creatures';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { placeSpor, useSporModels } from './spor';
+import { setupPuffballs, updatePuffballs } from './puf';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
 import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, resolveWalls } from './world';
 import { placeNatureAssets } from './nature';
@@ -60,6 +61,10 @@ import { BOUNCE } from './balance';
 import { bounceLaunch } from './bounce';
 import { bouncePad, buildPads, updatePads } from './pads';
 import { buildGroundCover } from './cimen';
+import { setupRegionFx } from './regionfx';
+import { setupRoofCut } from './rooftop';
+import { createThreats } from './threats';
+import { furnishInteriors } from './interiors';
 import { loadArtIndex } from './icons';
 import { killLog, xpLog, currentOffer, grantXp, prog, resetProgression, rewardKill, xpNeeded } from './progression';
 import { random, setRandomSeed, visualRandom } from './random';
@@ -143,6 +148,19 @@ const S4 = {
 const BREATH_MAX: Record<ClassId, number> = { rogue: 120, fighter: 110, scout: 100, mage: 90 };
 const breathMax = () => BREATH_MAX[kit.id];
 const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
+/**
+ * High camera (prototype, O toggles it with the classic one): behind and above the player, looking down
+ * about 50°, so the swarm around you shows. The wheel zooms from over the shoulder (zoomMin) out to
+ * zoomMax; farther out the view leads ahead of the player so the crosshair lands in front of them.
+ */
+const HIGH_CAM = { pitch: -0.87, pitchMin: -1.35, pitchMax: 0.5, zoomMin: 2.8, zoomMax: 16, zoom: 9, zoomStep: 1.15, ahead: 2.5 };
+let camMode: 'high' | 'classic' = 'high';
+try {
+  if (localStorage.getItem('bgv-camera') === 'classic') camMode = 'classic';
+} catch {
+  /* private mode */
+}
+let camZoom = HIGH_CAM.zoom;
 // Right-click aim: closer over-the-shoulder view with zoom and slower movement.
 const AIM = { distance: 2.8, shoulder: 1.15, fov: 0.55, moveMult: 0.55, blendSpeed: 12 };
 
@@ -203,12 +221,20 @@ if (world.field && world.mapObjects) {
 buildVendors(scene, world, seed);
 buildPads(scene, world);
 const groundCover = buildGroundCover(scene, world);
+const regionFx = setupRegionFx(scene, world);
+furnishInteriors(scene, world).catch((e) => console.error('Interior props failed to load', e));
 const input = new Input(canvas);
 const levelUpUi = createLevelUpUi(input);
 placeHouses(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('House model failed to load', e));
-placeSpor(scene, world).catch((e) => console.error('Spor Ormanı models failed to load', e));
+let roof: ReturnType<typeof setupRoofCut> | null = null;
+placeSpor(scene, world)
+  .then((placed) => {
+    setupPuffballs(placed);
+    roof = setupRoofCut(scene, placed, world.boxes);
+  })
+  .catch((e) => console.error('Spor Ormanı models failed to load', e));
 useSporModels(scene, world).catch((e) => console.error('Spor Ormanı scatter models failed to load', e));
 placeProps(scene, world)
   .then(clayifyScene)
@@ -344,7 +370,11 @@ function isMyAllyMesh(m: { metadata?: { unitId?: number } }) {
 /** The world point under the crosshair: the aim ray goes from the camera, bullets fly from the weapon to it. */
 function aimPoint(range: number, worldOnly = false): Vector3 {
   const dir = aimDirection();
-  const ray = new Ray(camera.position.clone(), dir, range);
+  const from = camera.position.clone();
+  // Indoors the roof is cut away but still pickable: start the ray where it comes down through the cut.
+  const cut = roof?.cut ?? null;
+  if (cut !== null && from.y > cut && dir.y < -1e-3) from.addInPlace(dir.scale((cut - from.y) / dir.y));
+  const ray = new Ray(from, dir, range);
   const pick = scene.pickWithRay(
     ray,
     (m) => m.isPickable && m.isVisible && m.metadata?.unitId !== player.id && !isMyAllyMesh(m) && !(worldOnly && m.metadata?.unitId),
@@ -732,6 +762,7 @@ function updatePlayer(dt: number) {
   kit.update(dt, ctl.moving, ctl.grounded);
   updateInventory(dt);
   updatePads(dt);
+  updatePuffballs(dt);
   // Weapons in hand: ready pose while aiming or attacking, class state on the models.
   updateRig({ dt, pitch: input.pitch, ready: isAiming() || (input.firing && !stunned), hand: ctl.weapon, gauge: kit.gauge?.() ?? {} });
   // Player animation: every class has its own dash.
@@ -783,19 +814,46 @@ function isAiming() {
 // ---- Camera ----------------------------------------------------------------------
 let aimBlend = 0;
 let viewOffset: Vector3 | null = null;
+function setCamMode(m: 'high' | 'classic') {
+  camMode = m;
+  input.pitchMin = m === 'high' ? HIGH_CAM.pitchMin : -1.1;
+  input.pitchMax = m === 'high' ? HIGH_CAM.pitchMax : 0.9;
+  input.pitch = m === 'high' ? HIGH_CAM.pitch : -0.12;
+  try {
+    localStorage.setItem('bgv-camera', m);
+  } catch {
+    /* private mode */
+  }
+}
+
 function updateCamera(dt: number) {
   aimBlend += ((isAiming() ? 1 : 0) - aimBlend) * Math.min(1, AIM.blendSpeed * dt);
   const lerp = (a: number, b: number) => a + (b - a) * aimBlend;
   camera.fov = lerp(CAMERA.fov, AIM.fov) + feel.fovPunch;
+  // Indoors the building's roof is cut away (rooftop.ts); the camera may then rise above the cut.
+  roof?.update(player.pos, player.height);
+  const cut = roof?.cut ?? null;
   // Recoil lifts the view a little and springs back.
   const cp = Math.cos(input.pitch + feel.recoilPitch);
   const dir = new Vector3(Math.sin(input.yaw) * cp, Math.sin(input.pitch + feel.recoilPitch), Math.cos(input.yaw) * cp);
   const head = player.pos.add(new Vector3(0, CAMERA.height, 0));
-  const pivot = head.add(rightFromYaw(input.yaw).scale(lerp(CAMERA.shoulder, AIM.shoulder)));
-  const maxDist = lerp(CAMERA.distance, AIM.distance);
+  // High camera: the wheel sets the distance; far out the shoulder offset fades and the view leads ahead.
+  if (input.wheel) {
+    camZoom = Math.max(HIGH_CAM.zoomMin, Math.min(HIGH_CAM.zoomMax, camZoom * HIGH_CAM.zoomStep ** input.wheel));
+    input.wheel = 0;
+  }
+  const high = camMode === 'high';
+  const far = high ? ((camZoom - HIGH_CAM.zoomMin) / (HIGH_CAM.zoomMax - HIGH_CAM.zoomMin)) * (1 - aimBlend) : 0;
+  const flat = forwardFromYaw(input.yaw);
+  const pivot = head.add(rightFromYaw(input.yaw).scale(lerp(CAMERA.shoulder, AIM.shoulder) * (1 - far))).add(flat.scale(HIGH_CAM.ahead * far));
+  // Indoors with the high camera, the view starts above the cut, so the walls of a small room never push it in.
+  if (high && cut !== null && aimBlend < 0.5) pivot.y = Math.max(pivot.y, cut + 0.3);
+  const maxDist = lerp(high ? camZoom : CAMERA.distance, AIM.distance);
   let dist = maxDist;
   for (let d = 0.5; d <= maxDist; d += 0.25) {
-    if (pointHitsObstacle(pivot.subtract(dir.scale(d)), world.boxes)) {
+    const p = pivot.subtract(dir.scale(d));
+    if (cut !== null && p.y > cut) continue;
+    if (pointHitsObstacle(p, world.boxes)) {
       dist = Math.max(0.6, d - 0.3);
       break;
     }
@@ -981,6 +1039,7 @@ let dead = false;
 let styleIndex = 0;
 
 gameHud = createGameHud({ engine, scene, camera, canvas, ctl, running: () => running, aimBlend: () => aimBlend, aimDirection, spMax: breathMax, dashCost: S4.dashCost });
+const threats = createThreats(scene, engine, camera);
 
 
 
@@ -1088,7 +1147,7 @@ function resetMatch() {
   resetInventory();
   player.hp = player.maxHp;
   input.yaw = 0;
-  input.pitch = -0.12;
+  setCamMode(camMode);
   resetDirector(rand);
 }
 
@@ -1179,6 +1238,10 @@ engine.runRenderLoop(() => {
   }
   const live = running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen();
   if (live) {
+    if (input.consume('KeyO')) {
+      setCamMode(camMode === 'high' ? 'classic' : 'high');
+      toast(T(camMode === 'high' ? 'camHigh' : 'camClassic'), 2.4);
+    }
     if (!playingMap && input.consume('KeyN')) {
       location.search = '?map=city';
       return;
@@ -1194,6 +1257,8 @@ engine.runRenderLoop(() => {
   updateCamera(dt);
   world.stream?.(player.pos.x, player.pos.z);
   groundCover.update(dt, player.pos.x, player.pos.z);
+  regionFx.update(dt, player.pos.x, player.pos.z, player.pos.y);
+  threats.update();
   gameHud.update(live ? dt : 0);
   scene.render();
 });
@@ -1231,6 +1296,8 @@ window.addEventListener('resize', () => engine.resize());
   levelUp: () => grantXp(player, xpNeeded(player.level) - player.xp),
   /** Test hook: the player cannot die (for movement tests and screenshots). */
   god: () => (player.maxHp = player.hp = 1e9),
+  /** Test hook: the indoor roof cut height, or null outdoors. */
+  roofCut: () => roof?.cut ?? null,
   /** Test hook: draw one frame by hand (use after stopping the render loop to freeze a pose). */
   frame: (dt = 1 / 60) => {
     updateCamera(dt);

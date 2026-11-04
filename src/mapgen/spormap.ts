@@ -9,6 +9,8 @@
  * mounds, red sprouts, enoki clumps, dark grass and firefly swarms. Numbers live in SPOR_MAP.
  */
 import { DEFAULT_PARAMS, Field, KINDS, generate, type Kind, type MapFile, type Op } from './generate';
+import type { MapFx } from './fx';
+import { MAZE, MAZE_KINDS } from './labirent';
 import { fbm, rng } from './noise';
 
 export const SPOR_MAP = {
@@ -65,6 +67,38 @@ export const SPOR_MAP = {
   /** Bouncy morels scattered in the forest, besides two in each village. */
   morelCell: 120,
   morelChance: 0.4,
+  /** The mushroom-woman statue inside its mycelium maze (a 56 m square), and the clear ring round it. */
+  maze: [-470, 470] as [number, number],
+  mazeClear: 40,
+  /** The nomad mushroom pickers' camp and its clear radius. */
+  camp: [-210, -30] as [number, number],
+  campClear: 22,
+  /** A small town of plaster, glass and mosaic houses, as many as fit round a square. */
+  town: [280, -90] as [number, number],
+  townRadius: 34,
+  townClear: 62,
+  townHouses: ['ev_iki_kat', 'ev_uc_kat', 'ev_cam_kule', 'ev_mozaik', 'ev_cam_ikiz', 'ev_vitray', 'ev_cam_genis'] as Kind[],
+  /** The temple tree on its own hill, with floating rocks round it. */
+  temple: [520, 80] as [number, number],
+  templeClear: 30,
+  /** Fantastical trees through the forest: grid cell, chance. */
+  treeCell: 75,
+  treeChance: 0.3,
+  trees: ['agac_isik_sogut', 'agac_gokkusagi', 'agac_masal_mesesi', 'agac_yelpaze', 'agac_kizil_semsiye', 'agac_denizanasi', 'agac_lingzhi', 'agac_kehribar'] as Kind[],
+  /** Floating rock clusters: grid cell, chance, and the kinds. */
+  floatCell: 170,
+  floatChance: 0.3,
+  floats: ['ucan_blok_kucuk', 'ucan_blok_orta', 'ucan_kaya', 'ucan_basamak', 'ucan_ikiz', 'ucan_ada', 'ucan_sivri', 'ucan_harabe'] as Kind[],
+  /**
+   * Effect regions: thin spores outside, thick spores, fog and fireflies in the villages, the camp
+   * and round the statue (percent of the atmosphere preset, see mapgen/fx.ts).
+   */
+  fx: {
+    outside: { spores: 0.25, fog: 1, fireflies: 1 },
+    village: { r: 75, spores: 1.6, fog: 1.2, fireflies: 1.4 },
+    maze: { r: 70, spores: 2.2, fog: 1.5, fireflies: 1.2 },
+    camp: { r: 45, spores: 1.2, fog: 1, fireflies: 2 },
+  },
 };
 
 type Pt = { x: number; z: number };
@@ -182,6 +216,67 @@ export function buildSporMap(): MapFile {
     }
   });
 
+  // The statue in its maze. The Blender layout turns into game axes: x = -x, z = -y, yaw = -rotation.
+  {
+    const [mx, mz] = M.maze;
+    add('heykel_mantar_kadin', mx, mz, 1, 0, 0);
+    for (const [ki, bx, by, rot] of MAZE) add(MAZE_KINDS[ki], mx - bx, mz - by, 1, (-rot * Math.PI) / 180, 0);
+    take(mx, mz, M.mazeClear);
+  }
+
+  // The nomad camp: the tent, a fire in front, drying racks, baskets, a cart and seats round the fire.
+  {
+    const [cx, cz] = M.camp;
+    const yaw = r() * Math.PI * 2;
+    const at = (d: number, a: number) => [cx + Math.sin(yaw + a) * d, cz + Math.cos(yaw + a) * d] as const;
+    const put = (k: Kind, d: number, a: number, turn = 0) => {
+      const [x, z] = at(d, a);
+      add(k, x, z, 1, yaw + a + Math.PI + turn, 0);
+    };
+    put('kamp_cadir', 0, 0, Math.PI);
+    const [fx, fz] = at(9, 0);
+    add('kamp_ates', fx, fz, 1, 0, 0);
+    for (let i = 0; i < 3; i++) {
+      const a = (i - 1) * 0.9;
+      // Seats beyond the fire, facing it.
+      add('kamp_oturak', fx + Math.sin(yaw + a) * 3, fz + Math.cos(yaw + a) * 3, 1, yaw + a + Math.PI, 0);
+    }
+    put('kurutma_cerceve', 8, 1.2);
+    put('kurutma_tepsi', 9, -1.3);
+    put('mantar_dizisi', 7, 2);
+    put('sepet_grubu', 6, -0.9);
+    put('sepet_sirt', 5.5, 0.7);
+    put('kamp_tezgah', 7, -2.1);
+    put('kamp_kupler', 7.6, -2.5);
+    put('kamp_araba', 10, 2.7, Math.PI / 2);
+    put('kamp_fener', 5, 0.35);
+    take(cx, cz, M.campClear);
+  }
+
+  // The small town: houses round a square, facing in.
+  {
+    const [tx, tz] = M.town;
+    const n = M.townHouses.length;
+    M.townHouses.forEach((k, h) => {
+      const a = (h / n) * Math.PI * 2 + (r() - 0.5) * 0.2;
+      add(k, tx + Math.sin(a) * M.townRadius, tz + Math.cos(a) * M.townRadius, 1, a + Math.PI, 0);
+    });
+    for (let m = 0; m < 2; m++) add('morel', tx + (m ? 6 : -6), tz, 1, r() * 6.28, 0);
+    add('cimen', tx, tz, 2.4, 0, 0);
+    take(tx, tz, M.townClear);
+  }
+
+  // The temple tree with floating rocks drifting round it.
+  {
+    const [px, pz] = M.temple;
+    add('agac_tapinak', px, pz, 1, r() * 6.28, 0);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + r() * 0.5, d = 20 + r() * 8;
+      add(M.floats[Math.floor(r() * M.floats.length)], px + Math.sin(a) * d, pz + Math.cos(a) * d, 0.9 + r() * 0.4, r() * 6.28, 0);
+    }
+    take(px, pz, M.templeClear);
+  }
+
   function pick<T>(list: T[]): T {
     return list[Math.floor(r() * list.length)];
   }
@@ -208,6 +303,25 @@ export function buildSporMap(): MapFile {
         add(k, x, z, s, rot, rad * 0.8);
       }
   }
+
+  // Fantastical trees, alone in the forest.
+  for (let gx = -half; gx < half; gx += M.treeCell)
+    for (let gz = -half; gz < half; gz += M.treeCell) {
+      const x = gx + r() * M.treeCell, z = gz + r() * M.treeCell;
+      const k = pick(M.trees), s = 0.85 + r() * 0.35, rad = KINDS[k].r * s;
+      if (r() > M.treeChance || !inside(x, z, rad) || !dry(x, z) || field.slope(x, z) > 0.5) continue;
+      if (creekDist(line, x, z) < M.creek.clear + rad || nearVillage(x, z, M.villageClear + rad) || !free(x, z, rad)) continue;
+      add(k, x, z, s, r() * 6.28, rad);
+    }
+
+  // Floating rock clusters over glades.
+  for (let gx = -half; gx < half; gx += M.floatCell)
+    for (let gz = -half; gz < half; gz += M.floatCell) {
+      const x = gx + r() * M.floatCell, z = gz + r() * M.floatCell;
+      if (r() > M.floatChance || !inside(x, z, 20)) continue;
+      const n = 2 + Math.floor(r() * 3);
+      for (let i = 0; i < n; i++) add(pick(M.floats), x + (r() - 0.5) * 18, z + (r() - 0.5) * 18, 0.8 + r() * 0.5, r() * 6.28, 0);
+    }
 
   // Enoki clumps: a few clusters around a point, often at the foot of a mushroom.
   const enoki: Kind[] = ['enoki_seyrek', 'enoki_kucuk', 'enoki_orta', 'enoki_buyuk'];
@@ -247,7 +361,17 @@ export function buildSporMap(): MapFile {
       add('morel', x, z, 1, r() * 6.28, 1.5);
     }
 
-  return { v: 1, gen, ops };
+  const zone = (x: number, z: number, v: { r: number; spores: number; fog: number; fireflies: number }) => ({ shape: 'circle' as const, x, z, ...v });
+  const fx: MapFx = {
+    outside: { ...M.fx.outside },
+    zones: [
+      ...M.villages.map(([x, z]) => zone(x, z, M.fx.village)),
+      zone(M.town[0], M.town[1], M.fx.village),
+      zone(M.maze[0], M.maze[1], M.fx.maze),
+      zone(M.camp[0], M.camp[1], M.fx.camp),
+    ],
+  };
+  return { v: 1, gen, ops, fx };
 }
 
 /** Objects the test map adds, by kind (for the docs and quick checks). */

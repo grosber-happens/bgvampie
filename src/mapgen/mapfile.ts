@@ -3,6 +3,8 @@
  * A file that fails any check is rejected as a whole, so the game never builds half a map.
  */
 import { DEFAULT_PARAMS, KINDS, NB, type MapFile, type Op } from './generate';
+import { parseFx } from './fx';
+import { parseInteriors } from './interior';
 
 /** Where the planner autosaves its map in the browser. The game reads it for `?map=planner`. */
 export const PLANNER_SAVE_KEY = 'bgv-planner-map';
@@ -58,5 +60,10 @@ export function parseMapFile(text: string | null | undefined): MapParse {
     if (err) return { ok: false, reason: err };
   }
   const atmos = isObj(data.atmos) ? (data.atmos as MapFile['atmos']) : undefined;
-  return { ok: true, map: { v: 1, gen, ops: ops as Op[], atmos } };
+  if (data.fx !== undefined && !parseFx(data.fx, NB)) return { ok: false, reason: 'fx is broken' };
+  if (data.interiors !== undefined && !parseInteriors(data.interiors)) return { ok: false, reason: 'interiors is broken' };
+  const map: MapFile = { v: 1, gen, ops: ops as Op[], atmos };
+  if (data.fx !== undefined) map.fx = parseFx(data.fx, NB);
+  if (data.interiors !== undefined) map.interiors = parseInteriors(data.interiors);
+  return { ok: true, map };
 }

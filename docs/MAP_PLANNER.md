@@ -15,13 +15,33 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 
 ## Editor
 
-- Tools (left): view, place (pick a kind), move (grab an object and drag it), erase brush, raise / lower terrain brush, mirror (left-right, front-back, four-way), undo / redo (only the chunks the undone edits touch are redrawn; the whole map only when the settings differ), walk (WASD, Shift to run), photo, hide UI.
-- Camera, in every tool: WASD or the arrows move forward, back, left and right along the view, like walking (speed follows the zoom, Shift is three times faster). The camera keeps its height while it moves, so hills do not bob it up and down; it only climbs when it would go into a hill (`EDIT.flyClearance`). Right drag turns the camera, middle drag pans, the wheel zooms. In the view tool left drag also turns.
-- Move tool: click an object to select it, drag to move it. Resize it with the wheel while holding it, `[` / `]`, or the "Nesne boyu" slider (0.2× to 6×). It writes a `move` op (`{ t: 'move', k, x, z, nx, nz, ns? }`): the object of kind `k` at (x, z) goes to (nx, nz) and, with `ns`, gets that size. It edits one object; mirror does not apply. The game uses the new size for drawing and for the collision box.
-- Panel (right): seed and dice, symmetry for fair maps, landscape toggles, terrain sliders, density sliders, atmosphere presets (Altın Saat, Koi Tutulması, Kızıl Sis, Spor Sabahı) and sliders for fog, sun, bloom, god rays, ink lines, spores, koi and paper grain.
-- Keys: 1–6 tools (6 is move), M mirror, Y walk, P photo, H hide UI, R new seed, Ctrl+Z / Ctrl+Y.
-- The map autosaves in the browser. Export / import writes a JSON `MapFile` (`{ v, gen, ops, atmos }`): the generator settings plus the ordered hand edits, so files stay small.
+- Layout: a top bar (map name, object count, build time, fps, language chip TR/EN), the tool rail on the left, a drawer next to it for the active tool (palette, brush, selection), the panel on the right with five tabs (Land, Objects, Atmosphere, Effects, File; the last tab is remembered), and the minimap bottom right. Every string goes through `t()` (`src/planner/strings.ts`); icons are inline SVG (`src/planner/icons.ts`). Styles: `src/planner/planner.css` (paper and ink tokens, soft shadows, Shantell Sans). Under 900 px the panel folds behind a button.
+- Tools: browse (1), place (2, the drawer shows the palette with search and group chips: Spor Ormanı groups first, then the old kit), erase brush (3), raise / lower terrain (4 / 5), move (6), effect region (Z), walk (Y), mirror (M), undo / redo (Ctrl+Z / Ctrl+Y; only the chunks the undone edits touch are redrawn), photo (P), hide UI (H), new seed (R).
+- Camera, in every tool: WASD or the arrows move along the view (speed follows the zoom, Shift is three times faster). The camera keeps its height while it moves and only climbs when it would go into a hill (`EDIT.flyClearance`). Right drag turns, middle drag pans, the wheel zooms. In the browse tool left drag also turns.
+- Move tool: click an object to select it, drag to move it. Resize it with the wheel while holding it, `[` / `]`, or the size slider in the drawer (0.2× to 6×). It writes a `move` op (`{ t: 'move', k, x, z, nx, nz, ns? }`). Mirror does not apply. A selected building shows an "Enter" button.
+- The map autosaves in the browser. The File tab exports / imports a JSON `MapFile` (`{ v, gen, ops, atmos?, fx?, interiors? }`): the generator settings plus the ordered hand edits, so files stay small. "Play in game" saves and opens `?map=planner`.
 - `?q=low` renders at lower resolution with lighter shadows.
+
+## Effect regions
+
+Spores, fog and fireflies are set per region, as a share of the atmosphere preset (0 to 300%). Data and math are pure (`src/mapgen/fx.ts`); the editor is `src/planner/fxzones.ts`.
+
+- **Outside**: the values everywhere no region covers (default: no spores, normal fog and fireflies).
+- **Circle regions**: with the effect region tool (Z), click empty ground to add a 60 m circle, click a circle to select it, drag to move it, hold and wheel to resize it. The planner draws circles as soft colored walls; the minimap shows them too. The edge fades over the outer 30%.
+- **Landscape regions**: the Effects tab can add a whole landscape (Spor Ormanı, Kızıl Kanyon…); it follows the landscape weights, so the blend at the border stays soft.
+- Later regions in the list win over earlier ones where they overlap. Each region has its own spores / fog / fireflies sliders and, for circles, a radius slider.
+- The planner atmosphere eases toward the values under the camera; the game uses the values under the player (`src/regionfx.ts`): fog density, spore drift rate, and how many firefly swarms wake up.
+
+## Interior designer
+
+Double-click a house or the camp tent (or "Enter" in the move tool) to go inside (`src/planner/interior.ts`).
+
+- The camera moves into the building, and a clip plane hides everything above the current floor's ceiling, so the roof and upper floors disappear. Floors come from the model (`src/assets/spor/ic/ic.json`, baked by `tools/assets/bake-interior.mjs`); PgUp / PgDn or the floor buttons switch floors. Esc or "Back" leaves.
+- The panel lists the 51 interior props (Gaudí furniture, mushroom stools, lamps, rugs, pots…) by group with search. Click the floor to place; click a prop to select and drag it; R / Shift+R turn it by 15°; Del removes it; the lift slider raises it.
+- Snap: a prop near a wall turns to face the room and backs up to the wall; hanging lamps go under the ceiling; small "top" items (plates, candles) land on the nearest table or counter.
+- Checks: seat height (0.38–0.55 m), table (0.68–0.84 m) and counter (0.78–0.98 m) heights, a seat-table pair height gap, headroom under the ceiling, props sunk in walls and props overlapping each other. Numbers: `INTERIOR` in `src/balance.ts`.
+- Layouts are saved in building-local coordinates. By default a layout is the **template** for that building kind, shared by every copy on the map; switch to "This house only" to make an override for one house (`interiors.overrides`, keyed by kind and position; moving the house keeps it). Data: `src/mapgen/interior.ts`.
+- In the game the props are drawn as thin instances and get collision boxes (`src/interiors.ts`).
 
 ## Map size and chunks
 
@@ -35,14 +55,18 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 
 `src/planner/atmos.ts`: watercolor sky shader with the huge amber sun in the west, depth-based height fog that glows toward the sun, Moebius-style ink outlines from depth edges, god rays, spores in the air, up to three koi high in the sky, and the Kızıl Sis ring at the map edge.
 
+Spores (`src/sporfx.ts`, numbers in `SPORE_FX`) are watercolor dabs: irregular pigment blots with a darker drying rim and paper granulation, in two pigments per preset, drifting on slow noise. The planner and the game use the same particle system; the effect regions scale how many there are.
+
 ## In the game
 
-- With no `?map` the game plays the **Spor Ormanı test map** (`src/mapgen/spormap.ts`, numbers in its `SPOR_MAP` table): 1.5×1.5 km, Spor Ormanı only, no kit objects. A creek meanders north to south (hand lifts) with 6 bridges, 4 villages of 3–4 mushroom houses with morels, grass and fireflies, and forest groves and glades of giant clusters, big, medium and small mushrooms, moss mounds, red sprouts and enoki clumps, about 13,000 objects. The layout is rebuilt from code on load; `?map=city` plays the old city block.
+- With no `?map` the game plays the **Spor Ormanı test map** (`src/mapgen/spormap.ts`, numbers in its `SPOR_MAP` table): 1.5×1.5 km, Spor Ormanı only, no kit objects. A creek meanders north to south (hand lifts) with 6 bridges, 4 villages of 3–4 mushroom houses with morels, grass and fireflies, and forest groves and glades of giant clusters, big, medium and small mushrooms, moss mounds, red sprouts and enoki clumps, plus the landmarks below. The layout is rebuilt from code on load; `?map=city` plays the old city block.
 - `?map=47216` and `?map=8011` play the two maps bundled in `src/assets/maps/` (also buttons on the title screen). `?map=planner` plays the planner's browser autosave; the planner's **Oyunda oyna** button saves and opens it (same browser only).
 - `src/mapgen/mapfile.ts` checks every file before the game builds it (`parseMapFile`): version 1, numeric seed, size 50–8000 m, one flag per landscape, and well-formed hand edits with known kinds. Missing generator settings take the planner defaults. The planner's import uses the same check.
 - A broken, empty or unknown map never crashes the game: it plays the old city block, the title line and the start toast say "Harita yüklenemedi, şehir bloğu açıldı", and the console logs why.
 - `src/world.ts` builds the terrain and objects with the planner's `MapView`. Actors walk on the terrain height, and the map edge stops them (`resolveWalls`).
-- Spor Ormanı Blender models (`SPOR_KINDS` in `src/mapgen/generate.ts`, loaded by `src/spor.ts` from `src/assets/spor/`): 3 mushroom houses, 3 bridges, a giant mushroom cluster, 3 single mushrooms, 4 enoki clusters, a moss mound (`yosun_tumsek`) and a red sprout (`kizil_filiz`). Placed by hand only; the planner and the game both draw the .glb with its LOD0/1/2 meshes. In the game, houses and bridges are full models (`placeSpor`); the rest are thin instances streamed by the map view like kit objects (`sporInstanced`, `useSporModels`). Bridges rest on the lower of their two banks (`baseHeight`), so one over a creek never sinks to the bed. Houses and bridges use collision boxes baked from the model (`src/assets/spor/carpisma.json`, made by `tools/blender/spor_carpisma.py`): you can walk in the door, up the stairs to the balcony, and across the bridge decks. Mushrooms only have a solid stem. Source scripts: `tools/blender/`.
+- Spor Ormanı and small-town Blender models (`SPOR_KINDS` in `src/mapgen/generate.ts`, 101 kinds in 9 palette groups: 10 houses, 9 bridges, 11 monuments (mycelium gates, the mushroom-woman statue, maze walls, posts and paths), 20 mushrooms, 9 fantastical trees, 14 rocks and street props, 8 floating rocks, 12 camp pieces, 8 outdoor props). Placed by hand only; the planner and the game both draw the .glb with its LOD0/1/2 meshes. Houses, bridges, landmarks and animated models are full models in the game (`placeSpor`, which also swaps LODs by distance); the rest are thin instances streamed by the map view (`sporInstanced`, `useSporModels`). Floating rocks hover over the ground (`lift` in `SPOR_KINDS`). Bridges rest on the lower of their two banks (`baseHeight`). Collision boxes are baked from the model (`src/assets/spor/carpisma.json`): you can walk in the door, up the stairs, across bridge decks and through the maze.
+- Asset tools (`tools/assets/`, run with node): `spor-assets.mjs` lists every model, its source in the project files and its triangle budget; `pack-spor.mjs [names]` packs them (shared watercolor paper texture taken out, LOD0 simplified to budget, meshopt compression) and writes `olcu.json`; `bake-collision.mjs [names]` bakes collision boxes; `bake-interior.mjs` finds each building's floors and each interior prop's size and table top (`ic/ic.json`).
+- The test map also has the statue in its maze, the nomad camp, a small town of seven plaster, glass and mosaic houses, the temple tree with floating rocks, fantastical trees through the forest, and effect regions (thick spores in the villages, the town, the maze and the camp; thin spores elsewhere).
 - Spor Ormanı ground cover (`src/cimen.ts`, numbers in its `CIMEN` table), both in the "Mantar ve çiçek" palette and placed by hand; you walk through them:
   - Grass patch (Çimen alanı, `cimen`): a 6 m circle at size 1. The game scatters dark green grass clumps over it (4 Blender variants `cimen_*.glb`, about 0.9 clumps per m², thinning out at the edge so painted patches blend into one field). Only grass within 110 m draws, with LOD0/1/2 at 20 and 50 m. The planner shows a dark disc with a few tufts.
   - Fireflies (Ateş böcekleri, `atesbocegi`): a swarm over an 8 m circle at size 1. While the player is within 45 m, its fireflies drift and blink as soft watercolor blots of light (`isik_lekesi.png`, additive sprites); farther away the swarm sleeps and costs nothing.
@@ -51,5 +75,5 @@ Open `/planner.html` (or the "Harita planlayıcı" button on the title screen). 
 ## Not yet
 
 - Bridges (kopru), arches (kemer), the Kızıl Katedral and the Fallen Giant are single solid boxes: you cannot walk under or climb them yet.
-- The planner atmosphere (sky shader, ink lines, god rays, koi) is not in the game; only the fog density carries over.
+- The planner atmosphere (sky shader, ink lines, god rays, koi) is not in the game; only the fog density and the spores carry over.
 - Water is only visual: the lagoon bed is walkable ground.
