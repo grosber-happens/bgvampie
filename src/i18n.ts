@@ -146,6 +146,8 @@ const UI: Dict = {
   plannerMap: ['planlayıcıdan', 'from the planner'],
   sporMap: ['Spor Ormanı (test)', 'Spore Forest (test)'],
   playCity: ['Şehir bloğunu oyna', 'Play the city block'],
+  playMap47216: ['Harita 47216’yı oyna', 'Play map 47216'],
+  playMap8011: ['Harita 8011’i oyna', 'Play map 8011'],
   mapFailed: ['Harita yüklenemedi, şehir bloğu açıldı', 'Map could not be loaded, playing the city block'],
   hint: [
     'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan (yakın silahla: özel saldırı) · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab basılı tut: kart · O kamera · tekerlek yakınlaştır · Esc duraklat',

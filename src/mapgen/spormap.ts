@@ -90,6 +90,33 @@ export const SPOR_MAP = {
   floatChance: 0.3,
   floats: ['ucan_blok_kucuk', 'ucan_blok_orta', 'ucan_kaya', 'ucan_basamak', 'ucan_ikiz', 'ucan_ada', 'ucan_sivri', 'ucan_harabe'] as Kind[],
   /**
+   * Models that were only in the planner before: extra creek bridges, rocks, small mushrooms, blue
+   * puffballs, giant cluster variants, village props and lamps, and a showcase clearing for the pieces that
+   * need a hand-made spot (balcony bridges, mycelium tunnel). These passes run after the rest, so the
+   * older layout keeps its seed.
+   */
+  moreBridges: [
+    { at: 0.05, k: 'kopru_gaudi_mozaik' },
+    { at: 0.70, k: 'kopru_gaudi_viyaduk' },
+  ],
+  rockCell: 48,
+  rockChance: 0.3,
+  rocks: ['tas_cakil', 'tas_orta', 'tas_yassi', 'tas_buyuk', 'tas_dikili', 'tas_kaya', 'tas_dengeli', 'tas_yarik', 'tas_grup', 'tas_kemer', 'tas_sivri', 'blok_kesme', 'blok_yikik_duvar'] as Kind[],
+  smallCell: 34,
+  smallChance: 0.18,
+  smalls: ['mantar_semsiye', 'mantar_murekkep', 'mantar_huni', 'mantar_mercan', 'mantar_cin'] as Kind[],
+  puffCell: 170,
+  puffChance: 0.3,
+  clusterCell: 160,
+  clusterChance: 0.35,
+  clusters: ['mantar_kume_1', 'mantar_kume_2', 'mantar_kume_3', 'mantar_kume_4', 'mantar_kume_5'] as Kind[],
+  /** Props round each village and the town square, at this distance from the middle. */
+  props: ['lamba_sokak', 'lamba_cift', 'lamba_bahce', 'kasa', 'fici', 'sepet_mantar', 'tabela_ahsap', 'kutuk', 'cit', 'odun_yigini', 'kavanoz_ates'] as Kind[],
+  propRing: 17,
+  /** Showcase clearing (x, z) and its clear radius. */
+  showcase: [0, -560] as [number, number],
+  showcaseClear: 45,
+  /**
    * Effect regions: thin spores outside, thick spores, fog and fireflies in the villages, the camp
    * and round the statue (percent of the atmosphere preset, see mapgen/fx.ts).
    */
@@ -359,6 +386,87 @@ export function buildSporMap(): MapFile {
       const x = gx + r() * M.morelCell, z = gz + r() * M.morelCell;
       if (r() > M.morelChance || !inside(x, z, 5) || !dry(x, z) || !free(x, z, 1.5)) continue;
       add('morel', x, z, 1, r() * 6.28, 1.5);
+    }
+
+  // Extra bridges over the creek, the same way as the first ones.
+  for (const b of M.moreBridges) {
+    const i = Math.min(line.length - 2, Math.max(1, Math.round(b.at * (line.length - 1))));
+    const p = line[i], a = line[i - 1], c = line[i + 1];
+    const tx = c.x - a.x, tz = c.z - a.z;
+    const len = Math.hypot(tx, tz);
+    const nx = -tz / len, nz = tx / len;
+    add(b.k as Kind, p.x, p.z, 1, Math.atan2(-nz, nx), KINDS[b.k as Kind].r + 4);
+  }
+
+  // The showcase clearing: balcony bridges side by side and the mycelium tunnel in a row.
+  {
+    const [sx, sz] = M.showcase;
+    // Clear the forest that grew there first.
+    for (let i = ops.length - 1; i >= 0; i--) {
+      const op = ops[i];
+      if (op.t === 'add' && (op.o.x - sx) ** 2 + (op.o.z - sz) ** 2 < M.showcaseClear ** 2) ops.splice(i, 1);
+    }
+    const spans: Kind[] = ['kopru_gecit_12', 'kopru_gecit_20', 'kopru_gecit_20_kat', 'kopru_gecit_28'];
+    spans.forEach((k, i) => add(k, sx - 24 + i * 16, sz + 14, 1, Math.PI / 2, 0));
+    add('gecit_son', sx - 12, sz - 14, 1, 0, 0);
+    add('gecit_duz', sx, sz - 14, 1, 0, 0);
+    add('gecit_kavis', sx + 12, sz - 14, 1, 0, 0);
+    take(sx, sz, M.showcaseClear);
+  }
+
+  // Village and town props: lamps, crates, barrels, baskets, a sign, logs, a fence and firefly jars round the square.
+  [...M.villages, M.town].forEach(([vx, vz]) => {
+    M.props.forEach((k, i) => {
+      const a = (i / M.props.length) * Math.PI * 2 + r() * 0.3;
+      const x = vx + Math.sin(a) * M.propRing, z = vz + Math.cos(a) * M.propRing;
+      if (free(x, z, KINDS[k].r)) add(k, x, z, 1, a + Math.PI, KINDS[k].r);
+    });
+  });
+
+  // Giant cluster variants in the groves.
+  for (let gx = -half; gx < half; gx += M.clusterCell)
+    for (let gz = -half; gz < half; gz += M.clusterCell) {
+      const x = gx + r() * M.clusterCell, z = gz + r() * M.clusterCell;
+      const k = pick(M.clusters), s = 0.85 + r() * 0.25, rad = KINDS[k].r * s;
+      if (r() > M.clusterChance || !inside(x, z, rad) || !dry(x, z) || field.slope(x, z) > 0.6) continue;
+      if (creekDist(line, x, z) < M.creek.clear + rad || nearVillage(x, z, M.villageClear + rad) || !free(x, z, rad * 0.8)) continue;
+      add(k, x, z, s, r() * 6.28, rad * 0.8);
+    }
+
+  // Rocks and cut stones, more of them near the creek.
+  for (let gx = -half; gx < half; gx += M.rockCell)
+    for (let gz = -half; gz < half; gz += M.rockCell) {
+      const x = gx + r() * M.rockCell, z = gz + r() * M.rockCell;
+      const k = pick(M.rocks), s = 0.8 + r() * 0.5, rad = KINDS[k].r * s;
+      const wet = creekDist(line, x, z) < 45 ? 0.25 : 0;
+      if (r() > M.rockChance + wet || !inside(x, z, rad) || !dry(x, z) || !free(x, z, rad)) continue;
+      add(k, x, z, s, r() * 6.28, rad);
+    }
+
+  // Small forest mushrooms in clumps, like the enoki.
+  for (let gx = -half; gx < half; gx += M.smallCell)
+    for (let gz = -half; gz < half; gz += M.smallCell) {
+      const x = gx + r() * M.smallCell, z = gz + r() * M.smallCell;
+      if (r() > M.smallChance * (0.4 + forest(x, z))) continue;
+      const k = pick(M.smalls), n = 3 + Math.floor(r() * 4);
+      for (let i = 0; i < n; i++) {
+        const ex = x + (r() - 0.5) * 3, ez = z + (r() - 0.5) * 3;
+        if (!inside(ex, ez, 2) || !dry(ex, ez) || !free(ex, ez, 0.3)) continue;
+        add(k, ex, ez, 0.8 + r() * 0.5, r() * 6.28, 0.3);
+      }
+    }
+
+  // Blue puffballs, two or three together.
+  for (let gx = -half; gx < half; gx += M.puffCell)
+    for (let gz = -half; gz < half; gz += M.puffCell) {
+      const x = gx + r() * M.puffCell, z = gz + r() * M.puffCell;
+      if (r() > M.puffChance || !inside(x, z, 5) || !dry(x, z)) continue;
+      const n = 2 + Math.floor(r() * 2);
+      for (let i = 0; i < n; i++) {
+        const ex = x + (r() - 0.5) * 4, ez = z + (r() - 0.5) * 4;
+        if (!dry(ex, ez) || !free(ex, ez, 0.6)) continue;
+        add('mantar_mavi_patlak', ex, ez, 0.9 + r() * 0.3, r() * 6.28, 0.6);
+      }
     }
 
   const zone = (x: number, z: number, v: { r: number; spores: number; fog: number; fireflies: number }) => ({ shape: 'circle' as const, x, z, ...v });
