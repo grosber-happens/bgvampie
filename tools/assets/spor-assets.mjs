@@ -23,7 +23,10 @@ export const ASSETS = [
   ...list(P, ['kopru_tas', 'kopru_tas_yikik', 'kopru_ahsap'], { budget: 40_000 }),
   ...list(G, ['kopru_gaudi_mozaik', 'kopru_gaudi_viyaduk', 'kopru_gecit_12', 'kopru_gecit_20', 'kopru_gecit_20_kat', 'kopru_gecit_28'], { budget: 40_000 }),
   // Fantastical trees.
-  ...list('spor-ormani/agac/glb/', ['agac_isik_sogut', 'agac_tapinak', 'agac_gokkusagi', 'agac_masal_mesesi', 'agac_yelpaze', 'agac_kizil_semsiye', 'agac_denizanasi', 'agac_lingzhi', 'agac_kehribar'], { budget: 70_000 }),
+  // The temple tree's door leaves (and the light round them) are cut away: the owner wants no door there,
+  // the pointed-arch niche and its stone frame stay.
+  ...list('spor-ormani/agac/glb/', ['agac_tapinak'], { budget: 70_000, cut: [[-1.22, 1.22, -3.33, -2.9, 1.48, 6.95]] }),
+  ...list('spor-ormani/agac/glb/', ['agac_isik_sogut', 'agac_gokkusagi', 'agac_masal_mesesi', 'agac_yelpaze', 'agac_kizil_semsiye', 'agac_denizanasi', 'agac_lingzhi', 'agac_kehribar'], { budget: 70_000 }),
   // Mycelium column passage.
   ...list('spor-ormani/gecit/glb/', ['gecit_duz', 'gecit_kavis', 'gecit_son'], { budget: 60_000 }),
   // Mushroom-woman statue and the mycelium maze kit.
