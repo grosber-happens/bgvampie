@@ -18,6 +18,7 @@ import { SpriteManager } from '@babylonjs/core/Sprites/spriteManager';
 import '@babylonjs/core/Sprites/spriteSceneComponent';
 import type { Scene } from '@babylonjs/core/scene';
 import { KINDS } from './mapgen/generate';
+import { fxAt } from './mapgen/fx';
 import { rng } from './mapgen/noise';
 import { loadLodModel } from './models';
 import type { World } from './world';
@@ -31,7 +32,7 @@ export const CIMEN = {
   /** Clumps reach this many patch radii, thinning out past 1, so painted patches blend into one field. */
   edge: 1.2,
   /** Clump variants (Blender .glb names) and how often each is picked. */
-  variants: { cimen_kucuk: 3, cimen_orta: 4, cimen_genis: 2, cimen_uzun: 1 } as Record<string, number>,
+  variants: { cimen_kucuk: 3, cimen_orta: 4, cimen_genis: 2, cimen_uzun: 1, cimen_cicekli: 0.6, cimen_basak: 0.6 } as Record<string, number>,
   /** Random clump size range. */
   scale: [0.8, 1.3],
   /** Cell side in meters: grass is drawn and repacked per cell. */
@@ -53,7 +54,7 @@ export const CIMEN = {
 
 type Cell = { x: number; z: number; mats: Float32Array[] };
 type Firefly = { sprite: Sprite; x: number; y: number; z: number; ph: number[]; blink: number; off: number; size: number };
-type Swarm = { x: number; z: number; r: number; seed: number; flies: Firefly[] | null; fade: number };
+type Swarm = { x: number; z: number; r: number; seed: number; flies: Firefly[] | null; fade: number; /** Effect-region share (1 = 100%). */ share: number };
 
 export type GroundCover = { update(dt: number, x: number, z: number): void };
 
@@ -153,8 +154,12 @@ export function buildGroundCover(scene: Scene, world: World): GroundCover {
   }
 
   // ---- fireflies
-  const swarms: Swarm[] = swarmObjs.map((o) => ({ x: o.x, z: o.z, r: KINDS.atesbocegi.r * o.s, seed: Math.round(o.x * 31 + o.z * 17) ^ o.v, flies: null, fade: 0 }));
-  const perSwarm = (s: Swarm) => Math.min(CIMEN.fireflyMax, Math.max(4, Math.round(Math.PI * s.r * s.r * CIMEN.fireflyDensity)));
+  // The map's effect regions thin out or thicken each swarm (mapgen/fx.ts).
+  const biomeAt = (x: number, z: number) => field.weights(x, z);
+  const swarms: Swarm[] = swarmObjs
+    .map((o) => ({ x: o.x, z: o.z, r: KINDS.atesbocegi.r * o.s, seed: Math.round(o.x * 31 + o.z * 17) ^ o.v, flies: null, fade: 0, share: fxAt(world.mapFile?.fx, o.x, o.z, biomeAt).fireflies }))
+    .filter((s) => s.share > 0.02);
+  const perSwarm = (s: Swarm) => Math.max(1, Math.round(Math.min(CIMEN.fireflyMax, Math.max(4, Math.PI * s.r * s.r * CIMEN.fireflyDensity)) * s.share));
   let sprites: SpriteManager | null = null;
   if (swarms.length) {
     const cap = Math.max(...swarms.map(perSwarm)) * Math.min(swarms.length, 6);

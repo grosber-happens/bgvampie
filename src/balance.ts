@@ -214,3 +214,41 @@ export const BOUNCE = {
   stretchHeight: 1.2,
   stretchThin: 0.12,
 };
+
+/**
+ * Blue puffball (mantar_mavi_patlak, src/puf.ts): a shot bursts it and its spore cloud heals the players
+ * standing in it. First guesses, waiting for the owner's tuning.
+ */
+export const PUF = {
+  /** Hit cylinder at scale 1 (meters): the model is under 1 m tall. */
+  hitRadius: 0.55,
+  hitHeight: 1.0,
+  /** Spore cloud: radius (m), how long it stays (s), and the share of max health it heals per second. */
+  cloudRadius: 3,
+  cloudTime: 5,
+  healPerSec: 0.04,
+  /** Seconds until a burst puffball grows back and can be shot again. */
+  regrow: 45,
+};
+
+/**
+ * Interior designer checks (planner): heights that fit the shared character (capsule 1.85 m tall).
+ * Seat and table tops in meters; `pair` is the table top minus the seat top for a seat at a table.
+ */
+export const INTERIOR = {
+  seat: [0.38, 0.55],
+  table: [0.68, 0.84],
+  counter: [0.78, 0.98],
+  pair: [0.22, 0.38],
+  /** A seat this close (m) to a table is checked against it. */
+  pairReach: 1.3,
+  /** Room left under the ceiling (m), and the ceiling when no floor is above. */
+  headroom: 0.05,
+  ceiling: 3.9,
+  /** Props this close to a wall (m) snap their back against it; hanging lamps hang this far under the ceiling. */
+  snap: 0.7,
+  hangGap: 0.1,
+  /** Turn step for R (radians) and the share of overlap that counts as "props inside each other". */
+  turn: Math.PI / 12,
+  overlap: 0.3,
+};

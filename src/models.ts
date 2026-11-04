@@ -3,12 +3,11 @@
  * named `<name>_LOD0`, `<name>_LOD1`, `<name>_LOD2` (near to far). This loads them as a LodModel that
  * the map view draws with thin instances and its own LOD bands (src/mapgen/stream.ts).
  */
-import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { Scene } from '@babylonjs/core/scene';
 import type { LodModel } from './planner/build';
-import '@babylonjs/loaders/glTF';
+import { loadRegionModel } from './gltf';
 
 const LOD_NAME = /_LOD(\d)$/;
 
@@ -17,7 +16,7 @@ const LOD_NAME = /_LOD(\d)$/;
  * (the map kind's footprint), so the model replaces the kit recipe at the same size.
  */
 export async function loadLodModel(scene: Scene, url: string, footprint: number): Promise<LodModel> {
-  const container = await LoadAssetContainerAsync(url, scene, { pluginExtension: '.glb' });
+  const container = await loadRegionModel(url, scene);
   container.addAllToScene();
   const lods: Mesh[][] = [[], [], []];
   let name = url;

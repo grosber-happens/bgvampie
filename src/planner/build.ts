@@ -220,6 +220,12 @@ export class MapView {
   /** Terrain chunks cast shadows too (off in the game: on a 4 km map they would stretch the shadow map). */
   terrainCasts = true;
   onCasters: (meshes: Mesh[]) => void = () => {};
+  /** Glowing parts glow only at LODs below this (the planner keeps every LOD lit; the game only the near one). */
+  glowLods = 3;
+  /** Brightness of glowing kit parts (windows, lanterns). The game keeps it at 1 so they never burn through the fog. */
+  set glow(v: number) {
+    this.glowMat.emissiveColor.set(v, v, v);
+  }
   count = 0;
   /** Chunk builds and batch repacks since the last `update`, for the perf page. */
   stats = { builds: 0, repacks: 0, loaded: 0 };
@@ -572,9 +578,11 @@ export class MapView {
     };
     const sink: Sink = {
       part: (shape: Shape, mat: Mat, r: number, g: number, bl: number, m: Matrix) => {
-        // Small parts vanish at distance; glowing ones stay, lamps read from far away.
-        if (mat !== 'glow' && minPart > 0 && partSize(m.m) < minPart) return;
-        put(shape + '|' + mat, m.m, r, g, bl);
+        // Small parts vanish at distance; glowing ones stay longer so lamps read from far away.
+        if (mat === 'glow' ? lod === 2 && partSize(m.m) < STREAM.glowMinFar : minPart > 0 && partSize(m.m) < minPart) return;
+        // Past the near band glowing parts are painted, not lit: they fade into the fog with the body
+        // they sit on, instead of floating in the sky as bright squares.
+        put(shape + '|' + (mat === 'glow' && lod >= this.glowLods ? 'clay' : mat), m.m, r, g, bl);
       },
     };
     const tmp = new Matrix();

@@ -22,6 +22,11 @@ export const STREAM = {
   objectBands: [50, 150],
   /** Parts smaller than this (meters, longest side) are skipped at each LOD; glowing parts always draw. */
   minPart: [0, 0.25, 0.6],
+  /**
+   * Glowing parts smaller than this (m) are skipped at the far LOD: lit windows stayed bright after the fog
+   * had swallowed the tower mushroom around them, and floated in the sky as orange squares.
+   */
+  glowMinFar: 1.2,
   /** Terrain LOD bands: full detail under 450 m, then every 2nd, 4th and 8th grid point. */
   terrainBands: [450, 1000, 1900],
   /** A level changes only this far past its band, in meters. */

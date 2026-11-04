@@ -375,6 +375,18 @@ export function tickStatus(u: Unit, dt: number) {
 }
 
 // ---- Bullets ---------------------------------------------------------------
+/** Things a bullet can hit besides units and walls (the blue puffball): a standing cylinder. */
+export type Shootable = { x: number; y: number; z: number; r: number; h: number; ready: () => boolean; hit: (by: Unit) => void };
+export const SHOOTABLES: Shootable[] = [];
+
+function shootableAt(p: Vector3): Shootable | null {
+  for (const s of SHOOTABLES) {
+    if (p.y < s.y || p.y > s.y + s.h || (p.x - s.x) ** 2 + (p.z - s.z) ** 2 > s.r * s.r || !s.ready()) continue;
+    return s;
+  }
+  return null;
+}
+
 export function fireBullet(owner: Unit, from: Vector3, dir: Vector3, speed: number, range: number, damage: number, color: string, poison = false, size = 0.16) {
   // Small bullets are drawn as stretched tracers along their flight; big ones (boss rocks) as balls.
   const mesh =
@@ -415,6 +427,12 @@ export function updateBullets(dt: number) {
       const p = b.mesh.position;
       if (pointHitsObstacle(p, G.world.boxes)) {
         G.hooks.impact(p.clone(), b.mesh.material?.metadata?.hex ?? (b.mesh.material as StandardMaterial).emissiveColor.toHexString());
+        done = true;
+        break;
+      }
+      const s = SHOOTABLES.length ? shootableAt(p) : null;
+      if (s) {
+        s.hit(b.owner);
         done = true;
         break;
       }

@@ -28,6 +28,8 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { VolumetricLightScatteringPostProcess } from '@babylonjs/core/PostProcesses/volumetricLightScatteringPostProcess';
 import '@babylonjs/core/Rendering/depthRendererSceneComponent';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
+import { SPORE_FX, makeSporeCloud, setSporeColors } from '../sporfx';
+import type { FxValues } from '../mapgen/fx';
 
 export type Atmos = {
   preset: PresetId;
@@ -299,7 +301,7 @@ export class Atmosphere {
     this.pipe.sharpenEnabled = true;
     this.pipe.sharpen.edgeAmount = 0.25;
 
-    this.spores = this.makeSpores();
+    this.spores = makeSporeCloud(scene, PRESETS.altin.pal.spore);
     this.ring = this.makeRing();
     this.makeKoi();
     scene.onBeforeRenderObservable.add(() => this.tick(scene.getEngine().getDeltaTime() / 1000));
@@ -330,7 +332,7 @@ export class Atmosphere {
     e.setColor3('sunFogColor', c3(this.pal.sunFog));
     e.setColor3('inkColor', c3(this.pal.ink));
     e.setFloat('depthScale', cam.minZ + cam.maxZ);
-    e.setFloat('fogDensity', 0.006 * a.fog);
+    e.setFloat('fogDensity', 0.006 * a.fog * this.local.fog);
     e.setFloat('fogFalloff', 1 / Math.max(1, a.fogHeight));
     e.setFloat('fogBase', 0);
     e.setFloat('haze', a.haze);
@@ -371,12 +373,17 @@ export class Atmosphere {
     this.pipe.grain.intensity = a.grain * 9;
     this.pipe.grain.animated = false;
 
-    this.spores.emitRate = 70 * a.spores;
-    const sp = pal.spore;
-    this.spores.color1 = Color4.FromHexString(sp[0] + 'cc');
-    this.spores.color2 = Color4.FromHexString(sp[1] + 'aa');
+    this.spores.emitRate = SPORE_FX.rate * a.spores * this.local.spores;
+    setSporeColors(this.spores, pal.spore);
     this.koi.forEach((k, i) => k.setEnabled(i < a.koi));
     this.ring.setEnabled(a.ring);
+  }
+
+  /** Effect-region values where the camera looks (mapgen/fx.ts): scale the spores and the fog. */
+  private local: FxValues = { spores: 1, fog: 1, fireflies: 1 };
+  setLocal(v: FxValues) {
+    this.local = { ...v };
+    this.spores.emitRate = SPORE_FX.rate * this.a.spores * v.spores;
   }
 
   setMapSize(size: number) {
@@ -384,37 +391,7 @@ export class Atmosphere {
     this.ring.scaling.set(size * 0.5, 1, size * 0.5);
   }
 
-  private makeSpores(): ParticleSystem {
-    const N = 64;
-    const t = new DynamicTexture('spore-dot', { width: N, height: N }, this.scene, true);
-    const ctx = t.getContext() as CanvasRenderingContext2D;
-    const g = ctx.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.35, 'rgba(255,255,255,0.6)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, N, N);
-    t.update(false);
-    t.hasAlpha = true;
-    const ps = new ParticleSystem('spores', 3000, this.scene);
-    ps.particleTexture = t;
-    ps.emitter = new Vector3(0, 0, 0);
-    ps.minEmitBox = new Vector3(-90, 0, -90);
-    ps.maxEmitBox = new Vector3(90, 25, 90);
-    ps.minSize = 0.12;
-    ps.maxSize = 0.45;
-    ps.minLifeTime = 8;
-    ps.maxLifeTime = 16;
-    ps.direction1 = new Vector3(-0.4, 0.2, -0.2);
-    ps.direction2 = new Vector3(0.5, 0.6, 0.3);
-    ps.minEmitPower = 0.3;
-    ps.maxEmitPower = 0.8;
-    ps.colorDead = new Color4(1, 1, 1, 0);
-    ps.blendMode = ParticleSystem.BLENDMODE_ADD;
-    ps.preWarmCycles = 200;
-    ps.start();
-    return ps;
-  }
+
 
   /** The Kızıl Sis wall: the Harvest's closing ring, a soft red curtain. */
   private makeRing(): Mesh {

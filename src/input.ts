@@ -8,6 +8,11 @@ export class Input {
   /** Positive pitch looks up. */
   pitch = -0.12;
   locked = false;
+  /** Pitch limits; the high camera allows a steeper look down. */
+  pitchMin = -1.1;
+  pitchMax = 0.9;
+  /** Wheel notches since the last read (positive = toward the user, zoom out). */
+  wheel = 0;
   /** Keys pressed since the last frame (one entry per press, key repeat ignored). */
   private presses = new Set<string>();
   sensitivity = 0.0022;
@@ -39,8 +44,17 @@ export class Input {
       const sens = this.sensitivity * (this.aiming ? 0.55 : 1);
       this.yaw += e.movementX * sens;
       this.pitch -= e.movementY * sens;
-      this.pitch = Math.max(-1.1, Math.min(0.9, this.pitch));
+      this.pitch = Math.max(this.pitchMin, Math.min(this.pitchMax, this.pitch));
     });
+    canvas.addEventListener(
+      'wheel',
+      (e) => {
+        if (!this.locked) return;
+        e.preventDefault();
+        this.wheel += Math.sign(e.deltaY);
+      },
+      { passive: false },
+    );
     canvas.addEventListener('mousedown', (e) => {
       if (e.button === 0 && this.locked) this.firing = true;
       if (e.button === 2 && this.locked) this.aiming = true;

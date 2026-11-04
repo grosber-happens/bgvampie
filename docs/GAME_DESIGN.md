@@ -69,7 +69,11 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 | I | Bag (equip, unequip, drop) |
 | G | Last Reel (5-piece Noir set) |
 | Tab | Open the level-up cards; pick with 1, 2 or 3 |
+| O | Camera: high (default) or classic over the shoulder (prototype, see below) |
+| Mouse wheel | Zoom the high camera |
 | Esc | Pause |
+
+**Camera prototype (2026-11-04, the owner is trying it out):** a WoW-style camera, set a little higher and farther: behind and above the player, looking down about 50°, so the swarm around you shows. The mouse turns and tilts it; the wheel zooms from over the shoulder out to 16 m, and far out the view leads ahead of the player so the crosshair lands in front. Aiming (right click) still pulls in to the shoulder. Off-screen enemies and enemy bullets show as watercolor blots at the screen edge (`src/threats.ts`). The camera stops at walls; inside a building the roof and upper floors are cut away so you see the room from above (`src/rooftop.ts`, the same cut as the planner's interior designer). O switches back to the classic camera; the choice is remembered. Numbers: `HIGH_CAM` in `src/main.ts`, `THREAT`, `ROOF`.
 
 ## 4. Progression inside a match
 
@@ -304,6 +308,8 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
   4. Desert.
   5. Not decided yet.
 - **Palette:** it changes from region to region.
+- **Blue puffball (Mavi puf) [Decided, numbers are first guesses]:** a small blue mushroom in Spor Ormanı. Shoot it and it bursts: its spores make a cloud that heals everyone inside (players and bots) for a few seconds, then it grows back. Numbers: `PUF` in `src/balance.ts`; code: `src/puf.ts`.
+- **Effect regions [Decided]:** spores, fog and fireflies are set per region at a chosen percentage, in the map planner (`docs/MAP_PLANNER.md`, "Effect regions").
 - **[Proposal] 5th region, "Crimson Cathedral" (Kızıl Katedral):**
   - A gothic cathedral-refinery kept running by old vampire nobles with nano tech, at the centre of the map, where the final ring usually closes.
   - Blood fountains heal you but briefly reveal your position to everyone.
@@ -360,6 +366,7 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 - Level-up cards, XP, the tier-3 lock and token.
 - Bots, Spor Ormanı creature packs (deer, snail) and the zombie giant boss.
 - One ruined-city block with walkable houses (porch, stairs, balcony, roof).
+- The Spor Ormanı test map with our own Blender models: mushroom houses and small-town houses you can enter, bridges, the mushroom-woman statue in its maze, the nomad camp, fantastical trees, floating rocks, and furniture inside the buildings.
 - The clay and watercolor look.
 - A playable single-file build for sharing.
 

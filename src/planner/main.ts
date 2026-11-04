@@ -1,6 +1,9 @@
 /**
- * Harita Planlayıcı: an in-game editor that grows a Harvest map from sliders and a seed,
- * then lets you place, erase, raise and mirror by hand. Open /planner.html.
+ * Harita Planlayıcı: an in-game editor that grows a Harvest map from sliders and a seed, then lets you
+ * place, move, erase, raise, paint effect regions and furnish buildings by hand. Open /planner.html.
+ *
+ * Layout: tool rail (left), the active tool's options (drawer), the map settings in tabs (right panel),
+ * the interior designer in place of the panel while you are inside a building.
  */
 import { sporLodModels } from '../spor';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
@@ -13,22 +16,32 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Tools } from '@babylonjs/core/Misc/tools';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import '@babylonjs/core/Culling/ray';
+import '@fontsource-variable/shantell-sans/infm.css';
 import '@fontsource/fredoka/400.css';
-import '@fontsource/fredoka/600.css';
 import './planner.css';
 import { setLookScene } from '../look';
 import { isLucky } from '../shop.ts';
-import { BIOMES, DEFAULT_PARAMS, EDIT, Field, KINDS, KIND_LIST, NB, applyOps, generate, type Category, type Kind, type MapFile, type Obj, type Op, type Params } from '../mapgen/generate';
+import { getLang, setLang } from '../i18n';
+import { BIOMES, DEFAULT_PARAMS, EDIT, Field, KINDS, KIND_LIST, NB, SPOR_KINDS, applyOps, generate, type Category, type Kind, type MapFile, type Obj, type Op, type Params, type SporGroup } from '../mapgen/generate';
+import { FX, defaultFx, fxAt, type FxValues, type MapFx } from '../mapgen/fx';
+import { emptyInteriors, moveOverride, type Interiors } from '../mapgen/interior';
 import { Atmosphere, DEFAULT_ATMOS, PRESETS, type Atmos, type PresetId } from './atmos';
 import { MapView, type Area } from './build';
 import { vendorCount } from '../mapgen/vendors.ts';
 import { PLANNER_SAVE_KEY, parseMapFile } from '../mapgen/mapfile';
+import { InteriorView, enterable, placedProps } from '../interiors';
+import { FxEditor, ZONE_COLORS } from './fxzones';
+import { InteriorDesigner } from './interior';
+import { icon } from './icons';
+import { kindName, t } from './strings';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('view');
 const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
 const scene = new Scene(engine);
 setLookScene(scene);
+document.documentElement.lang = getLang();
+document.title = `${t('pl.title')} · Vampire Battleground`;
 
 const MIN_ORBIT_RADIUS = 2;
 /** Minimap side in pixels. */
@@ -62,17 +75,25 @@ sporLodModels(scene).then(
   (list) => list.forEach(([k, m]) => view.useModels(k, [m])),
   (e) => console.error('Spor Ormanı models failed to load', e),
 );
+const interiorView = new InteriorView(scene);
+interiorView.onCasters = (m) => atmos.cast(m);
 
 // ---- State --------------------------------------------------------------------------------
-type State = { gen: Params; ops: Op[]; atmos: Atmos };
+type State = { gen: Params; ops: Op[]; atmos: Atmos; fx: MapFx; interiors: Interiors };
 const SAVE_KEY = PLANNER_SAVE_KEY;
+const fresh = (): State => ({ gen: structuredClone(DEFAULT_PARAMS), ops: [], atmos: { ...DEFAULT_ATMOS }, fx: defaultFx(), interiors: emptyInteriors() });
+const fromFile = (f: MapFile): State => ({
+  gen: { ...DEFAULT_PARAMS, ...f.gen },
+  ops: f.ops ?? [],
+  atmos: { ...DEFAULT_ATMOS, ...(f.atmos as Partial<Atmos>) },
+  fx: f.fx ?? defaultFx(),
+  interiors: f.interiors ?? emptyInteriors(),
+});
+const toFile = (): MapFile => ({ v: 1, gen: S.gen, ops: S.ops, atmos: S.atmos, fx: S.fx, interiors: S.interiors });
 function load(): State {
-  const fresh = (): State => ({ gen: structuredClone(DEFAULT_PARAMS), ops: [], atmos: { ...DEFAULT_ATMOS } });
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return fresh();
-    const f = JSON.parse(raw) as MapFile;
-    return { gen: { ...DEFAULT_PARAMS, ...f.gen }, ops: f.ops ?? [], atmos: { ...DEFAULT_ATMOS, ...(f.atmos as Partial<Atmos>) } };
+    const parsed = parseMapFile(localStorage.getItem(SAVE_KEY));
+    return parsed.ok ? fromFile(parsed.map) : fresh();
   } catch {
     return fresh();
   }
@@ -90,8 +111,7 @@ function commit() {
 }
 function save() {
   try {
-    const f: MapFile = { v: 1, gen: S.gen, ops: S.ops, atmos: S.atmos };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(f));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(toFile()));
   } catch {
     /* storage may be blocked; the map still works for this visit */
   }
@@ -120,13 +140,19 @@ function rebuild(terrain = true, areas?: Area[], mini = true) {
   if (terrain) view.buildTerrain(field, areas);
   view.buildObjects(field, objs, areas);
   atmos.setMapSize(S.gen.size);
-  camera.upperRadiusLimit = Math.min(S.gen.size * 2, 3000);
-  camera.maxZ = Math.max(3000, camera.upperRadiusLimit + S.gen.size);
+  camera.upperRadiusLimit = designer.active ? 60 : Math.min(S.gen.size * 2, 3000);
+  camera.maxZ = Math.max(3000, Math.min(S.gen.size * 2, 3000) + S.gen.size);
   if (mini) drawMinimap(terrain);
   mirrorLines();
-  $('stat-count').textContent = `${objs.length} nesne · ${objs.filter((o) => o.k === 'satici' || o.k === 'sansli').length} satıcı`;
+  fxEdit.draw();
+  redrawInteriors();
+  $('stat-count').textContent = `${t('pl.objects', { n: objs.length })} · ${t('pl.vendors', { n: objs.filter((o) => o.k === 'satici' || o.k === 'sansli').length })}`;
   $('stat-time').textContent = `${Math.round(performance.now() - t0)} ms`;
   save();
+}
+
+function redrawInteriors() {
+  interiorView.set(placedProps({ field, mapObjects: objs, mapFile: { v: 1, gen: S.gen, ops: [], interiors: S.interiors } })).catch((e) => console.error('Interior props failed to load', e));
 }
 
 let pending = 0;
@@ -137,59 +163,96 @@ function soon(terrain = true) {
   pending = window.setTimeout(() => rebuild(terrain), S.gen.size > 1000 ? 450 : 120);
 }
 
+// ---- Effect regions and the interior designer -----------------------------------------------
+const fxEdit = new FxEditor({
+  scene,
+  fx: () => S.fx,
+  field: () => field,
+  commit,
+  save,
+  changed: () => {
+    drawMinimap(false);
+    if (tab === 'fx') renderTab();
+  },
+  exclude: (m) => atmos.exclude(m),
+});
+
+const designer: InteriorDesigner = new InteriorDesigner({
+  scene,
+  camera,
+  panel: $('inside'),
+  interiors: () => S.interiors,
+  field: () => field,
+  objs: () => objs,
+  commit,
+  save,
+  redraw: redrawInteriors,
+  flash,
+  changed: (inside) => {
+    document.body.classList.toggle('inside', inside);
+    if (inside) setTool('view');
+    crumbs();
+    syncToolbar();
+  },
+});
+
+function crumbs() {
+  const el = $('crumbs');
+  el.innerHTML = `<span>${t('pl.title')}</span>${designer.house ? `<span class="sep">/</span><span>${t('in.title')}</span><span class="sep">/</span><em>${kindName(designer.house.k)}</em>` : `<em>${t('pl.world')}</em>`}`;
+}
+
 // ---- Panels -------------------------------------------------------------------------------
-type Slider = { key: string; label: string; min: number; max: number; step: number; fmt?: (v: number) => string };
-const GEN_SLIDERS: [string, Slider[]][] = [
-  ['Arazi', [
-    { key: 'size', label: 'Harita boyu', min: 160, max: 4000, step: 10, fmt: (v) => (v >= 1000 ? `${(v / 1000).toFixed(2)} km` : `${v} m`) },
-    { key: 'relief', label: 'Tepe yüksekliği', min: 0, max: 2.5, step: 0.05 },
-    { key: 'roughness', label: 'Engebe sıklığı', min: 0.4, max: 2.5, step: 0.05 },
-    { key: 'water', label: 'Su seviyesi', min: -4, max: 4, step: 0.1, fmt: (v) => `${v.toFixed(1)} m` },
-    { key: 'canyon', label: 'Kanyon derinliği', min: 0, max: 2, step: 0.05 },
-    { key: 'warp', label: 'Sınır dalgası', min: 0, max: 1.2, step: 0.05 },
-    { key: 'core', label: 'Kanyon çekirdeği', min: 0.04, max: 0.4, step: 0.01 },
-  ]],
-  ['Nesneler', [
-    { key: 'trees', label: 'Ağaçlar', min: 0, max: 2.5, step: 0.05 },
-    { key: 'mushrooms', label: 'Mantar ve çiçek', min: 0, max: 2.5, step: 0.05 },
-    { key: 'giants', label: 'Dev yapılar', min: 0, max: 2.5, step: 0.05 },
-    { key: 'mech', label: 'Mekanik parçalar', min: 0, max: 2.5, step: 0.05 },
-    { key: 'ruins', label: 'Yapı ve harabe', min: 0, max: 2.5, step: 0.05 },
-    { key: 'rocks', label: 'Kaya ve yosun', min: 0, max: 2.5, step: 0.05 },
-    { key: 'dots', label: 'Puantiye', min: 0, max: 2.5, step: 0.05 },
-    { key: 'scale', label: 'Nesne boyu', min: 0.6, max: 1.8, step: 0.05 },
-    { key: 'vendors', label: 'Satıcı makineleri', min: 0, max: 2, step: 0.25, fmt: (v) => (v ? `${Math.max(Math.round(vendorCount(S.gen.size) * v), S.gen.symmetry ? 1 : S.gen.biomes.filter(Boolean).length)} hedef` : 'yok') },
-  ]],
+type Slider = { key: string; min: number; max: number; step: number; fmt?: (v: number) => string };
+const km = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(2)} km` : `${v} m`);
+const TERRAIN: Slider[] = [
+  { key: 'size', min: 160, max: 4000, step: 10, fmt: km },
+  { key: 'relief', min: 0, max: 2.5, step: 0.05 },
+  { key: 'roughness', min: 0.4, max: 2.5, step: 0.05 },
+  { key: 'water', min: -4, max: 4, step: 0.1, fmt: (v) => `${v.toFixed(1)} m` },
+  { key: 'canyon', min: 0, max: 2, step: 0.05 },
+  { key: 'warp', min: 0, max: 1.2, step: 0.05 },
+  { key: 'core', min: 0.04, max: 0.4, step: 0.01 },
 ];
-const ATMOS_SLIDERS: Slider[] = [
-  { key: 'fog', label: 'Sis yoğunluğu', min: 0, max: 3, step: 0.05 },
-  { key: 'fogHeight', label: 'Sis yüksekliği', min: 1, max: 40, step: 0.5, fmt: (v) => `${v} m` },
-  { key: 'haze', label: 'Uzak pus', min: 0, max: 2, step: 0.05 },
-  { key: 'sunAz', label: 'Güneş yönü', min: 0, max: 360, step: 1, fmt: (v) => `${v}°` },
-  { key: 'sunEl', label: 'Güneş yüksekliği', min: 1, max: 70, step: 0.5, fmt: (v) => `${v}°` },
-  { key: 'sunSize', label: 'Güneş boyu', min: 0.4, max: 3, step: 0.05 },
-  { key: 'warmth', label: 'Sıcaklık', min: 0, max: 1, step: 0.02 },
-  { key: 'exposure', label: 'Pozlama', min: 0.5, max: 1.8, step: 0.02 },
-  { key: 'bloom', label: 'Parıltı', min: 0, max: 2, step: 0.05 },
-  { key: 'rays', label: 'Işık huzmesi', min: 0, max: 1.5, step: 0.05 },
-  { key: 'ink', label: 'Mürekkep çizgisi', min: 0, max: 1, step: 0.02 },
-  { key: 'spores', label: 'Havadaki spor', min: 0, max: 3, step: 0.05 },
-  { key: 'koi', label: 'Gök koileri', min: 0, max: 3, step: 1 },
-  { key: 'grain', label: 'Kâğıt dokusu', min: 0, max: 1, step: 0.02 },
+const DENSITY: Slider[] = [
+  { key: 'trees', min: 0, max: 2.5, step: 0.05 },
+  { key: 'mushrooms', min: 0, max: 2.5, step: 0.05 },
+  { key: 'giants', min: 0, max: 2.5, step: 0.05 },
+  { key: 'mech', min: 0, max: 2.5, step: 0.05 },
+  { key: 'ruins', min: 0, max: 2.5, step: 0.05 },
+  { key: 'rocks', min: 0, max: 2.5, step: 0.05 },
+  { key: 'dots', min: 0, max: 2.5, step: 0.05 },
+  { key: 'scale', min: 0.6, max: 1.8, step: 0.05 },
+  { key: 'vendors', min: 0, max: 2, step: 0.25, fmt: (v) => (v ? t('s.vendors.n', { n: Math.max(Math.round(vendorCount(S.gen.size) * v), S.gen.symmetry ? 1 : S.gen.biomes.filter(Boolean).length) }) : t('s.vendors.0')) },
+];
+const deg = (v: number) => `${v}°`;
+const SKY: Slider[] = [
+  { key: 'sunAz', min: 0, max: 360, step: 1, fmt: deg },
+  { key: 'sunEl', min: 1, max: 70, step: 0.5, fmt: deg },
+  { key: 'sunSize', min: 0.4, max: 3, step: 0.05 },
+  { key: 'warmth', min: 0, max: 1, step: 0.02 },
+  { key: 'exposure', min: 0.5, max: 1.8, step: 0.02 },
+  { key: 'bloom', min: 0, max: 2, step: 0.05 },
+  { key: 'rays', min: 0, max: 1.5, step: 0.05 },
+  { key: 'ink', min: 0, max: 1, step: 0.02 },
+  { key: 'grain', min: 0, max: 1, step: 0.02 },
+];
+const AIR: Slider[] = [
+  { key: 'fog', min: 0, max: 3, step: 0.05 },
+  { key: 'fogHeight', min: 1, max: 40, step: 0.5, fmt: (v) => `${v} m` },
+  { key: 'haze', min: 0, max: 2, step: 0.05 },
+  { key: 'spores', min: 0, max: 3, step: 0.05 },
+  { key: 'koi', min: 0, max: 3, step: 1 },
 ];
 
-const inputs = new Map<string, () => void>();
 function slider(host: HTMLElement, s: Slider, get: () => number, set: (v: number) => void) {
   const row = document.createElement('label');
   row.className = 'row';
   const fmt = s.fmt ?? ((v: number) => (Number.isInteger(s.step) ? `${v}` : v.toFixed(2)));
-  row.innerHTML = `<span class="lbl">${s.label}</span><span class="val"></span><input type="range" min="${s.min}" max="${s.max}" step="${s.step}">`;
+  row.innerHTML = `<span class="lbl">${t(`s.${s.key}`)}</span><span class="val"></span><input type="range" min="${s.min}" max="${s.max}" step="${s.step}">`;
   const input = row.querySelector('input')!;
   const val = row.querySelector('.val')!;
-  const refresh = () => {
-    input.value = String(get());
-    val.textContent = fmt(get());
-  };
+  input.value = String(get());
+  val.textContent = fmt(get());
   let started = false;
   input.addEventListener('input', () => {
     if (!started) {
@@ -200,209 +263,308 @@ function slider(host: HTMLElement, s: Slider, get: () => number, set: (v: number
     val.textContent = fmt(Number(input.value));
   });
   input.addEventListener('change', () => (started = false));
-  inputs.set(s.key, refresh);
-  refresh();
   host.appendChild(row);
 }
 
-function section(title: string, open = true): HTMLElement {
-  const d = document.createElement('details');
-  d.open = open;
-  d.innerHTML = `<summary>${title}</summary>`;
-  const body = document.createElement('div');
-  body.className = 'sec';
-  d.appendChild(body);
-  $('panel-body').appendChild(d);
-  return body;
+function heading(host: HTMLElement, text: string) {
+  const h = document.createElement('h3');
+  h.textContent = text;
+  host.appendChild(h);
 }
 
-function buildPanel() {
-  // Seed.
-  const seedSec = section('Tohum');
-  seedSec.innerHTML = `<div class="seed"><input id="seed" type="number" min="1" step="1"><button id="dice" title="Rastgele tohum (R)">🎲</button></div>
-    <label class="row"><span class="lbl">Simetri</span><select id="sym"><option value="0">Yok</option><option value="1">Sol ↔ sağ ayna</option><option value="2">Dört yönlü ayna</option></select></label>`;
-  const seedIn = $<HTMLInputElement>('seed');
-  const symIn = $<HTMLSelectElement>('sym');
-  inputs.set('seed', () => (seedIn.value = String(S.gen.seed)));
-  inputs.set('symmetry', () => (symIn.value = String(S.gen.symmetry)));
-  seedIn.addEventListener('change', () => {
-    commit();
-    S.gen.seed = Math.max(1, Math.floor(Number(seedIn.value) || 1));
-    rebuild();
-  });
-  $('dice').addEventListener('click', randomSeed);
-  symIn.addEventListener('change', () => {
-    commit();
-    S.gen.symmetry = Number(symIn.value) as 0 | 1 | 2;
-    rebuild();
-  });
+function check(host: HTMLElement, label: string, get: () => boolean, set: (v: boolean) => void, swatch?: string) {
+  const row = document.createElement('label');
+  row.className = 'chk';
+  row.innerHTML = `<input type="checkbox">${swatch ? `<i style="${swatch}"></i>` : ''}<span>${label}</span>`;
+  const c = row.querySelector('input')!;
+  c.checked = get();
+  c.addEventListener('change', () => set(c.checked));
+  host.appendChild(row);
+}
 
-  // Landscapes.
-  const bio = section('Manzaralar');
-  BIOMES.forEach((b, i) => {
-    const row = document.createElement('label');
-    row.className = 'chk';
-    row.innerHTML = `<input type="checkbox"><i style="background:${b.ground[1]};border-color:${b.accent}"></i><span>${b.name}</span>`;
-    const c = row.querySelector('input')!;
-    inputs.set(`biome${i}`, () => (c.checked = S.gen.biomes[i]));
-    c.addEventListener('change', () => {
-      commit();
-      S.gen.biomes[i] = c.checked;
-      rebuild();
-    });
-    bio.appendChild(row);
-  });
-  for (const [key, label] of [['cathedral', 'Kızıl Katedral (merkez)'], ['colossus', 'Düşmüş Dev']] as const) {
-    const row = document.createElement('label');
-    row.className = 'chk';
-    row.innerHTML = `<input type="checkbox"><i class="mark"></i><span>${label}</span>`;
-    const c = row.querySelector('input')!;
-    inputs.set(key, () => (c.checked = S.gen[key]));
-    c.addEventListener('change', () => {
-      commit();
-      S.gen[key] = c.checked;
-      rebuild();
-    });
-    bio.appendChild(row);
-  }
+type Tab = 'land' | 'objects' | 'sky' | 'fx' | 'file';
+const TABS: Tab[] = ['land', 'objects', 'sky', 'fx', 'file'];
+let tab: Tab = 'land';
+try {
+  tab = (TABS as string[]).includes(localStorage.getItem('bgv-planner-tab') ?? '') ? (localStorage.getItem('bgv-planner-tab') as Tab) : 'land';
+} catch {
+  /* private mode */
+}
 
-  for (const [title, list] of GEN_SLIDERS) {
-    const sec = section(title);
-    for (const s of list)
-      slider(sec, s, () => S.gen[s.key as keyof Params] as number, (v) => {
-        (S.gen as Record<string, unknown>)[s.key] = v;
-        soon(s.key !== 'scale' && !(GEN_SLIDERS[1][1] as Slider[]).includes(s));
-      });
-  }
-
-  // Atmosphere.
-  const at = section('Atmosfer');
-  const presets = document.createElement('div');
-  presets.className = 'presets';
-  for (const id of Object.keys(PRESETS) as PresetId[]) {
+function buildTabs() {
+  const bar = $('tabs');
+  bar.innerHTML = '';
+  for (const id of TABS) {
     const b = document.createElement('button');
-    b.textContent = PRESETS[id].name;
-    b.dataset.preset = id;
-    const pal = PRESETS[id].pal;
-    b.style.setProperty('--a', pal.horizon);
-    b.style.setProperty('--b', pal.zenith);
+    b.role = 'tab';
+    b.textContent = t(`tab.${id}`);
+    b.setAttribute('aria-selected', String(id === tab));
     b.addEventListener('click', () => {
-      commit();
-      S.atmos = { ...S.atmos, ...PRESETS[id].atmos, preset: id };
-      applyAtmos();
-      refreshInputs();
+      tab = id;
+      try {
+        localStorage.setItem('bgv-planner-tab', id);
+      } catch {
+        /* ignore */
+      }
+      bar.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-selected', String(TABS[i] === tab)));
+      renderTab();
     });
-    presets.appendChild(b);
+    bar.appendChild(b);
   }
-  at.appendChild(presets);
-  for (const s of ATMOS_SLIDERS)
-    slider(at, s, () => S.atmos[s.key as keyof Atmos] as number, (v) => {
-      (S.atmos as Record<string, unknown>)[s.key] = v;
-      applyAtmos();
-    });
-  const ringRow = document.createElement('label');
-  ringRow.className = 'chk';
-  ringRow.innerHTML = `<input type="checkbox"><i class="mark ring"></i><span>Kızıl Sis halkası</span>`;
-  const rc = ringRow.querySelector('input')!;
-  inputs.set('ring', () => (rc.checked = S.atmos.ring));
-  rc.addEventListener('change', () => {
-    S.atmos.ring = rc.checked;
-    applyAtmos();
-  });
-  at.appendChild(ringRow);
 }
 
-function refreshInputs() {
-  for (const f of inputs.values()) f();
-  document.querySelectorAll<HTMLButtonElement>('.presets button').forEach((b) => b.classList.toggle('on', b.dataset.preset === S.atmos.preset));
+function renderTab() {
+  const body = $('panel-body');
+  body.innerHTML = '';
+  fxEdit.show = tab === 'fx' || tool === 'zone';
+  fxEdit.draw();
+  if (tab === 'land') {
+    heading(body, t('sec.seed'));
+    const seed = document.createElement('div');
+    seed.className = 'seed';
+    seed.innerHTML = `<input type="number" min="1" step="1" aria-label="${t('sec.seed')}"><button class="icon-btn amber" title="${t('seed.dice')}">${icon('dice')}</button>`;
+    const seedIn = seed.querySelector('input')!;
+    seedIn.value = String(S.gen.seed);
+    seedIn.addEventListener('change', () => {
+      commit();
+      S.gen.seed = Math.max(1, Math.floor(Number(seedIn.value) || 1));
+      rebuild();
+    });
+    seed.querySelector('button')!.addEventListener('click', randomSeed);
+    body.appendChild(seed);
+    const sym = document.createElement('label');
+    sym.className = 'row';
+    sym.innerHTML = `<span class="lbl">${t('sym')}</span><select>${[0, 1, 2].map((i) => `<option value="${i}">${t(`sym.${i}`)}</option>`).join('')}</select>`;
+    const symIn = sym.querySelector('select')!;
+    symIn.value = String(S.gen.symmetry);
+    symIn.addEventListener('change', () => {
+      commit();
+      S.gen.symmetry = Number(symIn.value) as 0 | 1 | 2;
+      rebuild();
+    });
+    body.appendChild(sym);
+    heading(body, t('sec.landscapes'));
+    BIOMES.forEach((b, i) =>
+      check(body, b.name, () => S.gen.biomes[i], (v) => {
+        commit();
+        S.gen.biomes[i] = v;
+        rebuild();
+      }, `background:${b.ground[1]};border-color:${b.accent}`),
+    );
+    for (const key of ['cathedral', 'colossus'] as const)
+      check(body, t(key), () => S.gen[key], (v) => {
+        commit();
+        S.gen[key] = v;
+        rebuild();
+      }, 'background:var(--paper-2)');
+    heading(body, t('sec.terrain'));
+    for (const s of TERRAIN) slider(body, s, () => S.gen[s.key as keyof Params] as number, (v) => ((S.gen as Record<string, unknown>)[s.key] = v, soon(true)));
+  } else if (tab === 'objects') {
+    heading(body, t('sec.density'));
+    for (const s of DENSITY) slider(body, s, () => S.gen[s.key as keyof Params] as number, (v) => ((S.gen as Record<string, unknown>)[s.key] = v, soon(false)));
+  } else if (tab === 'sky') {
+    heading(body, t('sec.presets'));
+    const presets = document.createElement('div');
+    presets.className = 'presets';
+    for (const id of Object.keys(PRESETS) as PresetId[]) {
+      const b = document.createElement('button');
+      b.textContent = PRESETS[id].name;
+      b.className = id === S.atmos.preset ? 'on' : '';
+      const pal = PRESETS[id].pal;
+      b.style.setProperty('--a', pal.horizon);
+      b.style.setProperty('--b', pal.zenith);
+      b.addEventListener('click', () => {
+        commit();
+        S.atmos = { ...S.atmos, ...PRESETS[id].atmos, preset: id };
+        applyAtmos();
+        renderTab();
+      });
+      presets.appendChild(b);
+    }
+    body.appendChild(presets);
+    heading(body, t('sec.air'));
+    for (const s of AIR) slider(body, s, () => S.atmos[s.key as keyof Atmos] as number, (v) => ((S.atmos as Record<string, unknown>)[s.key] = v, applyAtmos()));
+    check(body, t('ring'), () => S.atmos.ring, (v) => ((S.atmos.ring = v), applyAtmos()), 'background:var(--rose)');
+    heading(body, t('sec.light'));
+    for (const s of SKY) slider(body, s, () => S.atmos[s.key as keyof Atmos] as number, (v) => ((S.atmos as Record<string, unknown>)[s.key] = v, applyAtmos()));
+  } else if (tab === 'fx') {
+    fxEdit.renderTab(body);
+    const here = document.createElement('p');
+    here.className = 'here';
+    here.id = 'fx-here';
+    body.appendChild(here);
+  } else {
+    body.innerHTML = `<p class="note">${t('file.note')}</p><div class="files">
+      <button class="btn primary" data-f="play">${icon('play', 16)}<span>${t('file.play')}</span></button>
+      <button class="btn" data-f="export">${icon('down', 16)}<span>${t('file.export')}</span></button>
+      <button class="btn" data-f="import">${icon('up', 16)}<span>${t('file.import')}</span></button>
+      <hr><button class="btn ghost" data-f="clear">${icon('erase', 16)}<span>${t('file.clear')}</span></button>
+      <button class="btn ghost danger" data-f="reset">${icon('undo', 16)}<span>${t('file.reset')}</span></button></div>`;
+    const on = (f: string, fn: () => void) => body.querySelector(`[data-f=${f}]`)!.addEventListener('click', fn);
+    on('play', playInGame);
+    on('export', exportMap);
+    on('import', () => $<HTMLInputElement>('file').click());
+    on('clear', clearEdits);
+    on('reset', resetMap);
+  }
 }
 
 function applyAtmos() {
   atmos.set(S.atmos);
-  document.querySelectorAll<HTMLButtonElement>('.presets button').forEach((b) => b.classList.toggle('on', b.dataset.preset === S.atmos.preset));
+  atmos.setLocal(local);
   save();
 }
 
 function randomSeed() {
   commit();
   S.gen.seed = 1 + Math.floor(Math.random() * 99999);
-  refreshInputs();
+  if (tab === 'land') renderTab();
   rebuild();
 }
 
 // ---- Tools --------------------------------------------------------------------------------
-type Tool = 'view' | 'place' | 'move' | 'erase' | 'raise' | 'lower' | 'walk';
+type Tool = 'view' | 'place' | 'move' | 'erase' | 'raise' | 'lower' | 'zone' | 'walk';
+type Action = Tool | 'mirror' | 'undo' | 'redo' | 'photo' | 'hide';
 let tool: Tool = 'view';
 let mirror = 0; // 0 none, 1 x, 2 z, 3 both
 let brush = 6;
 let strength = 1;
-let placeKind: Kind = 'devmantar';
-const MIRROR_NAMES = ['Ayna: kapalı', 'Ayna: sol ↔ sağ', 'Ayna: ön ↔ arka', 'Ayna: dört yön'];
+let placeKind: Kind = 'ev_kule';
+let palGroup = 'all';
+let palFilter = '';
 
-const TOOLS: { id: Tool | 'mirror' | 'undo' | 'redo' | 'photo' | 'hide'; icon: string; label: string; key: string }[] = [
-  { id: 'view', icon: '✋', label: 'Gözat', key: '1' },
-  { id: 'place', icon: '🌳', label: 'Yerleştir', key: '2' },
-  { id: 'move', icon: '✥', label: 'Taşı', key: '6' },
-  { id: 'erase', icon: '⌫', label: 'Sil', key: '3' },
-  { id: 'raise', icon: '⛰', label: 'Yükselt', key: '4' },
-  { id: 'lower', icon: '🕳', label: 'Alçalt', key: '5' },
-  { id: 'mirror', icon: '⇋', label: 'Ayna', key: 'M' },
-  { id: 'undo', icon: '↶', label: 'Geri al', key: 'Ctrl Z' },
-  { id: 'redo', icon: '↷', label: 'İleri al', key: 'Ctrl Y' },
-  { id: 'walk', icon: '🚶', label: 'Yürü', key: 'Y' },
-  { id: 'photo', icon: '📷', label: 'Fotoğraf', key: 'P' },
-  { id: 'hide', icon: '◐', label: 'Arayüzü gizle', key: 'H' },
+const RAIL: ({ grp: string } | { id: Action; icon: string; key: string; act?: true })[] = [
+  { grp: 'grp.look' },
+  { id: 'view', icon: 'view', key: '1' },
+  { id: 'walk', icon: 'walk', key: 'Y' },
+  { grp: 'grp.edit' },
+  { id: 'place', icon: 'place', key: '2' },
+  { id: 'move', icon: 'move', key: '6' },
+  { id: 'erase', icon: 'erase', key: '3' },
+  { id: 'zone', icon: 'zone', key: 'Z' },
+  { grp: 'grp.ground' },
+  { id: 'raise', icon: 'raise', key: '4' },
+  { id: 'lower', icon: 'lower', key: '5' },
+  { grp: '' },
+  { id: 'mirror', icon: 'mirror', key: 'M', act: true },
+  { id: 'undo', icon: 'undo', key: 'Ctrl Z', act: true },
+  { id: 'redo', icon: 'redo', key: 'Ctrl Y', act: true },
+  { id: 'photo', icon: 'photo', key: 'P', act: true },
+  { id: 'hide', icon: 'hide', key: 'H', act: true },
 ];
 
 function buildToolbar() {
   const bar = $('tools');
-  for (const t of TOOLS) {
+  bar.innerHTML = '';
+  for (const r of RAIL) {
+    if ('grp' in r) {
+      if (r.grp) bar.insertAdjacentHTML('beforeend', `<div class="grp">${t(r.grp)}</div>`);
+      else bar.insertAdjacentHTML('beforeend', '<hr>');
+      continue;
+    }
     const b = document.createElement('button');
-    b.dataset.tool = t.id;
-    b.innerHTML = `<span class="ic">${t.icon}</span><span class="tip">${t.label} <kbd>${t.key}</kbd></span>`;
-    b.addEventListener('click', () => toolAction(t.id));
+    b.dataset.tool = r.id;
+    if (r.act) b.className = 'act';
+    b.setAttribute('aria-label', t(`tool.${r.id}`));
+    b.innerHTML = `${icon(r.icon)}${r.act ? '' : `<span class="lbl">${t(`tool.${r.id}`)}</span>`}<span class="tip">${t(`tool.${r.id}`)} <kbd>${r.key}</kbd></span>`;
+    b.addEventListener('click', () => toolAction(r.id));
     bar.appendChild(b);
   }
-  // Kind palette for the place tool.
-  const pal = $('palette');
-  const cats: [Category, string][] = [['trees', 'Ağaç'], ['mushrooms', 'Mantar ve çiçek'], ['giants', 'Dev'], ['mech', 'Mekanik'], ['ruins', 'Yapı'], ['rocks', 'Kaya'], ['dots', 'Zemin'], ['landmark', 'Simge']];
-  for (const [cat, name] of cats) {
-    const h = document.createElement('h4');
-    h.textContent = name;
-    pal.appendChild(h);
-    const grid = document.createElement('div');
-    grid.className = 'kinds';
-    for (const k of KIND_LIST.filter((k) => KINDS[k].cat === cat)) {
-      const b = document.createElement('button');
-      b.textContent = KINDS[k].name;
-      b.dataset.kind = k;
-      b.addEventListener('click', () => {
-        placeKind = k;
-        setTool('place');
-      });
-      grid.appendChild(b);
-    }
-    pal.appendChild(grid);
-  }
-  // Size of the selected object (move tool).
-  const sizeCard = document.createElement('div');
-  sizeCard.id = 'size-card';
-  sizeCard.className = 'card hidden';
-  sizeCard.innerHTML = '<h4 id="size-name"></h4>';
-  $('brush').after(sizeCard);
-  slider(sizeCard, { key: 'objsize', label: 'Nesne boyu', min: SIZE_MIN, max: SIZE_MAX, step: 0.05, fmt: (v) => `${v.toFixed(2)}×` }, () => sel?.s ?? 1, (v) => resizeSel(v, false));
-  const brushRow = $('brush');
-  slider(brushRow, { key: 'brush', label: 'Fırça çapı', min: 1, max: 30, step: 0.5, fmt: (v) => `${v} m` }, () => brush, (v) => {
-    brush = v;
-    cursorScale();
-  });
-  slider(brushRow, { key: 'strength', label: 'Fırça gücü', min: 0.2, max: 4, step: 0.1 }, () => strength, (v) => (strength = v));
 }
 
-function toolAction(id: (typeof TOOLS)[number]['id']) {
+/** Kinds by palette group: the Spor Ormanı groups first, then the old procedural kit by category. */
+const SPOR_GROUPS: SporGroup[] = ['ev', 'kopru', 'anit', 'mantar', 'agac', 'tas', 'ucan', 'kamp', 'esya'];
+const KIT_CATS: Category[] = ['trees', 'mushrooms', 'giants', 'mech', 'ruins', 'rocks', 'dots', 'landmark'];
+function groupOf(k: Kind): string {
+  const d = (SPOR_KINDS as Record<string, { group: SporGroup }>)[k];
+  if (d) return d.group;
+  if (k === 'morel' || k === 'cimen' || k === 'atesbocegi') return 'mantar';
+  return 'kit';
+}
+
+/** The drawer: the active tool's options (palette, brush, selection). */
+function renderDrawer() {
+  const d = $('drawer');
+  const show = ['place', 'erase', 'raise', 'lower'].includes(tool) || (tool === 'move' && !!sel);
+  d.classList.toggle('hidden', !show);
+  if (!show) return;
+  d.innerHTML = '';
+  if (tool === 'move' && sel) {
+    const blk = document.createElement('div');
+    blk.className = 'blk';
+    blk.innerHTML = `<div class="sel-row"><b>${kindName(sel.k)}</b></div>`;
+    slider(blk, { key: 'objsize', min: SIZE_MIN, max: SIZE_MAX, step: 0.05, fmt: (v) => `${v.toFixed(2)}×` }, () => sel?.s ?? 1, (v) => resizeSel(v, false));
+    if (enterable(sel.k)) {
+      const go = document.createElement('button');
+      go.className = 'btn primary';
+      go.innerHTML = `${icon('door', 16)}<span>${t('sel.enter')}</span>`;
+      go.addEventListener('click', () => {
+        const o = objs.find((x) => x.k === sel!.k && Math.abs(x.x - sel!.x) < 0.05 && Math.abs(x.z - sel!.z) < 0.05);
+        if (o) designer.enter(o);
+      });
+      blk.appendChild(go);
+    }
+    d.appendChild(blk);
+    return;
+  }
+  if (tool === 'place') {
+    const head = document.createElement('div');
+    head.className = 'blk';
+    head.innerHTML = `<label class="search">${icon('search', 16)}<input type="search" placeholder="${t('pal.search')}"></label><div class="groups"></div>`;
+    const search = head.querySelector('input')!;
+    search.value = palFilter;
+    search.addEventListener('input', () => {
+      palFilter = search.value;
+      renderKinds(list);
+    });
+    const groups = head.querySelector('.groups')!;
+    for (const g of ['all', ...SPOR_GROUPS, 'kit']) {
+      const b = document.createElement('button');
+      b.textContent = g === 'all' ? t('pal.all') : t(`grp.${g}`);
+      b.className = g === palGroup ? 'on' : '';
+      b.addEventListener('click', () => {
+        palGroup = g;
+        groups.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+        renderKinds(list);
+      });
+      groups.appendChild(b);
+    }
+    d.appendChild(head);
+    const list = document.createElement('div');
+    list.className = 'blk grow';
+    d.appendChild(list);
+    renderKinds(list);
+  }
+  const bb = document.createElement('div');
+  bb.className = 'blk';
+  slider(bb, { key: 'brush', min: 1, max: 30, step: 0.5, fmt: (v) => `${v} m` }, () => brush, (v) => ((brush = v), cursorScale()));
+  if (tool === 'raise' || tool === 'lower') slider(bb, { key: 'strength', min: 0.2, max: 4, step: 0.1 }, () => strength, (v) => (strength = v));
+  d.appendChild(bb);
+}
+
+function renderKinds(host: HTMLElement) {
+  const q = palFilter.trim().toLocaleLowerCase();
+  const match = (k: Kind) => !q || kindName(k).toLocaleLowerCase().includes(q) || k.includes(q);
+  const sections: [string, Kind[]][] = [];
+  for (const g of SPOR_GROUPS) if (palGroup === 'all' || palGroup === g) sections.push([t(`grp.${g}`), KIND_LIST.filter((k) => groupOf(k) === g && match(k))]);
+  if (palGroup === 'all' || palGroup === 'kit')
+    for (const c of KIT_CATS) sections.push([`${t('grp.kit')} · ${t(`cat.${c}`)}`, KIND_LIST.filter((k) => groupOf(k) === 'kit' && KINDS[k].cat === c && match(k))]);
+  const shown = sections.filter(([, ks]) => ks.length);
+  host.innerHTML = shown.length ? shown.map(([title, ks]) => `<h4>${title}</h4><div class="kinds">${ks.map((k) => `<button data-kind="${k}" class="${k === placeKind ? 'on' : ''}">${kindName(k)}</button>`).join('')}</div>`).join('') : `<p class="note">${t('pal.none')}</p>`;
+  host.querySelectorAll<HTMLButtonElement>('[data-kind]').forEach((b) =>
+    b.addEventListener('click', () => {
+      placeKind = b.dataset.kind as Kind;
+      host.querySelectorAll('[data-kind]').forEach((x) => x.classList.toggle('on', x === b));
+      cursorScale();
+      syncToolbar();
+    }),
+  );
+}
+
+function toolAction(id: Action) {
   if (id === 'mirror') {
     mirror = (mirror + 1) % 4;
-    flash(MIRROR_NAMES[mirror]);
+    flash(t(`mirror.${mirror}`));
     mirrorLines();
     syncToolbar();
   } else if (id === 'undo') doUndo();
@@ -416,38 +578,30 @@ function syncToolbar() {
   document.querySelectorAll<HTMLButtonElement>('#tools button').forEach((b) => {
     b.classList.toggle('on', b.dataset.tool === tool || (b.dataset.tool === 'mirror' && mirror > 0));
   });
-  document.querySelectorAll<HTMLButtonElement>('#palette button').forEach((b) => b.classList.toggle('on', b.dataset.kind === placeKind));
-  $('palette-wrap').classList.toggle('hidden', tool !== 'place');
-  $('brush').classList.toggle('hidden', !['erase', 'raise', 'lower', 'place'].includes(tool));
-  $('size-card').classList.toggle('hidden', !(tool === 'move' && sel));
-  const hints: Record<Tool, string> = {
-    view: 'WASD: ileri, geri, sağa, sola git · Shift: çok hızlı · sol ya da sağ tık sürükle: döndür · orta tık: kaydır · tekerlek: yakınlaş',
-    place: `${KINDS[placeKind].name}: tıkla ya da sürükleyerek dağıt · sağ tık sürükle: döndür · WASD: git`,
-    move: 'Nesneye tıkla: seç · sürükle: taşı · tutarken tekerlek ya da [ ]: boyunu değiştir · sağ tık sürükle: döndür · WASD: git',
-    erase: 'Sürükleyerek sil · sağ tık sürükle: döndür · WASD: git',
-    raise: 'Sürükleyerek araziyi yükselt · sağ tık sürükle: döndür · WASD: git',
-    lower: 'Sürükleyerek araziyi alçalt (su birikir) · sağ tık sürükle: döndür · WASD: git',
-    walk: 'WASD yürü · Shift koş · sol tık sürükle: bak · Esc çık',
-  };
-  $('hint').textContent = hints[tool] + (mirror ? ` · ${MIRROR_NAMES[mirror]}` : '');
+  const hint = designer.active ? designer.hint() : t(`hint.${tool}`, { kind: kindName(placeKind) });
+  $('hint').textContent = hint + (mirror && !designer.active ? ` · ${t(`mirror.${mirror}`)}` : '');
 }
 
-function setTool(t: Tool) {
+function setTool(next: Tool) {
   const was = tool;
-  tool = t;
+  tool = next;
   const pointers = camera.inputs.attached.pointers as unknown as { buttons: number[] };
-  pointers.buttons = t === 'view' || t === 'walk' ? [0, 1, 2] : [1, 2];
-  if (t === 'walk') enterWalk();
+  pointers.buttons = next === 'view' || next === 'walk' ? [0, 1, 2] : [1, 2];
+  if (next === 'walk') enterWalk();
   else if (was === 'walk') exitWalk();
-  cursor.setEnabled(['erase', 'raise', 'lower', 'place', 'move'].includes(t));
+  cursor.setEnabled(['erase', 'raise', 'lower', 'place', 'move'].includes(next));
+  if (next !== 'move') select(null);
   cursorScale();
+  fxEdit.show = tab === 'fx' || next === 'zone';
+  fxEdit.draw();
+  renderDrawer();
   syncToolbar();
 }
 
 function doUndo() {
   select(null);
   const s = undo.pop();
-  if (!s) return flash('Geri alınacak bir şey yok');
+  if (!s) return flash(t('flash.noUndo'));
   redo.push(snap());
   restore(JSON.parse(s));
 }
@@ -479,14 +633,22 @@ function opAreas(op: Op, out: Area[]): boolean {
 function restore(next: State) {
   const prev = S;
   S = next;
-  refreshInputs();
+  renderTab();
   applyAtmos();
+  fxEdit.draw();
+  designer.render();
+  drawMinimap(false);
   if (JSON.stringify(prev.gen) !== JSON.stringify(next.gen)) return rebuild();
   const a = prev.ops, b = next.ops;
   const n = Math.min(a.length, b.length);
   let k = 0;
   while (k < n && JSON.stringify(a[k]) === JSON.stringify(b[k])) k++;
-  if (k === a.length && k === b.length) return; // only the atmosphere changed
+  if (k === a.length && k === b.length) {
+    // Only the atmosphere, the regions or the interiors changed.
+    redrawInteriors();
+    save();
+    return;
+  }
   const areas: Area[] = [];
   let terrain = false;
   for (let i = k; i < a.length; i++) terrain = opAreas(a[i], areas) || terrain;
@@ -501,7 +663,7 @@ function flash(msg: string) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(flashTimer);
-  flashTimer = window.setTimeout(() => el.classList.remove('show'), 1600);
+  flashTimer = window.setTimeout(() => el.classList.remove('show'), 1800);
 }
 
 function photo() {
@@ -535,7 +697,6 @@ let guides: Mesh[] = [];
 function mirrorLines() {
   guides.forEach((g) => g.dispose());
   guides = [];
-  const mode = mirror;
   const size = S.gen.size;
   const add = (along: 'x' | 'z') => {
     const g = MeshBuilder.CreateBox('mirror-guide', { width: along === 'x' ? size : 0.3, depth: along === 'z' ? size : 0.3, height: 40 }, scene);
@@ -546,8 +707,8 @@ function mirrorLines() {
     atmos.exclude(g);
     guides.push(g);
   };
-  if (mode === 1 || mode === 3) add('z');
-  if (mode === 2 || mode === 3) add('x');
+  if (mirror === 1 || mirror === 3) add('z');
+  if (mirror === 2 || mirror === 3) add('x');
 }
 
 /** The point plus its mirror copies. */
@@ -570,7 +731,7 @@ function groundPick(): Vector3 | null {
 
 /** Areas this stroke touched: redrawn when it ends. `fresh` holds the ones the terrain has not shown yet. */
 let stroke: Area[] = [];
-let fresh: Area[] = [];
+let freshAreas: Area[] = [];
 function paintAt(p: Vector3) {
   const spacing = tool === 'place' ? Math.max(1.5, KINDS[placeKind].r * S.gen.scale * 2) : Math.max(0.8, brush * 0.4);
   if (lastPaint && Vector3.Distance(lastPaint, p) < spacing) return;
@@ -578,7 +739,7 @@ function paintAt(p: Vector3) {
   const reach = tool === 'place' ? KINDS[placeKind].r * S.gen.scale * 2.5 + 2 : brush + 2;
   const touched = mirrored(p.x, p.z).map(([x, z]) => ({ x, z, r: reach }));
   stroke.push(...touched);
-  fresh.push(...touched);
+  freshAreas.push(...touched);
   for (const [x, z, m] of mirrored(p.x, p.z)) {
     if (tool === 'place') {
       const def = KINDS[placeKind];
@@ -595,12 +756,12 @@ function paintAt(p: Vector3) {
     if (now - lastTerrain > 80) {
       lastTerrain = now;
       field = new Field(S.gen, S.ops);
-      view.buildTerrain(field, fresh);
-      fresh = [];
+      view.buildTerrain(field, freshAreas);
+      freshAreas = [];
     }
   } else {
     rebuild(false, touched, false);
-    fresh = [];
+    freshAreas = [];
   }
 }
 
@@ -659,32 +820,51 @@ function resizeSel(v: number, doCommit: boolean) {
   const area = selArea(op.nx, op.nz);
   sel.s = op.ns = Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round(v * 100) / 100));
   rebuild(false, [area, selArea(op.nx, op.nz)], false);
-  inputs.get('objsize')?.();
   cursorScale();
 }
 function select(o: Obj | null) {
+  const had = !!sel;
   sel = o && { k: o.k, x: o.x, z: o.z, s: o.s };
   selOp = null;
-  $('size-card').classList.toggle('hidden', !(tool === 'move' && sel));
-  if (sel) $('size-name').textContent = KINDS[sel.k].name;
-  inputs.get('objsize')?.();
   cursorScale();
+  if (had || sel) renderDrawer();
 }
-// The wheel resizes the object while you hold it, instead of zooming.
+// The wheel resizes the object (or region) while you hold it, instead of zooming.
 canvas.addEventListener(
   'wheel',
   (e) => {
-    if (!dragging || !sel) return;
+    const used = (dragging && sel && (resizeSel(sel.s * (e.deltaY < 0 ? 1.08 : 1 / 1.08), false), true)) || (tool === 'zone' && fxEdit.wheel(e.deltaY));
+    if (!used) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    resizeSel(sel.s * (e.deltaY < 0 ? 1.08 : 1 / 1.08), false);
   },
   { capture: true, passive: false },
 );
 
+// Double-click a building to furnish it.
+canvas.addEventListener('dblclick', () => {
+  if (designer.active || tool === 'walk') return;
+  const p = groundPick();
+  const o = p && objectAt(p);
+  if (designer.canEnter(o)) designer.enter(o);
+});
+
 scene.onPointerObservable.add((ev) => {
   const e = ev.event as PointerEvent;
-  if (ev.type === 1 /* down */ && e.button === 0 && tool === 'move') {
+  const type = ev.type === 1 ? 'down' : ev.type === 2 ? 'up' : ev.type === 4 ? 'move' : null;
+  if (!type) return;
+  if (designer.active) {
+    designer.pointer(type, e.button);
+    return;
+  }
+  if (tool === 'zone' && (e.button === 0 || type === 'move')) {
+    const p = groundPick();
+    if (type === 'move' && p) updateHere(p);
+    if (fxEdit.pointer(type, p)) camera.inputs.attached.pointers?.detachControl();
+    if (type === 'up') camera.inputs.attached.pointers?.attachControl(true);
+    return;
+  }
+  if (type === 'down' && e.button === 0 && tool === 'move') {
     const p = groundPick();
     const o = p && objectAt(p);
     select(o ?? null);
@@ -693,25 +873,24 @@ scene.onPointerObservable.add((ev) => {
     selEdit(false);
     dragging = true;
     camera.inputs.attached.mousewheel?.detachControl();
-  } else if (ev.type === 1 /* down */ && e.button === 0 && ['place', 'erase', 'raise', 'lower'].includes(tool)) {
+  } else if (type === 'down' && e.button === 0 && ['place', 'erase', 'raise', 'lower'].includes(tool)) {
     const p = groundPick();
     if (!p) return;
     commit();
     painting = true;
     lastPaint = null;
     stroke = [];
-    fresh = [];
+    freshAreas = [];
     paintAt(p);
-  } else if (ev.type === 4 /* move */) {
+  } else if (type === 'move') {
     const p = groundPick();
     if (p) {
       cursor.position.set(p.x, p.y + 0.3, p.z);
-      const b = BIOMES[field.biome(p.x, p.z)];
-      $('stat-here').textContent = `${b.name} · ${p.y.toFixed(1)} m`;
+      updateHere(p);
       if (painting) paintAt(p);
       if (dragging) moveTo(p, false);
     }
-  } else if (ev.type === 2 /* up */ && dragging && sel && selOp) {
+  } else if (type === 'up' && dragging && sel && selOp) {
     dragging = false;
     camera.inputs.attached.mousewheel?.attachControl(true);
     const op = selOp;
@@ -720,29 +899,44 @@ scene.onPointerObservable.add((ev) => {
       S.ops.pop();
       undo.pop();
       selOp = null;
-    } else moveTo(new Vector3(op.nx, 0, op.nz), true);
+    } else {
+      // A moved house keeps its own interior layout.
+      moveOverride(S.interiors, op.k, op.x, op.z, op.nx, op.nz);
+      moveTo(new Vector3(op.nx, 0, op.nz), true);
+    }
     sel.x = op.nx;
     sel.z = op.nz;
-  } else if (ev.type === 2 /* up */ && painting) {
+  } else if (type === 'up' && painting) {
     painting = false;
     rebuild(tool === 'raise' || tool === 'lower', stroke);
     stroke = [];
   }
 });
 
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+function updateHere(p: Vector3) {
+  const b = BIOMES[field.biome(p.x, p.z)];
+  $('stat-here').textContent = t('pl.here', { biome: b.name, h: p.y.toFixed(1) });
+  const el = document.getElementById('fx-here');
+  if (el) {
+    const v = fxAt(S.fx, p.x, p.z, (x, z) => field.weights(x, z));
+    el.textContent = t('fx.here', { s: pct(v.spores), f: pct(v.fog), b: pct(v.fireflies) });
+  }
+}
+
 // ---- Walk mode ----------------------------------------------------------------------------
 const keys = new Set<string>();
 let orbitSaved: { a: number; b: number; r: number; t: Vector3 } | null = null;
 function enterWalk() {
   orbitSaved = { a: camera.alpha, b: camera.beta, r: camera.radius, t: camera.target.clone() };
-  const t = camera.target;
+  const tg = camera.target;
   camera.lowerRadiusLimit = camera.upperRadiusLimit = 0.05;
   camera.radius = 0.05;
   camera.beta = Math.PI / 2;
   camera.upperBetaLimit = Math.PI - 0.1;
   camera.panningSensibility = 0;
   camera.angularSensibilityX = camera.angularSensibilityY = 2500;
-  camera.target = new Vector3(t.x, field.height(t.x, t.z) + 1.7, t.z);
+  camera.target = new Vector3(tg.x, field.height(tg.x, tg.z) + 1.7, tg.z);
   camera.fov = 1.0;
   document.body.classList.add('walking');
 }
@@ -761,11 +955,26 @@ function exitWalk() {
   }
   document.body.classList.remove('walking');
 }
+
+/** Effect-region values where the camera looks, eased so a region's rim never pops. */
+const local: FxValues = { spores: 1, fog: 1, fireflies: 1 };
+const want: FxValues = { spores: 1, fog: 1, fireflies: 1 };
+let fxT = 0;
 scene.onBeforeRenderObservable.add(() => {
+  const dt = engine.getDeltaTime() / 1000;
   // Objects build and show only near the camera, a few chunks per frame.
   view.viewRadius = Math.max(220, Math.min(700, camera.radius * 1.3));
   view.update(camera.target.x, camera.target.z, 2, Math.max(0, camera.position.y - camera.target.y));
-  const dt = engine.getDeltaTime() / 1000;
+  fxT += dt;
+  if (fxT > 0.25) {
+    fxT = 0;
+    fxAt(S.fx, camera.target.x, camera.target.z, (x, z) => field.weights(x, z), want);
+  }
+  const k = Math.min(1, dt / FX.ease);
+  local.spores += (want.spores - local.spores) * k;
+  local.fog += (want.fog - local.fog) * k;
+  atmos.setLocal(local);
+  if (designer.active) return;
   const fwd = camera.getForwardRay(1).direction;
   fwd.y = 0;
   fwd.normalize();
@@ -780,37 +989,43 @@ scene.onBeforeRenderObservable.add(() => {
   // Fly speed follows the zoom: about a screen width per second, three times that with Shift.
   const speed = tool === 'walk' ? (fast ? 22 : 9) : Math.max(25, Math.min(1500, camera.radius * 0.9)) * (fast ? 3 : 1);
   v.normalize().scaleInPlace(speed * dt);
-  const t = camera.target.add(v);
+  const tg = camera.target.add(v);
   if (tool === 'walk') {
     // Walking follows the ground at eye height.
-    const ground = Math.max(field.height(t.x, t.z), S.gen.water - 1);
-    t.y += (ground + 1.7 - t.y) * Math.min(1, dt * 10);
+    const ground = Math.max(field.height(tg.x, tg.z), S.gen.water - 1);
+    tg.y += (ground + 1.7 - tg.y) * Math.min(1, dt * 10);
   } else {
     // Flying keeps its height, so hills do not bob the view up and down. It only climbs when the
     // camera itself would go into a hill.
     const eye = camera.position.add(v);
     const floor = Math.max(field.height(eye.x, eye.z), S.gen.water) + EDIT.flyClearance;
-    if (eye.y < floor) t.y += floor - eye.y;
+    if (eye.y < floor) tg.y += floor - eye.y;
   }
-  camera.target = t;
+  camera.target = tg;
 });
 
 // ---- Keyboard -----------------------------------------------------------------------------
 window.addEventListener('keydown', (e) => {
   const target = e.target as HTMLElement;
   if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+    e.preventDefault();
+    return e.shiftKey ? doRedo() : doUndo();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
+    e.preventDefault();
+    return doRedo();
+  }
+  if (designer.active) {
+    if (designer.keydown(e)) e.preventDefault();
+    return;
+  }
   keys.add(e.code);
   if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
     return;
   }
-  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
-    e.preventDefault();
-    e.shiftKey ? doRedo() : doUndo();
-  } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
-    e.preventDefault();
-    doRedo();
-  } else if (e.code === 'Escape') setTool('view');
+  if (e.code === 'Escape') setTool('view');
   else if (e.ctrlKey || e.metaKey || e.altKey) return;
   else if (e.code === 'Digit1') setTool('view');
   else if (e.code === 'Digit2') setTool('place');
@@ -818,6 +1033,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'Digit4') setTool('raise');
   else if (e.code === 'Digit5') setTool('lower');
   else if (e.code === 'Digit6') setTool('move');
+  else if (e.code === 'KeyZ') setTool(tool === 'zone' ? 'view' : 'zone');
   else if (tool === 'move' && sel && (e.code === 'BracketLeft' || e.code === 'BracketRight')) resizeSel(sel.s * (e.code === 'BracketRight' ? 1.08 : 1 / 1.08), true);
   else if (e.code === 'KeyM') toolAction('mirror');
   else if (e.code === 'KeyY') setTool(tool === 'walk' ? 'view' : 'walk');
@@ -892,6 +1108,17 @@ function drawMinimap(terrain = true) {
     d[p * 4 + 2] = d[p * 4 + 2] * keep + 26 * (1 - keep);
   }
   ctx.putImageData(img, 0, 0);
+  // Effect regions: dashed pigment circles.
+  S.fx.zones.forEach((z, i) => {
+    if (z.shape !== 'circle') return;
+    ctx.beginPath();
+    ctx.arc(((z.x + size / 2) / size) * N, ((size / 2 - z.z) / size) * N, (z.r / size) * N, 0, Math.PI * 2);
+    ctx.setLineDash([3, 2]);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = ZONE_COLORS[i % ZONE_COLORS.length];
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
   // Vendor machines: amber dots (violet = lucky) with an ink rim.
   for (const o of objs) {
     if (o.k !== 'satici' && o.k !== 'sansli') continue;
@@ -918,59 +1145,66 @@ mini.addEventListener('click', (e) => {
   camera.target = new Vector3(x, field.height(x, z), z);
 });
 
-// ---- File menu ----------------------------------------------------------------------------
-$('btn-export').addEventListener('click', () => {
-  const f: MapFile = { v: 1, gen: S.gen, ops: S.ops, atmos: S.atmos };
-  const blob = new Blob([JSON.stringify(f, null, 1)], { type: 'application/json' });
+// ---- File ---------------------------------------------------------------------------------
+function exportMap() {
+  const blob = new Blob([JSON.stringify(toFile(), null, 1)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `harita-${S.gen.seed}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
-});
+}
 // Play this map in the game: the game reads the same autosave with ?map=planner.
-$('btn-play').addEventListener('click', () => {
+function playInGame() {
   save();
   location.href = './?map=planner';
-});
-$('btn-import').addEventListener('click', () => $<HTMLInputElement>('file').click());
+}
 $<HTMLInputElement>('file').addEventListener('change', async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
-  try {
-    const parsed = parseMapFile(await file.text());
-    if (!parsed.ok) return flash(`Bu dosya okunamadı: ${parsed.reason}`);
-    const f = parsed.map;
-    commit();
-    S = { gen: { ...DEFAULT_PARAMS, ...f.gen }, ops: f.ops ?? [], atmos: { ...DEFAULT_ATMOS, ...(f.atmos as Partial<Atmos>) } };
-    refreshInputs();
-    applyAtmos();
-    rebuild();
-    flash('Harita yüklendi');
-  } catch {
-    flash('Bu dosya okunamadı');
-  }
+  const parsed = parseMapFile(await file.text());
+  if (!parsed.ok) return flash(t('flash.badFile', { why: parsed.reason }));
+  commit();
+  S = fromFile(parsed.map);
+  renderTab();
+  applyAtmos();
+  rebuild();
+  flash(t('flash.loaded'));
 });
-$('btn-clear').addEventListener('click', () => {
-  if (!S.ops.length) return flash('Elle yapılmış değişiklik yok');
+function clearEdits() {
+  if (!S.ops.length) return flash(t('flash.noEdits'));
   commit();
   S.ops = [];
   rebuild();
-  flash('Elle yapılanlar temizlendi (Ctrl Z ile geri)');
-});
-$('btn-reset').addEventListener('click', () => {
+  flash(t('flash.cleared'));
+}
+function resetMap() {
   commit();
-  S = { gen: structuredClone(DEFAULT_PARAMS), ops: [], atmos: { ...DEFAULT_ATMOS } };
-  refreshInputs();
+  S = fresh();
+  renderTab();
   applyAtmos();
   rebuild();
+}
+
+// ---- Chrome -------------------------------------------------------------------------------
+const langBtn = $('lang');
+langBtn.innerHTML = `${icon('lang', 16)}<span>${t('pl.lang')}</span>`;
+langBtn.addEventListener('click', () => {
+  setLang(getLang() === 'tr' ? 'en' : 'tr');
+  // Every label is built from t(): a reload redraws them all in the new language.
+  save();
+  location.reload();
 });
-$('panel-toggle').addEventListener('click', () => document.body.classList.toggle('panel-closed'));
+const toggle = $('panel-toggle');
+toggle.innerHTML = icon('panel');
+toggle.setAttribute('aria-label', t('tab.land'));
+toggle.addEventListener('click', () => document.body.classList.toggle('panel-opened'));
 
 // ---- Start --------------------------------------------------------------------------------
-buildPanel();
+buildTabs();
 buildToolbar();
-refreshInputs();
+crumbs();
+renderTab();
 applyAtmos();
 rebuild();
 setTool('view');
@@ -986,4 +1220,29 @@ engine.runRenderLoop(() => {
 });
 window.addEventListener('resize', () => engine.resize());
 // For tests and screenshots.
-Object.assign(window, { planner: { get S() { return S; }, engine, scene, camera, rebuild, setTool, commit, undo: doUndo, redo: doRedo, paintAt: (x: number, z: number) => paintAt(new Vector3(x, 0, z)), field: () => field, objs: () => objs, setState: (s: Partial<State>) => { S = { ...S, ...s }; refreshInputs(); applyAtmos(); rebuild(); } } });
+Object.assign(window, {
+  planner: {
+    get S() {
+      return S;
+    },
+    engine,
+    scene,
+    camera,
+    rebuild,
+    setTool,
+    commit,
+    undo: doUndo,
+    redo: doRedo,
+    designer,
+    fxEdit,
+    paintAt: (x: number, z: number) => paintAt(new Vector3(x, 0, z)),
+    field: () => field,
+    objs: () => objs,
+    setState: (s: Partial<State>) => {
+      S = { ...S, ...s };
+      renderTab();
+      applyAtmos();
+      rebuild();
+    },
+  },
+});

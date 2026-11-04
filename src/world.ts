@@ -14,7 +14,7 @@ import { MapView } from './planner/build';
 import { BOUNCE } from './balance';
 import { STREAM, loadRadiusForFog } from './mapgen/stream';
 
-/** Baked collision boxes per Spor Ormanı model: [x, z, hw, hd, y0, y1] in model units (tools/blender/spor_carpisma.py). */
+/** Baked collision boxes per Spor Ormanı model: [x, z, hw, hd, y0, y1] in model units (tools/assets/bake-collision.mjs). */
 const SPOR_COLLIDE = sporCollide as Record<string, number[][] | undefined>;
 /** Kinds you walk through: drawn by cimen.ts, never solid. */
 const GROUND_COVER = new Set<string>(['cimen', 'atesbocegi']);
@@ -73,6 +73,8 @@ export type World = {
   /** Planner maps: stream object chunks, LODs and batches around the player (call every frame). */
   stream?: (x: number, z: number) => void;
   view?: MapView;
+  /** The map file this world was built from (planner maps and the Spor Ormanı test map). */
+  mapFile?: MapFile;
 };
 
 const mapFields = new WeakMap<Box[], { field: Field; half: number }>();
@@ -127,11 +129,13 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
     // Only near objects cast shadows, so the shadow map covers the fight, not the whole 4 km map.
     view.castLods = 1;
     view.terrainCasts = false;
+    view.glow = 1;
+    view.glowLods = 1;
     view.viewRadius = loadRadiusForFog(scene.fogDensity);
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
-    // Spor Ormanı houses and bridges are placed by spor.ts; its mushrooms, enoki, moss and sprouts stream here as
-    // thin instances (their Blender models arrive through view.useModels). Bouncy morels are drawn by pads.ts,
+    // Spor Ormanı houses, bridges and landmarks are placed by spor.ts; its mushrooms, rocks, props and maze pieces
+    // stream here as thin instances (their Blender models arrive through view.useModels). Bouncy morels are drawn by pads.ts,
     // which can squash them; grass patches and firefly swarms by cimen.ts.
     view.buildObjects(field, mapObjects.filter((o) => o.k !== 'morel' && !GROUND_COVER.has(o.k) && (!(o.k in SPOR_KINDS) || sporInstanced(o.k))));
     const boxes: Box[] = [];
@@ -150,7 +154,7 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
         const y = baseHeight(field, o);
         const shape = SPOR_COLLIDE[o.k];
         if (shape) {
-          // Houses and bridges: floors, stairs, balconies, decks and walls baked from the model.
+          // Walkable models: floors, stairs, balconies, decks and walls baked from the model.
           const c = Math.cos(o.r), sn = Math.sin(o.r);
           for (const [lx, lz, hw, hd, y0, y1] of shape) {
             boxes.push({
@@ -166,7 +170,7 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
         }
         // Mushrooms: only the stem is solid.
         const solid = SPOR_KINDS[o.k as SporKind].solid;
-        if (solid) boxes.push({ x: o.x, z: o.z, hw: solid[0] * o.s, hd: solid[0] * o.s, y0: y - 0.2, y1: y + solid[1] * o.s });
+        if (Array.isArray(solid)) boxes.push({ x: o.x, z: o.z, hw: solid[0] * o.s, hd: solid[0] * o.s, y0: y - 0.2, y1: y + solid[1] * o.s });
         continue;
       }
       const r = KINDS[o.k].r * o.s;
@@ -177,7 +181,7 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
       boxes.push({ x: o.x, z: o.z, hw: h, hd: h, y0, y1: y + Math.max(1.4, r * 1.15) });
     }
     mapFields.set(boxes, { field, half });
-    const world: World = { boxes, pads, houses: [], props: [], shadows, seed, field, mapObjects, view };
+    const world: World = { boxes, pads, houses: [], props: [], shadows, seed, field, mapObjects, view, mapFile: file };
     const spawnRand = rng(seed + 913);
     world.spawn = findOpenSpot(boxes, spawnRand, 0.65);
     // Everything in sight of the spawn builds now; the rest streams in a few chunks per frame.

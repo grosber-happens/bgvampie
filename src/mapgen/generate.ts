@@ -9,6 +9,8 @@
  */
 import { clamp, fbm, noise2, ridged, rng, smooth } from './noise';
 import { VENDOR, placeVendors, vendorCount } from './vendors.ts';
+import type { MapFx } from './fx';
+import type { Interiors } from './interior';
 
 export const BIOMES = [
   { id: 'kanyon', name: 'Kızıl Kanyon', ground: ['#5d6f8f', '#9fb4c9', '#e8eef2'], accent: '#c8333a' },
@@ -88,27 +90,121 @@ export type Category = 'trees' | 'mushrooms' | 'giants' | 'mech' | 'ruins' | 'ro
  * cell = spacing of the placement grid, r = footprint radius at scale 1 (keeps things from overlapping).
  */
 /**
- * Spor Ormanı Blender models (src/spor.ts), placed by hand in the planner, never scattered.
- * r: planner footprint. solid: collision box half size and height (trunk/stem only; null = none yet).
+ * Spor Ormanı and kasaba Blender models (src/spor.ts, packed by tools/assets/pack-spor.mjs), placed by hand
+ * in the planner, never scattered. r: planner footprint. group: planner palette group.
+ * solid: 'baked' = collision boxes from src/assets/spor/carpisma.json (tools/assets/bake-collision.mjs),
+ * [half size, height] = one stem box, null = walk-through. lift: floats this many meters over the ground.
+ * full: always a full model (animated or walkable inside), never thin-instanced.
  */
 export const SPOR_KINDS = {
-  ev_kule: { name: 'Mantar ev: kule', cat: 'landmark', r: 8, solid: [2.4, 20] },
-  ev_genis: { name: 'Mantar ev: geniş', cat: 'landmark', r: 9, solid: [3.0, 15] },
-  ev_kulube: { name: 'Mantar ev: kulübe', cat: 'landmark', r: 8, solid: [2.2, 10.5] },
-  kopru_tas: { name: 'Taş köprü', cat: 'ruins', r: 13, solid: null },
-  kopru_tas_yikik: { name: 'Yıkık taş köprü', cat: 'ruins', r: 13, solid: null },
-  kopru_ahsap: { name: 'Ahşap köprü', cat: 'ruins', r: 10, solid: null },
-  mantar_kumesi: { name: 'Dev mantar kümesi', cat: 'mushrooms', r: 14, solid: [2.0, 22] },
-  mantar_buyuk: { name: 'Büyük mantar', cat: 'mushrooms', r: 5.5, solid: [1.3, 12] },
-  mantar_orta: { name: 'Orta mantar', cat: 'mushrooms', r: 2.8, solid: [0.7, 6] },
-  mantar_kucuk: { name: 'Küçük mantar', cat: 'mushrooms', r: 1.2, solid: [0.3, 2.4] },
-  enoki_buyuk: { name: 'Enoki (büyük)', cat: 'mushrooms', r: 0.5, solid: null },
-  enoki_orta: { name: 'Enoki (orta)', cat: 'mushrooms', r: 0.4, solid: null },
-  enoki_kucuk: { name: 'Enoki (küçük)', cat: 'mushrooms', r: 0.3, solid: null },
-  enoki_seyrek: { name: 'Enoki (seyrek)', cat: 'mushrooms', r: 0.3, solid: null },
-  yosun_tumsek: { name: 'Yosun tümseği', cat: 'rocks', r: 4.2, solid: null },
-  kizil_filiz: { name: 'Kızıl filiz', cat: 'mushrooms', r: 1, solid: null },
-} as const satisfies Record<string, { name: string; cat: Category; r: number; solid: readonly [number, number] | null }>;
+  ev_kule: { name: 'Mantar ev: kule', cat: 'landmark', group: 'ev', r: 8.9, solid: 'baked' },
+  ev_genis: { name: 'Mantar ev: geniş', cat: 'landmark', group: 'ev', r: 10.9, solid: 'baked' },
+  ev_kulube: { name: 'Mantar ev: kulübe', cat: 'landmark', group: 'ev', r: 7.7, solid: 'baked' },
+  ev_iki_kat: { name: 'Mantar ev: iki katlı', cat: 'landmark', group: 'ev', r: 6.8, solid: 'baked' },
+  ev_uc_kat: { name: 'Mantar ev: üç katlı', cat: 'landmark', group: 'ev', r: 7.4, solid: 'baked' },
+  ev_cam_kule: { name: 'Cam ev: kule', cat: 'landmark', group: 'ev', r: 6.1, solid: 'baked' },
+  ev_cam_ikiz: { name: 'Cam ev: ikiz', cat: 'landmark', group: 'ev', r: 5.4, solid: 'baked' },
+  ev_cam_genis: { name: 'Cam ev: geniş', cat: 'landmark', group: 'ev', r: 6.2, solid: 'baked' },
+  ev_mozaik: { name: 'Gaudí ev: mozaik', cat: 'landmark', group: 'ev', r: 4.9, solid: 'baked' },
+  ev_vitray: { name: 'Gaudí ev: vitray', cat: 'landmark', group: 'ev', r: 7.9, solid: 'baked' },
+  kopru_tas: { name: 'Taş köprü', cat: 'ruins', group: 'kopru', r: 13.0, solid: 'baked' },
+  kopru_tas_yikik: { name: 'Yıkık taş köprü', cat: 'ruins', group: 'kopru', r: 13.0, solid: 'baked' },
+  kopru_ahsap: { name: 'Ahşap köprü', cat: 'ruins', group: 'kopru', r: 7.9, solid: 'baked' },
+  kopru_gaudi_mozaik: { name: 'Gaudí köprü: mozaik', cat: 'ruins', group: 'kopru', r: 15.0, solid: 'baked' },
+  kopru_gaudi_viyaduk: { name: 'Gaudí köprü: viyadük', cat: 'ruins', group: 'kopru', r: 13.0, solid: 'baked' },
+  kopru_gecit_12: { name: 'Balkon köprüsü 12 m', cat: 'ruins', group: 'kopru', r: 6.2, solid: 'baked', full: true },
+  kopru_gecit_20: { name: 'Balkon köprüsü 20 m', cat: 'ruins', group: 'kopru', r: 10.2, solid: 'baked', full: true },
+  kopru_gecit_20_kat: { name: 'Balkon köprüsü 20 m, kat çıkan', cat: 'ruins', group: 'kopru', r: 10.1, solid: 'baked', full: true },
+  kopru_gecit_28: { name: 'Balkon köprüsü 28 m', cat: 'ruins', group: 'kopru', r: 14.1, solid: 'baked', full: true },
+  gecit_duz: { name: 'Miselyum geçit: düz', cat: 'ruins', group: 'anit', r: 5.1, solid: 'baked', full: true },
+  gecit_kavis: { name: 'Miselyum geçit: kavis', cat: 'ruins', group: 'anit', r: 5.5, solid: 'baked', full: true },
+  gecit_son: { name: 'Miselyum geçit: giriş', cat: 'ruins', group: 'anit', r: 5.4, solid: 'baked', full: true },
+  heykel_mantar_kadin: { name: 'Mantar kadın heykeli', cat: 'landmark', group: 'anit', r: 5.7, solid: 'baked' },
+  labirent_duvar_a: { name: 'Labirent duvarı A', cat: 'ruins', group: 'anit', r: 1.3, solid: 'baked' },
+  labirent_duvar_b: { name: 'Labirent duvarı B', cat: 'ruins', group: 'anit', r: 1.3, solid: 'baked' },
+  labirent_duvar_c: { name: 'Labirent duvarı C (ışıklı)', cat: 'ruins', group: 'anit', r: 1.3, solid: 'baked' },
+  labirent_dugum_a: { name: 'Labirent direği A', cat: 'ruins', group: 'anit', r: 0.8, solid: 'baked' },
+  labirent_dugum_b: { name: 'Labirent direği B', cat: 'ruins', group: 'anit', r: 0.9, solid: 'baked' },
+  labirent_yol_a: { name: 'Labirent yolu A', cat: 'rocks', group: 'anit', r: 1.5, solid: null },
+  labirent_yol_b: { name: 'Labirent yolu B', cat: 'rocks', group: 'anit', r: 1.5, solid: null },
+  mantar_kumesi: { name: 'Dev mantar kümesi', cat: 'mushrooms', group: 'mantar', r: 14.1, solid: [2.0, 22] },
+  mantar_kume_1: { name: 'Mantar kümesi 1', cat: 'mushrooms', group: 'mantar', r: 10.4, solid: [2.0, 22] },
+  mantar_kume_2: { name: 'Mantar kümesi 2', cat: 'mushrooms', group: 'mantar', r: 5.7, solid: [1.4, 12] },
+  mantar_kume_3: { name: 'Mantar kümesi 3', cat: 'mushrooms', group: 'mantar', r: 4.1, solid: [1.0, 8] },
+  mantar_kume_4: { name: 'Mantar kümesi 4', cat: 'mushrooms', group: 'mantar', r: 2.8, solid: [0.6, 5] },
+  mantar_kume_5: { name: 'Mantar kümesi 5', cat: 'mushrooms', group: 'mantar', r: 4.8, solid: [1.0, 7] },
+  mantar_buyuk: { name: 'Büyük mantar', cat: 'mushrooms', group: 'mantar', r: 5.3, solid: [1.3, 12] },
+  mantar_orta: { name: 'Orta mantar', cat: 'mushrooms', group: 'mantar', r: 2.7, solid: [0.7, 6] },
+  mantar_kucuk: { name: 'Küçük mantar', cat: 'mushrooms', group: 'mantar', r: 1.2, solid: [0.3, 2.4] },
+  mantar_semsiye: { name: 'Mor şemsiye mantar', cat: 'mushrooms', group: 'mantar', r: 0.3, solid: null },
+  mantar_murekkep: { name: 'Mürekkep mantarı', cat: 'mushrooms', group: 'mantar', r: 0.3, solid: null },
+  mantar_huni: { name: 'Altın huni mantar', cat: 'mushrooms', group: 'mantar', r: 0.3, solid: null },
+  mantar_mercan: { name: 'Mercan mantar', cat: 'mushrooms', group: 'mantar', r: 0.3, solid: null },
+  mantar_cin: { name: 'Kızıl cin mantarı', cat: 'mushrooms', group: 'mantar', r: 0.3, solid: null },
+  mantar_mavi_patlak: { name: 'Mavi puf (patlar, can verir)', cat: 'mushrooms', group: 'mantar', r: 0.5, solid: null, full: true },
+  enoki_buyuk: { name: 'Enoki (büyük)', cat: 'mushrooms', group: 'mantar', r: 0.4, solid: null },
+  enoki_orta: { name: 'Enoki (orta)', cat: 'mushrooms', group: 'mantar', r: 0.3, solid: null },
+  enoki_kucuk: { name: 'Enoki (küçük)', cat: 'mushrooms', group: 'mantar', r: 0.3, solid: null },
+  enoki_seyrek: { name: 'Enoki (seyrek)', cat: 'mushrooms', group: 'mantar', r: 0.3, solid: null },
+  kizil_filiz: { name: 'Kızıl filiz', cat: 'mushrooms', group: 'mantar', r: 0.8, solid: null },
+  agac_isik_sogut: { name: 'Işık söğüdü', cat: 'trees', group: 'agac', r: 3.8, solid: [0.9, 6] },
+  agac_tapinak: { name: 'Tapınak ağacı', cat: 'trees', group: 'agac', r: 13.6, solid: 'baked' },
+  agac_gokkusagi: { name: 'Gökkuşağı ağacı', cat: 'trees', group: 'agac', r: 5.0, solid: [0.9, 6] },
+  agac_masal_mesesi: { name: 'Masal meşesi', cat: 'trees', group: 'agac', r: 4.5, solid: [1.0, 6] },
+  agac_yelpaze: { name: 'Yelpaze ağacı', cat: 'trees', group: 'agac', r: 4.4, solid: [0.6, 8] },
+  agac_kizil_semsiye: { name: 'Kızıl şemsiye ağacı', cat: 'trees', group: 'agac', r: 4.8, solid: [0.7, 6] },
+  agac_denizanasi: { name: 'Denizanası ağacı', cat: 'trees', group: 'agac', r: 3.0, solid: [0.7, 5] },
+  agac_lingzhi: { name: 'Lingzhi ağacı (tırmanılır)', cat: 'trees', group: 'agac', r: 6.4, solid: 'baked' },
+  agac_kehribar: { name: 'Kehribar ağacı', cat: 'trees', group: 'agac', r: 4.0, solid: [0.9, 6] },
+  yosun_tumsek: { name: 'Yosun tümseği', cat: 'rocks', group: 'tas', r: 3.6, solid: null },
+  tas_cakil: { name: 'Çakıl', cat: 'rocks', group: 'tas', r: 0.8, solid: null },
+  tas_orta: { name: 'Orta taş', cat: 'rocks', group: 'tas', r: 1.2, solid: [0.9, 0.9] },
+  tas_yassi: { name: 'Yassı taş', cat: 'rocks', group: 'tas', r: 1.6, solid: 'baked' },
+  tas_buyuk: { name: 'Büyük taş', cat: 'rocks', group: 'tas', r: 2.5, solid: 'baked' },
+  tas_dikili: { name: 'Dikili taş', cat: 'rocks', group: 'tas', r: 1.2, solid: 'baked' },
+  tas_kaya: { name: 'Kaya', cat: 'rocks', group: 'tas', r: 3.5, solid: 'baked' },
+  tas_dengeli: { name: 'Dengeli taşlar', cat: 'rocks', group: 'tas', r: 1.2, solid: 'baked' },
+  tas_yarik: { name: 'Yarık kaya', cat: 'rocks', group: 'tas', r: 2.0, solid: 'baked' },
+  tas_grup: { name: 'Taş grubu', cat: 'rocks', group: 'tas', r: 2.0, solid: 'baked' },
+  tas_kemer: { name: 'Taş kemer', cat: 'rocks', group: 'tas', r: 2.8, solid: 'baked' },
+  tas_sivri: { name: 'Sivri taşlar', cat: 'rocks', group: 'tas', r: 1.6, solid: 'baked' },
+  blok_kesme: { name: 'Kesme blok', cat: 'ruins', group: 'tas', r: 0.9, solid: 'baked' },
+  blok_yikik_duvar: { name: 'Yıkık duvar', cat: 'ruins', group: 'tas', r: 2.8, solid: 'baked' },
+  ucan_blok_kucuk: { name: 'Uçan blok (küçük)', cat: 'rocks', group: 'ucan', r: 0.8, solid: 'baked', lift: 5 },
+  ucan_blok_orta: { name: 'Uçan blok (orta)', cat: 'rocks', group: 'ucan', r: 1.6, solid: 'baked', lift: 7 },
+  ucan_kaya: { name: 'Uçan kaya', cat: 'rocks', group: 'ucan', r: 1.5, solid: 'baked', lift: 6 },
+  ucan_basamak: { name: 'Uçan basamaklar', cat: 'rocks', group: 'ucan', r: 3.5, solid: 'baked', lift: 4 },
+  ucan_ikiz: { name: 'Uçan ikiz kaya', cat: 'rocks', group: 'ucan', r: 3.3, solid: 'baked', lift: 7 },
+  ucan_ada: { name: 'Uçan ada', cat: 'rocks', group: 'ucan', r: 3.8, solid: 'baked', lift: 9 },
+  ucan_sivri: { name: 'Uçan sivri kaya', cat: 'rocks', group: 'ucan', r: 2.6, solid: 'baked', lift: 13 },
+  ucan_harabe: { name: 'Uçan harabe', cat: 'rocks', group: 'ucan', r: 3.2, solid: 'baked', lift: 9 },
+  kamp_cadir: { name: 'Kamp çadırı (girilir)', cat: 'landmark', group: 'kamp', r: 5.2, solid: 'baked' },
+  kamp_ates: { name: 'Kamp ateşi', cat: 'mech', group: 'kamp', r: 1.2, solid: [0.9, 0.5] },
+  kurutma_cerceve: { name: 'Kurutma çerçevesi', cat: 'mech', group: 'kamp', r: 1.5, solid: null },
+  kurutma_tepsi: { name: 'Kurutma tepsisi', cat: 'mech', group: 'kamp', r: 0.9, solid: null },
+  mantar_dizisi: { name: 'Mantar dizisi (ip)', cat: 'mech', group: 'kamp', r: 1.5, solid: null },
+  sepet_sirt: { name: 'Sırt sepeti', cat: 'mech', group: 'kamp', r: 0.3, solid: null },
+  sepet_grubu: { name: 'Sepet grubu', cat: 'mech', group: 'kamp', r: 0.8, solid: null },
+  kamp_tezgah: { name: 'Kamp tezgâhı', cat: 'mech', group: 'kamp', r: 0.8, solid: [0.9, 1.0] },
+  kamp_araba: { name: 'Kamp arabası', cat: 'mech', group: 'kamp', r: 1.8, solid: [1.0, 1.6] },
+  kamp_oturak: { name: 'Kütük oturak', cat: 'mech', group: 'kamp', r: 0.7, solid: null },
+  kamp_fener: { name: 'Kamp feneri', cat: 'mech', group: 'kamp', r: 0.5, solid: null },
+  kamp_kupler: { name: 'Küpler', cat: 'mech', group: 'kamp', r: 0.6, solid: null },
+  lamba_sokak: { name: 'Sokak lambası', cat: 'mech', group: 'esya', r: 0.7, solid: [0.2, 3.5] },
+  lamba_cift: { name: 'Çift lamba', cat: 'mech', group: 'esya', r: 1.0, solid: [0.2, 3.8] },
+  lamba_bahce: { name: 'Bahçe lambası', cat: 'mech', group: 'esya', r: 0.4, solid: null },
+  kasa: { name: 'Sandık', cat: 'mech', group: 'esya', r: 0.4, solid: [0.42, 0.8] },
+  fici: { name: 'Fıçı', cat: 'mech', group: 'esya', r: 0.4, solid: [0.4, 0.95] },
+  sepet_mantar: { name: 'Mantar sepeti', cat: 'mech', group: 'esya', r: 0.3, solid: null },
+  tabela_ahsap: { name: 'Ahşap tabela', cat: 'mech', group: 'esya', r: 0.7, solid: null },
+  kutuk: { name: 'Kütük', cat: 'mech', group: 'esya', r: 0.7, solid: [0.7, 0.9] },
+  cit: { name: 'Çit', cat: 'mech', group: 'esya', r: 1.3, solid: null },
+  odun_yigini: { name: 'Odun yığını', cat: 'mech', group: 'esya', r: 0.5, solid: [0.55, 0.8] },
+  kavanoz_ates: { name: 'Ateş böceği kavanozu', cat: 'mech', group: 'esya', r: 0.3, solid: null },
+} as const satisfies Record<string, SporDef>;
+type SporDef = { name: string; cat: Category; group: SporGroup; r: number; solid: 'baked' | readonly [number, number] | null; lift?: number; full?: boolean };
+export type SporGroup = 'ev' | 'kopru' | 'anit' | 'mantar' | 'agac' | 'tas' | 'ucan' | 'kamp' | 'esya';
+const sporDef = (k: string): SporDef | undefined => (SPOR_KINDS as Record<string, SporDef>)[k];
 export type SporKind = keyof typeof SPOR_KINDS;
 
 /**
@@ -117,17 +213,20 @@ export type SporKind = keyof typeof SPOR_KINDS;
  * Everything else stands on the ground at its center.
  */
 export function baseHeight(field: Field, o: Obj): number {
-  if (!o.k.startsWith('kopru_')) return field.height(o.x, o.z);
+  if (!o.k.startsWith('kopru_')) return field.height(o.x, o.z) + (sporDef(o.k)?.lift ?? 0);
   const d = SPOR_KINDS[o.k as SporKind].r * 0.85 * o.s;
   const c = Math.cos(o.r) * d, sn = Math.sin(o.r) * d;
   return Math.min(field.height(o.x + c, o.z - sn), field.height(o.x - c, o.z + sn));
 }
 
 /**
- * Spor kinds drawn with thin instances and streamed like the kit objects (mushrooms, enoki, moss, sprouts).
- * Houses and bridges are few and walkable, so spor.ts places them as full models.
+ * Spor kinds drawn with thin instances and streamed like the kit objects (mushrooms, rocks, props, maze pieces).
+ * Houses, bridges, landmarks and `full` kinds are few, walkable or animated, so spor.ts places them as full models.
  */
-export const sporInstanced = (k: string): boolean => k in SPOR_KINDS && SPOR_KINDS[k as SporKind].cat !== 'landmark' && SPOR_KINDS[k as SporKind].cat !== 'ruins';
+export const sporInstanced = (k: string): boolean => {
+  const d = sporDef(k);
+  return !!d && !d.full && d.cat !== 'landmark' && d.group !== 'ev' && d.group !== 'kopru';
+};
 
 function sporKinds() {
   const out = {} as { [K in SporKind]: { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] } };
@@ -520,5 +619,8 @@ export function applyOps(objs: Obj[], ops: Op[]): Obj[] {
 /** How close a move op's (x, z) must be to the object it moves, in meters. */
 const MOVE_EPS = 0.05;
 
-/** Saved map file (planner export, and what the game will load later). */
-export type MapFile = { v: 1; gen: Params; ops: Op[]; atmos?: Record<string, number | string | boolean> };
+/**
+ * Saved map file (planner export, and what the game loads). fx: effect regions (mapgen/fx.ts).
+ * interiors: furniture layouts for enterable buildings (mapgen/interior.ts).
+ */
+export type MapFile = { v: 1; gen: Params; ops: Op[]; atmos?: Record<string, number | string | boolean>; fx?: MapFx; interiors?: Interiors };

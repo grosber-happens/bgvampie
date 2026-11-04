@@ -7,14 +7,13 @@
 import { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import { AssetContainer } from '@babylonjs/core/assetContainer';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Scene } from '@babylonjs/core/scene';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import '@babylonjs/loaders/glTF/2.0';
+import { loadRegionModel } from './gltf';
 import snailUrl from './assets/dusman/dusman_salyangoz.glb?url';
 import deerUrl from './assets/dusman/dusman_geyik.glb?url';
 import { MOB_SPECIES, type MobSpecies } from './balance';
@@ -36,7 +35,7 @@ export async function loadCreatures(scene: Scene) {
   await Promise.all(
     (Object.keys(FILES) as MobSpecies[]).map(async (k) => {
       try {
-        kits[k] = await LoadAssetContainerAsync(FILES[k].url, scene, { pluginExtension: '.glb' });
+        kits[k] = await loadRegionModel(FILES[k].url, scene);
       } catch (e) {
         console.error(`Creature ${k} failed to load`, e);
       }
