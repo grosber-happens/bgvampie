@@ -122,16 +122,11 @@ export const BOTS = {
   respawn: 30,
 };
 
-/** Mobs come in small packs. Keep the map lively but not crowded. */
+/** Mob base numbers. How many spawn and where is the director's job (HORDE and WAVES below). */
 export const MOBS = {
-  maxAlive: 10,
+  /** Pack size in the match simulator (sim/match.ts). */
   packMin: 2,
   packMax: 4,
-  startPacks: 2,
-  /** A new pack every this many seconds while below maxAlive. */
-  packEvery: 15,
-  /** Packs spawn at least this far from the player. */
-  minSpawnDist: 22,
   hp: (min: number) => Math.round(50 * (1 + 0.08 * min)),
   damage: (min: number) => 8 * (1 + 0.05 * min),
   speed: 6.5,
@@ -139,10 +134,6 @@ export const MOBS = {
   leash: 30,
   attackRange: 1.6,
   attackRate: 1.0,
-  /** On big maps packs spawn within this distance of the player (and at least minSpawnDist away)... */
-  maxSpawnDist: 70,
-  /** ...and a mob out of the fight this far from the player is removed, so the pack count follows the player. */
-  despawnDist: 180,
 };
 
 /**
@@ -157,6 +148,66 @@ export const MOB_SPECIES = {
   salyangoz: { hp: 2.4, damage: 1.7, speed: 2.8, radius: 1.6, height: 4.8, attackRange: 3.4, windup: 0.7, walkRef: 1.4, chance: 0.35, pack: [1, 2] },
 } as const satisfies Record<string, { hp: number; damage: number; speed: number; radius: number; height: number; attackRange: number; windup: number; walkRef: number; chance: number; pack: readonly [number, number] }>;
 export type MobSpecies = keyof typeof MOB_SPECIES;
+
+/**
+ * Survivors-style spawn director (src/horde.ts). [Proposal, first guesses, owner 2026-11-09]
+ * Mobs spawn off screen in a ring around the player, a little more often ahead of where the player
+ * is running, and chase the player. Mobs left far behind are moved ahead instead of being removed.
+ */
+export const HORDE = {
+  /** Spawn ring around the player (m). Spots the camera can see are skipped when possible. */
+  ringMin: 28,
+  ringMax: 45,
+  /** Share of spawns placed in the half ahead of the player's movement. */
+  aheadBias: 0.6,
+  /** Hard ceiling on live mobs, events included (performance). */
+  cap: 60,
+  /** A mob this far from the player, out of the fight and off screen, is moved to the ring ahead (m). */
+  relocateDist: 60,
+  /** How often the relocation check runs (s). */
+  relocateEvery: 1,
+  /** Mobs grow out of the ground in a spore puff over this long (s); they cannot act meanwhile. */
+  sprout: 0.8,
+  /** XP for a horde mob is the normal mob XP times this (there are many more mobs than before). */
+  xpScale: 0.35,
+  /** Elite mob: bigger, glowing, much tougher; drops much more. */
+  elite: { size: 1.35, hp: 8, damage: 1.5, xp: 10, money: 3, glow: '#ffd36a' },
+  /** Ring event: mobs close in on the player from every side. */
+  ring: { radius: 15 },
+  /** Stampede event: a herd runs straight across the player's position, then joins the horde. */
+  stampede: { from: 42, width: 14, speedMul: 1.7, run: 6, hitDamage: 1.2 },
+};
+
+/**
+ * Per-region waves, minute by minute. A stage lasts until the next one's `from` minute.
+ * alive: how many mobs the director keeps around the player; every: seconds between spawns;
+ * pool: species weights. Events fire once at their minute. hp/damage still grow with MOBS.hp/damage.
+ */
+export type HordeEvent = { at: number; kind: 'ring' | 'stampede' | 'elite'; species: MobSpecies; count: number };
+export const WAVES: Record<string, { stages: { from: number; alive: number; every: number; pool: Partial<Record<MobSpecies, number>> }[]; events: HordeEvent[] }> = {
+  spor: {
+    stages: [
+      { from: 0, alive: 8, every: 2.5, pool: { geyik: 1 } },
+      { from: 2, alive: 14, every: 2, pool: { geyik: 3, salyangoz: 1 } },
+      { from: 5, alive: 24, every: 1.6, pool: { geyik: 2, salyangoz: 1 } },
+      { from: 10, alive: 40, every: 1.2, pool: { geyik: 2, salyangoz: 1 } },
+      { from: 15, alive: 55, every: 0.9, pool: { geyik: 3, salyangoz: 2 } },
+    ],
+    events: [
+      { at: 1.5, kind: 'ring', species: 'geyik', count: 8 },
+      { at: 3, kind: 'stampede', species: 'geyik', count: 6 },
+      { at: 4.5, kind: 'elite', species: 'salyangoz', count: 1 },
+      { at: 6.5, kind: 'ring', species: 'geyik', count: 12 },
+      { at: 8, kind: 'stampede', species: 'geyik', count: 9 },
+      { at: 9.5, kind: 'elite', species: 'geyik', count: 2 },
+      { at: 11.5, kind: 'ring', species: 'salyangoz', count: 8 },
+      { at: 13, kind: 'stampede', species: 'geyik', count: 12 },
+      { at: 14, kind: 'elite', species: 'salyangoz', count: 2 },
+      { at: 16.5, kind: 'ring', species: 'geyik', count: 16 },
+      { at: 18, kind: 'stampede', species: 'geyik', count: 14 },
+    ],
+  },
+};
 
 /** One boss at these match minutes. */
 export const BOSS = {
