@@ -24,7 +24,7 @@ import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, r
 import { placeNatureAssets } from './nature';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
 
-import { G, MODS, PS, chest, glowMat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
+import { G, MODS, PS, chest, dealDamage, glowMat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, clearCorpses, updateBullets, updateCorpses, updateFx, type Unit } from './core';
 import {
   P,
   allKits,
@@ -1133,8 +1133,12 @@ buildStyles();
 
 function resetMatch() {
   setRandomSeed(seed);
-  for (const u of [...G.units]) if (u !== player) u.body.root.dispose(false, true);
+  for (const u of [...G.units]) if (u !== player) {
+    u.ai?.tele?.dispose();
+    u.body.root.dispose(false, true);
+  }
   G.units = [player];
+  clearCorpses();
   for (const b of G.bullets) b.mesh.dispose();
   G.bullets = [];
   G.time = 0;
@@ -1239,6 +1243,7 @@ function simStep(dt: number) {
   for (const u of [...G.units]) if (u.alive) tickStatus(u, dt);
   updateBullets(dt);
   updateFx(dt);
+  updateCorpses(dt);
   updateZones(dt);
   updateFeel(dt);
   gameHud.step(dt);
@@ -1436,6 +1441,10 @@ window.addEventListener('resize', () => engine.resize());
         const bb = m.getBoundingInfo().boundingBox;
         return { name: m.name, enabled: m.isEnabled(), vis: m.isVisible, verts: m.getTotalVertices(), min: bb.minimumWorld.asArray().map((v) => +v.toFixed(2)), max: bb.maximumWorld.asArray().map((v) => +v.toFixed(2)), skel: !!m.skeleton, parent: m.parent?.name };
       }),
+  /** Test hook: the player hits every mob for `dmg` (hit flinch, death clip and corpse checks). */
+  hurtMobs: (dmg: number) => {
+    for (const u of [...G.units]) if (u.kind === 'mob') dealDamage(player, u, dmg);
+  },
   freeze: (sec: number) => {
     for (const u of G.units) if (u !== player) u.stunT = sec;
   },

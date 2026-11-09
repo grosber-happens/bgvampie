@@ -217,8 +217,11 @@ function makeWash(name: string, seed: number, layers: number, wobble: number): T
  */
 export function watercolorFxMaterial(hex: string, alpha: number, kind: 'wash' | 'splat' = 'wash'): StandardMaterial | null {
   if (!clayLook) return null;
-  wash ??= makeWash('wc-wash', 11, 3, 0.22);
-  splat ??= makeWash('wc-splat', 29, 2, 0.5);
+  // A wash made before the look had its scene (or for a scene since disposed) never becomes ready,
+  // and every effect painted with it stays invisible: make it again for this scene.
+  const stale = (t: Texture | null) => !t || t.getScene() !== scene || !t.getInternalTexture();
+  if (stale(wash)) wash = makeWash('wc-wash', 11, 3, 0.22);
+  if (stale(splat)) splat = makeWash('wc-splat', 29, 2, 0.5);
   const m = new StandardMaterial(`wc-${kind}-${hex}-${alpha}`, scene);
   m.disableLighting = true;
   // Unlit: color = emissive × texture. Slightly lift the color so it reads as paint, not neon.
