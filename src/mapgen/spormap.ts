@@ -46,8 +46,12 @@ export const SPOR_MAP = {
     [360, -330],
     [-300, -380],
   ] as [number, number][],
-  villageRadius: 30,
-  villageClear: 55,
+  villageRadius: 36,
+  villageClear: 62,
+  /** Mushroom houses are placed this much bigger than their models (owner, 2026-11-09: houses read too
+   * small next to the 1.90 m character). Furniture inside keeps its own size. */
+  mushroomHouseScale: 1.3,
+  mushroomHouses: ['ev_kule', 'ev_genis', 'ev_kulube', 'ev_iki_kat', 'ev_uc_kat'] as Kind[],
   /** Forest: [kind, grid cell in m, base chance, forest-noise weight]. Bigger first. */
   forest: [
     ['mantar_kumesi', 110, 0.25, 0.5],
@@ -131,6 +135,9 @@ export const SPOR_MAP = {
 type Pt = { x: number; z: number };
 
 /** Creek center line, north (+z) to south. */
+/** Placement scale of a house kind (mushroom houses are placed bigger, see SPOR_MAP.mushroomHouseScale). */
+const houseScale = (k: Kind) => (SPOR_MAP.mushroomHouses.includes(k) ? SPOR_MAP.mushroomHouseScale : 1);
+
 function creekLine(): Pt[] {
   const { size } = SPOR_MAP;
   const { swing, wave, step } = SPOR_MAP.creek;
@@ -229,7 +236,8 @@ export function buildSporMap(): MapFile {
       const a = a0 + (h / n) * Math.PI * 2 + (r() - 0.5) * 0.3;
       const k = houses[(vi + h) % houses.length];
       const x = vx + Math.sin(a) * M.villageRadius, z = vz + Math.cos(a) * M.villageRadius;
-      add(k, x, z, 1, a + Math.PI + (r() - 0.5) * 0.4, KINDS[k].r + 2);
+      const s = houseScale(k);
+      add(k, x, z, s, a + Math.PI + (r() - 0.5) * 0.4, KINDS[k].r * s + 2);
     }
     for (let m = 0; m < 2; m++) {
       const a = a0 + Math.PI / n + m * Math.PI;
@@ -286,7 +294,7 @@ export function buildSporMap(): MapFile {
     const n = M.townHouses.length;
     M.townHouses.forEach((k, h) => {
       const a = (h / n) * Math.PI * 2 + (r() - 0.5) * 0.2;
-      add(k, tx + Math.sin(a) * M.townRadius, tz + Math.cos(a) * M.townRadius, 1, a + Math.PI, 0);
+      add(k, tx + Math.sin(a) * M.townRadius, tz + Math.cos(a) * M.townRadius, houseScale(k), a + Math.PI, 0);
     });
     for (let m = 0; m < 2; m++) add('morel', tx + (m ? 6 : -6), tz, 1, r() * 6.28, 0);
     add('cimen', tx, tz, 2.4, 0, 0);

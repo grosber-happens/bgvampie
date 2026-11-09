@@ -34,7 +34,8 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
   | `src/rogue.ts`, `src/mage.ts`, `src/fighter.ts`, `src/scout.ts` | The four class kits: weapons, passives, 10 skills × 3 tiers, playstyles, dash style |
   | `src/core.ts` | Units, damage pipeline (`dealDamage` with kit modifiers), bullets, DoT, stun, slow |
   | `src/progression.ts` | XP, levels, 3-card offers, tier-3 lock and token |
-  | `src/ai.ts` | Bots, mob packs, boss, spawn director |
+  | `src/ai.ts` | Bots, mob and boss AI |
+  | `src/horde.ts` | Survivors-style mob spawn director (waves, ring spawns, events) |
   | `src/balance.ts` | Every tunable number |
   | `src/look.ts` | Clay and watercolor look (see §10) |
   | `src/world.ts`, `src/houses.ts`, `src/props.ts` | Map, collision (baked model shapes as turned boxes, broadphase grid), Kenney props |
@@ -290,10 +291,18 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 ## 7. Enemies
 
 - **Rival players:** local AI bots in single-player. They farm mobs, fight each other and you, retreat to cover at low health and level up. In the prototype a dead bot returns after 30 s; a real match will have no respawns.
-- **Mobs [Decided]:**
-  - They come in small packs and must never flood the map.
-  - The prototype caps them at 10 alive near the player. On the full map the target is about 100 alive across the whole map.
-  - The prototype packs are the Spor Ormanı creatures made in Blender (`src/creatures.ts`, numbers in `MOB_SPECIES` in `src/balance.ts`): **antlered deer** (fast, packs of 2–4) and **giant snail** (slow and tough, hits hard, alone or in pairs). On big maps packs spawn 22–70 m from the player, and mobs left 180 m behind out of a fight are removed. [Proposal] The species numbers are first guesses.
+- **Mobs:**
+  - [Decided] Small packs, never a flood that hides the map.
+  - [Proposal, 2026-11-09, survivors pivot] A spawn director (`src/horde.ts`, numbers in `HORDE` and `WAVES` in `src/balance.ts`) replaces the old "10 alive, a pack every 15 s" rule:
+    - Each region has a minute-by-minute table: how many mobs to keep around the player, how often to spawn and which species (Spor Ormanı: 8 at minute 0, 14 at 2, 24 at 5, 40 at 10, 55 at 15).
+    - Mobs grow out of the ground in a spore puff 28–45 m from the player, off screen when possible, 60% of the time in the half ahead of where the player is running. They chase the player (a fully invisible player shakes them off).
+    - A mob left over 60 m behind, out of the fight and off screen, is moved to the ring ahead instead of being removed, so the pressure stays.
+    - Events at set minutes: **ring** (mobs close in from every side, 15 m out), **stampede** (a deer herd runs straight across the player's spot; dash sideways), **elite** (a bigger, glowing mob with 8× health that drops 10× XP and sure currency).
+    - A hard cap of 60 live mobs for performance. Each horde mob gives 35% of the old mob XP, because there are many more.
+    - [Decided, owner 2026-11-09] A run in a region lasts **20 minutes** (`WAVES.spor.minutes`); then the director stops spawning. The end screen comes later.
+    - [Decided, owner 2026-11-09] **Swarm creatures don't chase the player.** In some parts of the map they stay still inside houses (`NESTS` in `src/balance.ts`): a few nest areas are picked away from the start, and every enterable house inside one gets creatures on each floor. They only turn and bite whoever comes within reach. A nest loads when the player comes within 55 m and unloads past 110 m; killed creatures stay dead. The creature is a stand-in (a small green-tinted deer) until the owner designs it. [Proposal] the numbers.
+    - Later, BG mode uses the same director, spawning along the shrinking creature ring.
+  - The packs are the Spor Ormanı creatures made in Blender (`src/creatures.ts`, numbers in `MOB_SPECIES`): **antlered deer** (fast, packs of 2–4) and **giant snail** (slow and tough, hits hard, alone or in pairs). [Proposal] The species numbers are first guesses.
 - **Bosses:**
   - The prototype spawns a zombie giant (slam and rock throw) at minutes 5, 13 and 21.
   - [Proposal, from the simulation] On the full map: two region bosses at minute 5, two at 11 and two at 16, then the final boss Crimson Countess at 21 with 1.3× health.
@@ -367,6 +376,7 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 - Bots, Spor Ormanı creature packs (deer, snail) and the zombie giant boss.
 - One ruined-city block with walkable houses (porch, stairs, balcony, roof).
 - The Spor Ormanı test map with our own Blender models: mushroom houses and small-town houses you can enter, bridges, the mushroom-woman statue in its maze, the nomad camp, fantastical trees, floating rocks, and furniture inside the buildings.
+- **Building scale [Decided, 2026-11-04]:** ground floor walls 4.5 m, upper floors 4.0 m, slabs 0.5 m, so a 2-storey building is 9.0 m and a 3-storey one 13.5 m inside; the roof or mushroom cap sits on top. Doors are 2.0 × 2.8 m (the hippo is 1.48 m wide), stairs are spiral, risers at most 0.3 m. Footprints grew about 15% to match. The Gaudí stained-glass house is one grand storey under tall domes; the mosaic house has two. The rules live in the Blender scripts' `olcek.py` (`/mnt/project-files/regions/evler-kat/scriptler`). **[Decided, 2026-11-09]** The five mushroom houses are placed 1.3× bigger on the map (`mushroomHouseScale` in `SPOR_MAP`), so their storeys read as about 5.9 m and 5.2 m next to the 1.90 m character; furniture inside keeps its own size.
 - The clay and watercolor look.
 - A playable single-file build for sharing.
 

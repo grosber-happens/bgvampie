@@ -5,6 +5,7 @@
  */
 const P = 'spor-ormani/polish/glb/';
 const G = 'spor-ormani/glb/';
+const H = 'evler-kat/glb/';
 const list = (folder, names, extra = {}) => names.map((n) => ({ name: n, src: `${folder}${n}.glb`, ...extra }));
 
 export const ASSETS = [
@@ -15,10 +16,11 @@ export const ASSETS = [
   ...list(P, ['enoki_seyrek', 'enoki_kucuk', 'enoki_orta', 'enoki_buyuk'], { budget: 8_000 }),
   ...list(P, ['yosun_tumsek', 'kizil_filiz']),
   ...list(P, ['cimen_kucuk', 'cimen_orta', 'cimen_genis', 'cimen_uzun', 'cimen_cicekli', 'cimen_basak']),
-  // Houses (mushroom houses, glass houses, Gaudí houses).
-  ...list(P, ['ev_kule', 'ev_genis', 'ev_kulube', 'ev_iki_kat', 'ev_uc_kat'], { budget: 70_000 }),
-  ...list(P, ['ev_cam_kule', 'ev_cam_ikiz', 'ev_cam_genis'], { budget: 70_000 }),
-  ...list('kasaba/glb/', ['ev_mozaik', 'ev_vitray'], { budget: 90_000 }),
+  // Houses (mushroom houses, glass houses, Gaudí houses), rebuilt to the storey spec (ground 4.5 m,
+  // upper floors 4.0 m, slabs 0.5 m, doors 2.0 x 2.8 m) in regions/evler-kat.
+  ...list(H, ['ev_kule', 'ev_genis', 'ev_kulube', 'ev_iki_kat', 'ev_uc_kat'], { budget: 70_000 }),
+  ...list(H, ['ev_cam_kule', 'ev_cam_ikiz', 'ev_cam_genis'], { budget: 70_000 }),
+  ...list(H, ['ev_mozaik', 'ev_vitray'], { budget: 90_000 }),
   // Bridges.
   ...list(P, ['kopru_tas', 'kopru_tas_yikik', 'kopru_ahsap'], { budget: 40_000 }),
   ...list(G, ['kopru_gaudi_mozaik', 'kopru_gaudi_viyaduk', 'kopru_gecit_12', 'kopru_gecit_20', 'kopru_gecit_20_kat', 'kopru_gecit_28'], { budget: 40_000 }),

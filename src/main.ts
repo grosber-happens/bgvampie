@@ -48,6 +48,7 @@ import './fighter';
 import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
+import { nestInfo } from './horde';
 import { INV, absorbArmor, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
 import { ITEM, RARITY_COLOR, SLAM, WALL_RUN } from './gear';
 import { SPECIALS } from './specials';
@@ -1307,6 +1308,14 @@ window.addEventListener('resize', () => engine.resize());
   ground: (x: number, z: number) => world.field?.height(x, z) ?? 0,
   mobs: () => G.units.filter((u) => u.kind === 'mob').map((u) => ({ name: u.name, x: Math.round(u.pos.x), z: Math.round(u.pos.z), hp: u.hp })),
   levelUp: () => grantXp(player, xpNeeded(player.level) - player.xp),
+  nests: () => nestInfo(),
+  /** Test hook: jump the match clock to a minute (the spawn director follows it). */
+  skipTo: (min: number) => (G.time = min * 60),
+  /** Test hook: live mobs, how many are elite, charging or still sprouting. */
+  horde: () => {
+    const mobs = G.units.filter((u) => u.kind === 'mob');
+    return { alive: mobs.length, elite: mobs.filter((u) => u.ai?.elite).length, charging: mobs.filter((u) => u.ai?.charge).length, sprouting: mobs.filter((u) => u.ai?.sproutT > 0).length, near: mobs.filter((u) => Vector3.Distance(u.pos, player.pos) < 20).length };
+  },
   /** Test hook: the player cannot die (for movement tests and screenshots). */
   god: () => (player.maxHp = player.hp = 1e9),
   /** Test hook: the ceiling over the player while indoors, or null outdoors. */

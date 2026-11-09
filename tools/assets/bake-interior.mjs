@@ -25,6 +25,13 @@ const OUT = path.join(DIR, 'ic', 'ic.json');
 /** Buildings you can furnish. */
 export const ENTERABLE = ['ev_kule', 'ev_genis', 'ev_kulube', 'ev_iki_kat', 'ev_uc_kat', 'ev_cam_kule', 'ev_cam_ikiz', 'ev_cam_genis', 'ev_mozaik', 'ev_vitray', 'kamp_cadir'];
 
+/**
+ * Storey houses whose floors the height histogram can't tell apart (the ground room's flat roof, the pod
+ * floor and the shelf cap's top lie within 2.5 m): their floors come from the Blender storey spec
+ * (olcek.floor_z: ground, 5.0, 9.5 m) instead.
+ */
+const FIXED = { ev_iki_kat: [0.15, 5.0], ev_uc_kat: [0.15, 5.0, 9.5] };
+
 const C = {
   bin: 0.05, // height histogram bin (m)
   up: 0.95, // normal y above this = flat floor
@@ -94,7 +101,7 @@ function faces(tri) {
   return f;
 }
 
-function floors(f) {
+function floors(f, fixed) {
   // Lowest surface heights per grid cell, for the "is it covered" test.
   const grid = new Map();
   const key = (x, z) => `${Math.floor(x / C.cell)},${Math.floor(z / C.cell)}`;
@@ -131,7 +138,7 @@ function floors(f) {
   cands.sort((p, q) => q.a - p.a || q.own - p.own);
   const out = [];
   for (const c of cands) if (c.a >= Math.max(C.floorArea, most * C.floorShare) && out.every((y) => Math.abs(y - c.y) >= C.floorGap)) out.push(c.y);
-  const ys = out.sort((p, q) => p - q);
+  const ys = fixed ?? out.sort((p, q) => p - q);
   // Each floor's middle: the area-weighted center of its covered floor faces, in game axes (x is mirrored).
   const centers = ys.map((y) => {
     let a = 0, x = 0, z = 0;
@@ -164,7 +171,7 @@ const result = { floors: {}, centers: {}, props: {} };
 for (const k of ENTERABLE) {
   const file = path.join(DIR, `${k}.glb`);
   if (!fs.existsSync(file)) continue;
-  const fl = floors(faces(await triangles(file)));
+  const fl = floors(faces(await triangles(file)), FIXED[k]);
   result.floors[k] = fl.ys;
   result.centers[k] = fl.centers;
   console.log(`${k.padEnd(14)} floors ${result.floors[k].join(', ')}`);

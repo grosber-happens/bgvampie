@@ -10,7 +10,7 @@ import { ceilingHeight, type Box } from './world';
 
 export const INDOOR = {
   /** A ceiling counts when it is at most this far above the head (m). */
-  reach: 4,
+  reach: 5,
   /** A building is looked at when the player is within this many meters (times its scale) of it. */
   near: 14,
 };

@@ -1,4 +1,4 @@
-import { CURRENCY, MAX_LEVEL, MAX_SKILLS, TOKEN_PRICE, XP_REWARD, XP_TO_NEXT, BOTS } from './balance';
+import { CURRENCY, HORDE, NESTS, MAX_LEVEL, MAX_SKILLS, TOKEN_PRICE, XP_REWARD, XP_TO_NEXT, BOTS } from './balance';
 import { G, PS, minutes, type Unit } from './core';
 import { def, kit, learn, skillIds, skills, type Tier } from './kit';
 import { random } from './random';
@@ -50,8 +50,11 @@ export function rewardKill(killer: Unit | null, victim: Unit) {
   let xp = 0;
   let money = 0;
   if (victim.kind === 'mob') {
-    xp = XP_REWARD.mob(min);
-    if (random() < CURRENCY.mobChance) money = CURRENCY.mob;
+    // Horde mobs (horde.ts) come in far bigger numbers, so each gives less; elites give much more.
+    const horde = victim.ai?.horde ? HORDE.xpScale : victim.ai?.nest ? NESTS.xp : 1;
+    const elite = victim.ai?.elite ? HORDE.elite.xp : 1;
+    xp = Math.round(XP_REWARD.mob(min) * horde * elite);
+    if (victim.ai?.elite || random() < CURRENCY.mobChance) money = CURRENCY.mob * (victim.ai?.elite ? HORDE.elite.money : 1);
   } else if (victim.kind === 'boss') {
     xp = XP_REWARD.boss(min);
     money = CURRENCY.boss;
