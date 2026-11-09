@@ -183,9 +183,43 @@ export const HORDE = {
  * alive: how many mobs the director keeps around the player; every: seconds between spawns;
  * pool: species weights. Events fire once at their minute. hp/damage still grow with MOBS.hp/damage.
  */
+/**
+ * Swarm nests (owner, 2026-11-09): in some parts of the map the houses hold swarm creatures that stay
+ * where they are, inside, and never run at the player. They wake (load) when the player comes near and
+ * bite whoever comes within reach. [Proposal] numbers are first guesses; the creature is a stand-in
+ * (a small tinted deer) until the owner designs the real swarm creature.
+ */
+export const NESTS = {
+  /** How many nest areas the map gets, and how far each reaches (m): every enterable house inside is a nest. */
+  zones: 3,
+  zoneRadius: 90,
+  /** Nest areas stay at least this far from the player's start (m). */
+  awayFromStart: 80,
+  /** Creatures per floor, and at most this many floors per house. */
+  perFloor: 4,
+  maxFloors: 3,
+  /** Scattered this far around the floor's middle (m). */
+  spread: 1.6,
+  /** A nest fills when the player comes this close, and empties (survivors stay counted) past `sleepDist` (m). */
+  wakeDist: 55,
+  sleepDist: 110,
+  /** Stand-in body: deer scaled down, tinted. hp/damage multiply the normal mob numbers. */
+  species: 'geyik' as MobSpecies,
+  size: 0.42,
+  tint: '#7fc77a',
+  hp: 0.45,
+  damage: 0.6,
+  /** They turn to face a target this close and bite when it is in reach. */
+  sight: 9,
+  /** XP for one, times the normal mob XP. */
+  xp: 0.5,
+};
+
 export type HordeEvent = { at: number; kind: 'ring' | 'stampede' | 'elite'; species: MobSpecies; count: number };
-export const WAVES: Record<string, { stages: { from: number; alive: number; every: number; pool: Partial<Record<MobSpecies, number>> }[]; events: HordeEvent[] }> = {
+export const WAVES: Record<string, { minutes: number; stages: { from: number; alive: number; every: number; pool: Partial<Record<MobSpecies, number>> }[]; events: HordeEvent[] }> = {
   spor: {
+    /** A run in this region lasts this long (owner, 2026-11-09): then the director stops spawning. */
+    minutes: 20,
     stages: [
       { from: 0, alive: 8, every: 2.5, pool: { geyik: 1 } },
       { from: 2, alive: 14, every: 2, pool: { geyik: 3, salyangoz: 1 } },
