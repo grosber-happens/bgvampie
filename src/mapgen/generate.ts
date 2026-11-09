@@ -92,8 +92,9 @@ export type Category = 'trees' | 'mushrooms' | 'giants' | 'mech' | 'ruins' | 'ro
 /**
  * Spor Ormanı and kasaba Blender models (src/spor.ts, packed by tools/assets/pack-spor.mjs), placed by hand
  * in the planner, never scattered. r: planner footprint. group: planner palette group.
- * solid: 'baked' = collision boxes from src/assets/spor/carpisma.json (tools/assets/bake-collision.mjs),
- * [half size, height] = one stem box, null = walk-through. lift: floats this many meters over the ground.
+ * solid: 'baked' = walkable collision (floors, stairs, walls) from src/assets/spor/carpisma.json (tools/assets/bake-collision.mjs),
+ * [half size, height] = one stem box, null = walk-through. A kind with a baked solid shape (bake-collision.mjs
+ * SOLID: mushrooms, trees, camp kit, props) collides with that shape whatever this says. lift: floats this many meters over the ground.
  * full: always a full model (animated or walkable inside), never thin-instanced.
  */
 export const SPOR_KINDS = {
