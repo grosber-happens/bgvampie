@@ -37,6 +37,10 @@ const only = new Set(process.argv.slice(2));
 const sizesPath = path.join(OUT, 'olcu.json');
 const sizes = fs.existsSync(sizesPath) ? JSON.parse(fs.readFileSync(sizesPath, 'utf8')) : {};
 
+function mulPoint(m, [x, y, z]) {
+  return [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]];
+}
+
 function tris(node) {
   let t = 0;
   const walk = (n) => {
@@ -81,6 +85,38 @@ for (const a of ASSETS) {
       m.setEmissiveFactor([0, 0, 0]);
       for (const ext of m.listExtensions()) m.setExtension(ext.extensionName, null);
       m.setExtension('KHR_materials_unlit', doc.createExtension(KHRMaterialsUnlit).createUnlit());
+    }
+  }
+
+  // 2b. Parts cut away (cut: boxes [x0, x1, y0, y1, z0, z1] in Blender axes, x right, y back, z up):
+  // every triangle with all three corners inside a box goes, in every LOD.
+  if (a.cut) {
+    for (const n of root.listNodes()) {
+      const mesh = n.getMesh();
+      if (!mesh || !/_LOD\d$/.test(n.getName())) continue;
+      const m = n.getWorldMatrix();
+      for (const p of mesh.listPrimitives()) {
+        const pos = p.getAttribute('POSITION'), idx = p.getIndices();
+        if (!idx || p.getMode() !== 4) continue;
+        const v = [0, 0, 0];
+        const inside = (i) => {
+          pos.getElement(i, v);
+          const [x, y, z] = mulPoint(m, v);
+          const X = x, Y = -z, Z = y; // glTF y-up -> Blender z-up
+          return a.cut.some(([x0, x1, y0, y1, z0, z1]) => X > x0 && X < x1 && Y > y0 && Y < y1 && Z > z0 && Z < z1);
+        };
+        const keep = [];
+        let dropped = 0;
+        for (let i = 0; i < idx.getCount(); i += 3) {
+          const t = [idx.getScalar(i), idx.getScalar(i + 1), idx.getScalar(i + 2)];
+          if (t.every(inside)) dropped++;
+          else keep.push(...t);
+        }
+        if (!dropped) continue;
+        const acc = doc.createAccessor().setType('SCALAR').setArray(pos.getCount() > 65535 ? new Uint32Array(keep) : new Uint16Array(keep));
+        p.setIndices(acc);
+        console.log(`  ${n.getName()}: cut ${dropped} triangles`);
+      }
     }
   }
 

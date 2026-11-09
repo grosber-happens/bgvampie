@@ -37,7 +37,7 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
   | `src/ai.ts` | Bots, mob packs, boss, spawn director |
   | `src/balance.ts` | Every tunable number |
   | `src/look.ts` | Clay and watercolor look (see §10) |
-  | `src/world.ts`, `src/houses.ts`, `src/props.ts` | Map, collision (voxelized house colliders, broadphase grid), Kenney props |
+  | `src/world.ts`, `src/houses.ts`, `src/props.ts` | Map, collision (baked model shapes as turned boxes, broadphase grid), Kenney props |
   | `src/characters.ts`, `src/actors.ts`, `src/gun.ts` | Models and animation |
   | `src/feel.ts` | Hit feel and synthesized sounds |
   | `tools/hippo_blender.py` | Builds the player model `src/assets/hippo.glb` and its animations, including one dash per class |
@@ -73,7 +73,7 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 | Mouse wheel | Zoom the high camera |
 | Esc | Pause |
 
-**Camera prototype (2026-11-04, the owner is trying it out):** a WoW-style camera, set a little higher and farther: behind and above the player, looking down about 50°, so the swarm around you shows. The mouse turns and tilts it; the wheel zooms from over the shoulder out to 16 m, and far out the view leads ahead of the player so the crosshair lands in front. Aiming (right click) still pulls in to the shoulder. Off-screen enemies and enemy bullets show as watercolor blots at the screen edge (`src/threats.ts`). The camera stops at walls; inside a building the roof and upper floors are cut away so you see the room from above (`src/rooftop.ts`, the same cut as the planner's interior designer). O switches back to the classic camera; the choice is remembered. Numbers: `HIGH_CAM` in `src/main.ts`, `THREAT`, `ROOF`.
+**Camera prototype (2026-11-04, the owner is trying it out):** a WoW-style camera, set a little higher and farther: behind and above the player, looking down about 50°, so the swarm around you shows. The mouse turns and tilts it; the wheel zooms from over the shoulder out to 16 m, and far out the view leads ahead of the player so the crosshair lands in front. Aiming (right click) still pulls in to the shoulder. Off-screen enemies and enemy bullets show as watercolor blots at the screen edge (`src/threats.ts`). The camera stops at walls. Inside a building (a ceiling close above the head, `src/indoor.ts`) the camera eases in to a close over-the-shoulder view at head height that fits the room and stops short of walls and ceilings; nothing is cut away, you walk through the rooms with the character, and it eases back out when you leave (owner, 2026-11-04: no view from above indoors). O switches back to the classic camera; the choice is remembered. Numbers: `HIGH_CAM` and `INDOOR_CAM` in `src/main.ts`, `THREAT`, `INDOOR`.
 
 ## 4. Progression inside a match
 

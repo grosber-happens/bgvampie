@@ -20,7 +20,7 @@ import { placeProps } from './props';
 import { placeSpor, useSporModels } from './spor';
 import { setupPuffballs, updatePuffballs } from './puf';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
-import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, resolveWalls } from './world';
+import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, resolveWalls, solidBoxes } from './world';
 import { placeNatureAssets } from './nature';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
 
@@ -62,7 +62,7 @@ import { bounceLaunch } from './bounce';
 import { bouncePad, buildPads, updatePads } from './pads';
 import { buildGroundCover } from './cimen';
 import { setupRegionFx } from './regionfx';
-import { setupRoofCut } from './rooftop';
+import { setupIndoor } from './indoor';
 import { createThreats } from './threats';
 import { furnishInteriors } from './interiors';
 import { loadArtIndex } from './icons';
@@ -154,6 +154,11 @@ const CAMERA = { distance: 5, shoulder: 1.05, height: 1.75, fov: 0.95 };
  * zoomMax; farther out the view leads ahead of the player so the crosshair lands in front of them.
  */
 const HIGH_CAM = { pitch: -0.87, pitchMin: -1.35, pitchMax: 0.5, zoomMin: 2.8, zoomMax: 16, zoom: 9, zoomStep: 1.15, ahead: 2.5 };
+/**
+ * Indoors the camera comes in close over the right shoulder at head height, looking nearly level, so you
+ * walk through the rooms with the character (no view from above). It stops wallGap short of any wall.
+ */
+const INDOOR_CAM = { distance: 2.6, shoulder: 0.55, height: 1.65, pitchMin: -0.55, pitchMax: 0.6, wallGap: 0.22, minDist: 0.35, blendSpeed: 5 };
 let camMode: 'high' | 'classic' = 'high';
 try {
   if (localStorage.getItem('bgv-camera') === 'classic') camMode = 'classic';
@@ -228,11 +233,11 @@ const levelUpUi = createLevelUpUi(input);
 placeHouses(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('House model failed to load', e));
-let roof: ReturnType<typeof setupRoofCut> | null = null;
+let indoor: ReturnType<typeof setupIndoor> | null = null;
 placeSpor(scene, world)
   .then((placed) => {
     setupPuffballs(placed);
-    roof = setupRoofCut(scene, placed, world.boxes);
+    indoor = setupIndoor(placed, world.boxes);
   })
   .catch((e) => console.error('Spor Ormanı models failed to load', e));
 useSporModels(scene, world).catch((e) => console.error('Spor Ormanı scatter models failed to load', e));
@@ -371,9 +376,6 @@ function isMyAllyMesh(m: { metadata?: { unitId?: number } }) {
 function aimPoint(range: number, worldOnly = false): Vector3 {
   const dir = aimDirection();
   const from = camera.position.clone();
-  // Indoors the roof is cut away but still pickable: start the ray where it comes down through the cut.
-  const cut = roof?.cut ?? null;
-  if (cut !== null && from.y > cut && dir.y < -1e-3) from.addInPlace(dir.scale((cut - from.y) / dir.y));
   const ray = new Ray(from, dir, range);
   const pick = scene.pickWithRay(
     ray,
@@ -813,6 +815,9 @@ function isAiming() {
 
 // ---- Camera ----------------------------------------------------------------------
 let aimBlend = 0;
+/** 0 outdoors, 1 indoors: blends the camera to INDOOR_CAM. */
+let inBlend = 0;
+const lerpN = (a: number, b: number, t: number) => a + (b - a) * t;
 let viewOffset: Vector3 | null = null;
 function setCamMode(m: 'high' | 'classic') {
   camMode = m;
@@ -830,31 +835,39 @@ function updateCamera(dt: number) {
   aimBlend += ((isAiming() ? 1 : 0) - aimBlend) * Math.min(1, AIM.blendSpeed * dt);
   const lerp = (a: number, b: number) => a + (b - a) * aimBlend;
   camera.fov = lerp(CAMERA.fov, AIM.fov) + feel.fovPunch;
-  // Indoors the building's roof is cut away (rooftop.ts); the camera may then rise above the cut.
-  roof?.update(player.pos, player.height);
-  const cut = roof?.cut ?? null;
+  // Indoors (indoor.ts) the camera eases in to a close over-the-shoulder view that fits the room.
+  indoor?.update(player.pos, player.height);
+  const inside = indoor?.ceiling != null;
+  inBlend += ((inside ? 1 : 0) - inBlend) * Math.min(1, INDOOR_CAM.blendSpeed * dt);
+  const inn = inBlend * (1 - aimBlend);
+  input.pitchMin = lerpN(camMode === 'high' ? HIGH_CAM.pitchMin : -1.1, INDOOR_CAM.pitchMin, inBlend);
+  input.pitchMax = lerpN(camMode === 'high' ? HIGH_CAM.pitchMax : 0.9, INDOOR_CAM.pitchMax, inBlend);
+  if (inside && input.pitch < INDOOR_CAM.pitchMin) input.pitch += (INDOOR_CAM.pitchMin - input.pitch) * Math.min(1, INDOOR_CAM.blendSpeed * dt);
   // Recoil lifts the view a little and springs back.
   const cp = Math.cos(input.pitch + feel.recoilPitch);
   const dir = new Vector3(Math.sin(input.yaw) * cp, Math.sin(input.pitch + feel.recoilPitch), Math.cos(input.yaw) * cp);
-  const head = player.pos.add(new Vector3(0, CAMERA.height, 0));
+  const head = player.pos.add(new Vector3(0, lerpN(CAMERA.height, INDOOR_CAM.height, inn), 0));
   // High camera: the wheel sets the distance; far out the shoulder offset fades and the view leads ahead.
   if (input.wheel) {
     camZoom = Math.max(HIGH_CAM.zoomMin, Math.min(HIGH_CAM.zoomMax, camZoom * HIGH_CAM.zoomStep ** input.wheel));
     input.wheel = 0;
   }
   const high = camMode === 'high';
-  const far = high ? ((camZoom - HIGH_CAM.zoomMin) / (HIGH_CAM.zoomMax - HIGH_CAM.zoomMin)) * (1 - aimBlend) : 0;
+  const far = high ? ((camZoom - HIGH_CAM.zoomMin) / (HIGH_CAM.zoomMax - HIGH_CAM.zoomMin)) * (1 - aimBlend) * (1 - inBlend) : 0;
   const flat = forwardFromYaw(input.yaw);
-  const pivot = head.add(rightFromYaw(input.yaw).scale(lerp(CAMERA.shoulder, AIM.shoulder) * (1 - far))).add(flat.scale(HIGH_CAM.ahead * far));
-  // Indoors with the high camera, the view starts above the cut, so the walls of a small room never push it in.
-  if (high && cut !== null && aimBlend < 0.5) pivot.y = Math.max(pivot.y, cut + 0.3);
-  const maxDist = lerp(high ? camZoom : CAMERA.distance, AIM.distance);
+  // The shoulder offset never pushes the pivot into a wall: it shrinks to what is free beside the head.
+  const right = rightFromYaw(input.yaw);
+  let shoulder = lerpN(lerp(CAMERA.shoulder, AIM.shoulder), INDOOR_CAM.shoulder, inn) * (1 - far);
+  for (let k = 0; k < 8 && shoulder > 0.05 && pointHitsObstacle(head.add(right.scale(shoulder + 0.15)), world.boxes); k++) shoulder *= 0.7;
+  const pivot = head.add(right.scale(shoulder)).add(flat.scale(HIGH_CAM.ahead * far));
+  const maxDist = lerpN(lerp(high ? camZoom : CAMERA.distance, AIM.distance), INDOOR_CAM.distance, inn);
+  // Walk the view line back from the pivot; stop short of the first wall, floor or ceiling.
+  const step = inBlend > 0.01 ? 0.08 : 0.25;
+  const keep = inBlend > 0.01 ? INDOOR_CAM.wallGap : 0.3;
   let dist = maxDist;
-  for (let d = 0.5; d <= maxDist; d += 0.25) {
-    const p = pivot.subtract(dir.scale(d));
-    if (cut !== null && p.y > cut) continue;
-    if (pointHitsObstacle(p, world.boxes)) {
-      dist = Math.max(0.6, d - 0.3);
+  for (let d = 0.2; d <= maxDist; d += step) {
+    if (pointHitsObstacle(pivot.subtract(dir.scale(d)), world.boxes)) {
+      dist = Math.max(INDOOR_CAM.minDist, d - keep);
       break;
     }
   }
@@ -1296,8 +1309,10 @@ window.addEventListener('resize', () => engine.resize());
   levelUp: () => grantXp(player, xpNeeded(player.level) - player.xp),
   /** Test hook: the player cannot die (for movement tests and screenshots). */
   god: () => (player.maxHp = player.hp = 1e9),
-  /** Test hook: the indoor roof cut height, or null outdoors. */
-  roofCut: () => roof?.cut ?? null,
+  /** Test hook: the ceiling over the player while indoors, or null outdoors. */
+  indoorCeiling: () => indoor?.ceiling ?? null,
+  /** Test hook: how far the indoor camera has blended in (0 outdoors, 1 indoors). */
+  indoorBlend: () => inBlend,
   /** Test hook: draw one frame by hand (use after stopping the render loop to freeze a pose). */
   frame: (dt = 1 / 60) => {
     updateCamera(dt);
@@ -1387,10 +1402,11 @@ window.addEventListener('resize', () => engine.resize());
   viewFrom: (x: number | null, y = 0, z = 0) => (viewOffset = x === null ? null : new Vector3(x, y, z)),
   showColliders: (x: number, z: number, r: number) => {
     const m = glowMat('#00ffaa', 0.35);
-    for (const b of world.boxes) {
+    for (const b of solidBoxes(world.boxes.filter((g) => Math.abs(g.x - x) <= r + g.hw && Math.abs(g.z - z) <= r + g.hd))) {
       if (Math.abs(b.x - x) > r || Math.abs(b.z - z) > r || b.y1 - b.y0 < 0.05) continue;
       const box = MeshBuilder.CreateBox('col', { width: b.hw * 2, depth: b.hd * 2, height: b.y1 - b.y0 }, scene);
       box.position.set(b.x, (b.y0 + b.y1) / 2, b.z);
+      if (b.c !== undefined) box.rotation.y = Math.atan2(b.s!, b.c);
       box.material = m;
       box.isPickable = false;
     }
