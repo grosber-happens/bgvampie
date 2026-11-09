@@ -31,10 +31,10 @@ export function moveOverride(ints: Interiors, k: string, x: number, z: number, n
   delete ints.overrides[from];
 }
 
-/** A prop's place in the world: building-local (x, z) turned by the house's yaw and scaled with it. */
+/** A prop's place in the world: building-local (x, z) turned by the house's yaw; the spot scales with the house, the prop keeps its own size. */
 export function furnToWorld(o: Pick<Obj, 'x' | 'z' | 'r' | 's'>, groundY: number, f: Furn): { x: number; y: number; z: number; r: number; s: number } {
   const c = Math.cos(o.r), sn = Math.sin(o.r);
-  return { x: o.x + (f.x * c + f.z * sn) * o.s, y: groundY + f.y * o.s, z: o.z + (-f.x * sn + f.z * c) * o.s, r: o.r + f.r, s: o.s };
+  return { x: o.x + (f.x * c + f.z * sn) * o.s, y: groundY + f.y * o.s, z: o.z + (-f.x * sn + f.z * c) * o.s, r: o.r + f.r, s: 1 };
 }
 
 /** The inverse: a world point into the building's frame. */
