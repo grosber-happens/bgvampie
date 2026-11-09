@@ -252,9 +252,10 @@ export function buildSporMap(): MapFile {
   });
 
   // The statue in its maze. The Blender layout turns into game axes: x = -x, z = -y, yaw = -rotation.
+  // The plinth is a map object; the figure on it is the boss (src/heykel.ts), standing as a statue until woken.
   {
     const [mx, mz] = M.maze;
-    add('heykel_mantar_kadin', mx, mz, 1, 0, 0);
+    add('heykel_kaide', mx, mz, 1, 0, 0);
     for (const [ki, bx, by, rot] of MAZE) add(MAZE_KINDS[ki], mx - bx, mz - by, 1, (-rot * Math.PI) / 180, 0);
     take(mx, mz, M.mazeClear);
   }

@@ -5,6 +5,7 @@ import { createCharacterBody, type SkinName } from './characters';
 import { BOSS, BOTS, DAGGERS, HORDE, MOBS, NESTS, MOB_SPECIES, SHADOW_TRAIL, type MobSpecies } from './balance';
 import { createCreatureBody, creatureReady } from './creatures';
 import { resetHorde, updateHorde } from './horde';
+import { resetStatues, updateStatues } from './heykel';
 import { t as T } from './i18n';
 import {
   G,
@@ -46,6 +47,7 @@ export function resetDirector(rand: () => number) {
   bossIndex = 0;
   botQueue = [];
   boss = null;
+  resetStatues();
   for (let i = 0; i < BOTS.count; i++) spawnBot(BOT_LOOKS[i % BOT_LOOKS.length], 1, 0, 100 + i, rand);
   resetHorde(rand);
 }
@@ -92,6 +94,18 @@ export function spawnMob(species: MobSpecies, p: Vector3, home: Vector3, hp: num
     yaw: rand() * Math.PI * 2,
     ai: { home: home.clone(), target: null, think: 0, attackT: 0, windT: -1, wander: p.clone(), wanderT: 0, species, size: scale },
   });
+}
+
+/** A pack of forest creatures round a point (the Mushroom Woman calls one). */
+export function summonPack(at: Vector3, n: number) {
+  const species = random() < 0.65 ? 'geyik' : 'salyangoz';
+  const spec = MOB_SPECIES[species];
+  const min = minutes();
+  for (let i = 0; i < n; i++) {
+    const p = at.add(new Vector3((random() - 0.5) * 6, 0, (random() - 0.5) * 6));
+    p.y = G.world.field ? G.world.field.height(p.x, p.z) : at.y;
+    spawnMob(species, p, at, Math.round(MOBS.hp(min) * spec.hp), T(species === 'geyik' ? 'mobDeer' : 'mobSnail'), random);
+  }
 }
 
 /** Test helper: one creature (a deer unless told otherwise) at a point. */
@@ -439,10 +453,11 @@ export function updateAI(dt: number, rand: () => number, announce: Announce) {
     if (!u.alive) continue;
     if (u.kind === 'bot') updateBot(u, dt, rand);
     else if (u.kind === 'mob') updateMob(u, dt, rand);
-    else if (u.kind === 'boss') updateBoss(u, dt);
+    else if (u.kind === 'boss' && !u.ai?.statue) updateBoss(u, dt);
   }
   // Mobs: the survivors-style director (horde.ts).
   updateHorde(dt, rand, announce);
+  updateStatues(dt, summonPack, announce);
   // Bosses at fixed minutes.
   if (bossIndex < BOSS.minutes.length && minutes() >= BOSS.minutes[bossIndex]) {
     bossIndex++;

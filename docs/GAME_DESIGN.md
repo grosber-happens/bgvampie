@@ -328,6 +328,12 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
   | Region | Mob 1 | Mob 2 | Mob 3 | Boss |
   |---|---|---|---|---|
   | Mushroom | Spore spitter: ranged spore ball that leaves a poison cloud | Mycelium crawler: bursts from the ground in swarms and slows | Polka-dot bloater: slow, bursts into spores on death | Root Mother: roots that block areas, spawns baby mushrooms, spores block vision |
+- **The Mushroom Woman (Spor Ormanı boss) [Decided by the owner 2026-11-09 that the statue is a boss; the trigger and attacks below are a Proposal, in the prototype]:** the 16 m statue in the maze is the boss. She stands as a statue until a player on or by her plinth presses **V**, then wakes (4.5 s) and fights round the maze. She steps over the maze walls; the walls still stop her gill breath. Every attack is shown on the ground first:
+  - Cap crash: a red circle in front of her, then she drives her cap down on it. Step out.
+  - Spore rain: pink circles on every player near her and a few around; the spores land 1.9 s later. Step out.
+  - Root wave: she stamps, an orange ring runs out along the ground. Jump over it.
+  - Gill breath: she bends down and sweeps a spore cone from her left to her right. Hide behind a maze wall or the plinth.
+  - Below half health she calls one pack of forest creatures and attacks a quarter faster. If everyone leaves, she climbs back onto her plinth and turns to stone again with full health. Numbers: `BOSS_STATUE` in `src/balance.ts`; model and clips: `spor_heykel_boss.py`.
   | Ruined city | Zombie: melee swarm (in the prototype) | Scrap hound: fast, runs at gunfire | Watcher drone: flies, marks the player, calls nearby mobs | Scrap Giant: slam and rock throw (in the prototype as the zombie giant) |
   | Monkey treetops | Branch jumper: leaps between trees and attacks from above | Fruit bomber: throws exploding fruit from high up | Totem guard: shielded and slow, blocks frontal damage (a good Backstab target) | Silverback Shaman: drum rhythm buffs monkeys, breaks tree bridges |
   | Desert | Sand swimmer: moves under the sand and leaps out | Glass scorpion: poison tail, bullet-proof front shell | Mirage: faint and ghostly, appears up close and mimics your copy | Sandworm Mother: travels underground, warns with tremors, swallow attack |
@@ -373,7 +379,7 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 - A third-person controller: aim, dash, jump, coyote time, weapon switching.
 - All 4 classes, with every skill at all 3 tiers, both weapons, passives and playstyles.
 - Level-up cards, XP, the tier-3 lock and token.
-- Bots, Spor Ormanı creature packs (deer, snail) and the zombie giant boss.
+- Bots, Spor Ormanı creature packs (deer, snail), the zombie giant boss and the Mushroom Woman statue boss.
 - One ruined-city block with walkable houses (porch, stairs, balcony, roof).
 - The Spor Ormanı test map with our own Blender models: mushroom houses and small-town houses you can enter, bridges, the mushroom-woman statue in its maze, the nomad camp, fantastical trees, floating rocks, and furniture inside the buildings.
 - **Building scale [Decided, 2026-11-04]:** ground floor walls 4.5 m, upper floors 4.0 m, slabs 0.5 m, so a 2-storey building is 9.0 m and a 3-storey one 13.5 m inside; the roof or mushroom cap sits on top. Doors are 2.0 × 2.8 m (the hippo is 1.48 m wide), stairs are spiral, risers at most 0.3 m. Footprints grew about 15% to match. The Gaudí stained-glass house is one grand storey under tall domes; the mosaic house has two. The rules live in the Blender scripts' `olcek.py` (`/mnt/project-files/regions/evler-kat/scriptler`). **[Decided, 2026-11-09]** The five mushroom houses are placed 1.3× bigger on the map (`mushroomHouseScale` in `SPOR_MAP`), so their storeys read as about 5.9 m and 5.2 m next to the 1.90 m character; furniture inside keeps its own size.

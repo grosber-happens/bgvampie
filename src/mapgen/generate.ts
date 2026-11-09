@@ -121,6 +121,7 @@ export const SPOR_KINDS = {
   gecit_kavis: { name: 'Miselyum geçit: kavis', cat: 'ruins', group: 'anit', r: 5.5, solid: 'baked', full: true },
   gecit_son: { name: 'Miselyum geçit: giriş', cat: 'ruins', group: 'anit', r: 5.4, solid: 'baked', full: true },
   heykel_mantar_kadin: { name: 'Mantar kadın heykeli', cat: 'landmark', group: 'anit', r: 5.7, solid: 'baked' },
+  heykel_kaide: { name: 'Mantar kadın (boss): kaide', cat: 'landmark', group: 'anit', r: 7.4, solid: 'baked' },
   labirent_duvar_a: { name: 'Labirent duvarı A', cat: 'ruins', group: 'anit', r: 1.3, solid: 'baked' },
   labirent_duvar_b: { name: 'Labirent duvarı B', cat: 'ruins', group: 'anit', r: 1.3, solid: 'baked' },
   labirent_duvar_c: { name: 'Labirent duvarı C (ışıklı)', cat: 'ruins', group: 'anit', r: 1.3, solid: 'baked' },

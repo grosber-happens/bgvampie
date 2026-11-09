@@ -33,6 +33,9 @@ export const ASSETS = [
   ...list('spor-ormani/gecit/glb/', ['gecit_duz', 'gecit_kavis', 'gecit_son'], { budget: 60_000 }),
   // Mushroom-woman statue and the mycelium maze kit.
   ...list('spor-ormani/heykel/glb/', ['heykel_mantar_kadin'], { budget: 150_000 }),
+  // The statue split for the boss (spor_heykel_boss.py): the plinth alone, and the figure skinned with clips.
+  ...list('spor-ormani/heykel/glb/', ['heykel_kaide'], { budget: 20_000 }),
+  ...list('spor-ormani/heykel/glb/', ['boss_mantar_kadin'], { dir: '../dusman' }),
   ...list('spor-ormani/heykel/glb/', ['labirent_duvar_a', 'labirent_duvar_b', 'labirent_duvar_c', 'labirent_dugum_a', 'labirent_dugum_b', 'labirent_yol_a', 'labirent_yol_b'], { budget: 12_000 }),
   // Nomad mushroom-picker camp.
   ...list('spor-ormani/kamp/glb/', ['kamp_cadir'], { budget: 120_000 }),

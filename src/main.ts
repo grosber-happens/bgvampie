@@ -49,6 +49,7 @@ import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
 import { nestInfo } from './horde';
+import { placeStatues, statueInfo, statuePose, wakeStatue } from './heykel';
 import { INV, absorbArmor, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
 import { ITEM, RARITY_COLOR, SLAM, WALL_RUN } from './gear';
 import { SPECIALS } from './specials';
@@ -242,6 +243,7 @@ placeSpor(scene, world)
   })
   .catch((e) => console.error('Spor Ormanı models failed to load', e));
 useSporModels(scene, world).catch((e) => console.error('Spor Ormanı scatter models failed to load', e));
+placeStatues(scene, world).catch((e) => console.error('Mushroom Woman boss failed to load', e));
 placeProps(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('Street props failed to load', e));
@@ -1043,7 +1045,7 @@ G.hooks.kill = (killer, victim) => {
   if (victim.kind === 'decoy' || victim.kind === 'pet') return;
   const kName = killer ? (killer === player ? T('you') : killer.name) : T('poison');
   if (victim.kind !== 'mob' || killer === player) feed(`${kName} ▸ ${victim.name}${killer === player && xp ? `  +${xp} XP` : ''}`);
-  if (victim.kind === 'boss') toast(killer === player ? T('bossDown') : T('bossDownBy', { n: kName }), 2.5);
+  if (victim.kind === 'boss') toast(victim.ai?.statue ? (killer === player ? T('statueDown') : T('statueDownBy', { n: kName })) : killer === player ? T('bossDown') : T('bossDownBy', { n: kName }), 2.5);
 };
 
 // ---- Match ---------------------------------------------------------------------------
@@ -1249,6 +1251,7 @@ engine.runRenderLoop(() => {
   if (running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen() && input.consume('KeyV')) {
     const m = nearMachine(player.pos);
     if (m) shopUi.open(m);
+    else wakeStatue(player.pos, (t) => toast(t, 3));
   }
   const live = running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen();
   if (live) {
@@ -1303,6 +1306,10 @@ window.addEventListener('resize', () => engine.resize());
     u.stunT = 1e6;
     return u.id;
   },
+  /** Test hook: the Mushroom Woman statues (state, health, current attack). */
+  statues: statueInfo,
+  statuePose,
+  wakeStatue: () => wakeStatue(player.pos, (t) => toast(t, 3)),
   /** Test hook: where the objects of one map kind stand. */
   objects: (k: string) => (world.mapObjects ?? []).filter((o) => o.k === k).map((o) => ({ x: o.x, z: o.z, r: o.r })),
   ground: (x: number, z: number) => world.field?.height(x, z) ?? 0,
