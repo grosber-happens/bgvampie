@@ -299,7 +299,8 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
     - A mob left over 60 m behind, out of the fight and off screen, is moved to the ring ahead instead of being removed, so the pressure stays.
     - Events at set minutes: **ring** (mobs close in from every side, 15 m out), **stampede** (a deer herd runs straight across the player's spot; dash sideways), **elite** (a bigger, glowing mob with 8× health that drops 10× XP and sure currency).
     - A hard cap of 60 live mobs for performance. Each horde mob gives 35% of the old mob XP, because there are many more.
-    - [Open] The owner decides whether to add a small, cheap swarm creature so hundreds can be on screen (the deer and snail are ~17k triangles each).
+    - [Decided, owner 2026-11-09] A run in a region lasts **20 minutes** (`WAVES.spor.minutes`); then the director stops spawning. The end screen comes later.
+    - [Decided, owner 2026-11-09] **Swarm creatures don't chase the player.** In some parts of the map they stay still inside houses (`NESTS` in `src/balance.ts`): a few nest areas are picked away from the start, and every enterable house inside one gets creatures on each floor. They only turn and bite whoever comes within reach. A nest loads when the player comes within 55 m and unloads past 110 m; killed creatures stay dead. The creature is a stand-in (a small green-tinted deer) until the owner designs it. [Proposal] the numbers.
     - Later, BG mode uses the same director, spawning along the shrinking creature ring.
   - The packs are the Spor Ormanı creatures made in Blender (`src/creatures.ts`, numbers in `MOB_SPECIES`): **antlered deer** (fast, packs of 2–4) and **giant snail** (slow and tough, hits hard, alone or in pairs). [Proposal] The species numbers are first guesses.
 - **Bosses:**

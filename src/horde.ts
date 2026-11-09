@@ -4,13 +4,17 @@
  * ground off screen in a ring around the player, a little more often ahead of where the player runs,
  * and chase the player. Mobs left far behind are moved to the ring ahead instead of being removed.
  * Timed events (ring, stampede, elite) add moments that ask for movement. HORDE.cap bounds the count.
+ * A run ends after WAVES[region].minutes. Swarm nests (NESTS) fill houses in a few parts of the map with
+ * creatures that stay inside and never chase.
  */
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Frustum } from '@babylonjs/core/Maths/math.frustum';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Plane } from '@babylonjs/core/Maths/math.plane';
-import { HORDE, MOBS, MOB_SPECIES, WAVES, type HordeEvent, type MobSpecies } from './balance';
-import { G, flatDist, lineOfSight, minutes, ringFx, type Unit } from './core';
+import { HORDE, MOBS, MOB_SPECIES, NESTS, WAVES, type HordeEvent, type MobSpecies } from './balance';
+import { G, flatDist, inCombat, lineOfSight, minutes, removeUnit, ringFx, type Unit } from './core';
+import { baseHeight } from './mapgen/generate';
+import { IC } from './interiors';
 import { spawnMob } from './ai';
 import { findOpenSpot, spotIsClear } from './world';
 import { t as T } from './i18n';
@@ -22,17 +26,92 @@ let eventIndex = 0;
 const lastPlayer = new Vector3();
 const moveDir = new Vector3(0, 0, 1);
 let planes: Plane[] = [];
+let ended = false;
 
-export function resetHorde(regionId = 'spor') {
+/** One spot inside a nest house: its creature while the nest is awake; dead spots stay empty. */
+type NestSpot = { p: Vector3; yaw: number; unit: Unit | null; dead: boolean };
+type Nest = { x: number; z: number; awake: boolean; spots: NestSpot[] };
+let nests: Nest[] = [];
+
+/** Pick a few nest areas away from the start; every enterable house inside one becomes a nest. */
+function buildNests(rand: () => number) {
+  nests = [];
+  const f = G.world.field;
+  const houses = (G.world.mapObjects ?? []).filter((o) => o.k.startsWith('ev_') && IC.floors[o.k] && IC.centers[o.k]);
+  if (!f || !houses.length) return;
+  const start = G.player.pos;
+  const far = houses.filter((o) => Math.hypot(o.x - start.x, o.z - start.z) > NESTS.awayFromStart);
+  const centers: { x: number; z: number }[] = [];
+  for (let i = 0; i < 40 && centers.length < NESTS.zones && far.length; i++) {
+    const o = far[Math.floor(rand() * far.length)];
+    if (centers.every((c) => Math.hypot(c.x - o.x, c.z - o.z) > NESTS.zoneRadius * 1.5)) centers.push({ x: o.x, z: o.z });
+  }
+  for (const o of houses) {
+    if (!centers.some((c) => Math.hypot(c.x - o.x, c.z - o.z) < NESTS.zoneRadius)) continue;
+    if (Math.hypot(o.x - start.x, o.z - start.z) < NESTS.awayFromStart) continue;
+    const y0 = baseHeight(f, o);
+    const cos = Math.cos(o.r), sin = Math.sin(o.r);
+    const spots: NestSpot[] = [];
+    IC.floors[o.k].slice(0, NESTS.maxFloors).forEach((fy, i) => {
+      const c = IC.centers[o.k][i];
+      if (!c) return;
+      for (let n = 0; n < NESTS.perFloor; n++) {
+        const lx = c[0] + (rand() - 0.5) * NESTS.spread * 2, lz = c[1] + (rand() - 0.5) * NESTS.spread * 2;
+        const p = new Vector3(o.x + (lx * cos + lz * sin) * o.s, y0 + fy * o.s, o.z + (-lx * sin + lz * cos) * o.s);
+        spots.push({ p, yaw: rand() * Math.PI * 2, unit: null, dead: false });
+      }
+    });
+    if (spots.length) nests.push({ x: o.x, z: o.z, awake: false, spots });
+  }
+}
+
+function updateNests() {
+  const me = G.player.pos;
+  for (const n of nests) {
+    for (const s of n.spots) if (s.unit && !s.unit.alive) {
+      s.dead = true;
+      s.unit = null;
+    }
+    const d = Math.hypot(n.x - me.x, n.z - me.z);
+    if (!n.awake && d < NESTS.wakeDist) {
+      n.awake = true;
+      for (const s of n.spots) {
+        if (s.dead) continue;
+        const spec = MOB_SPECIES[NESTS.species];
+        const hp = Math.round(MOBS.hp(minutes()) * spec.hp * NESTS.hp);
+        const u = spawnMob(NESTS.species, s.p, s.p, hp, T('mobSwarm'), Math.random, NESTS.size);
+        u.pos.y = s.p.y;
+        u.yaw = s.yaw;
+        u.ai!.nest = true;
+        u.tint = Color3.FromHexString(NESTS.tint).scale(0.35);
+        s.unit = u;
+      }
+    } else if (n.awake && d > NESTS.sleepDist && !n.spots.some((s) => s.unit && inCombat(s.unit))) {
+      n.awake = false;
+      for (const s of n.spots) if (s.unit) {
+        removeUnit(s.unit);
+        s.unit = null;
+      }
+    }
+  }
+}
+
+/** Test hook: nest houses (x, z), awake or not, creatures alive. */
+export const nestInfo = () => nests.map((n) => ({ x: Math.round(n.x), z: Math.round(n.z), awake: n.awake, alive: n.spots.filter((s) => !s.dead).length }));
+
+export function resetHorde(rand: () => number, regionId = 'spor') {
+  ended = false;
   region = WAVES[regionId] ? regionId : 'spor';
   spawnT = 0;
   relocateT = HORDE.relocateEvery;
   eventIndex = 0;
   lastPlayer.copyFrom(G.player.pos);
   moveDir.set(0, 0, 1);
+  buildNests(rand);
 }
 
-const mobCount = () => G.units.reduce((n, u) => n + (u.kind === 'mob' ? 1 : 0), 0);
+/** Horde mobs only: nest creatures have their own count. */
+const mobCount = () => G.units.reduce((n, u) => n + (u.kind === 'mob' && !u.ai?.nest ? 1 : 0), 0);
 
 function stage() {
   const list = WAVES[region].stages;
@@ -178,6 +257,14 @@ export function updateHorde(dt: number, rand: () => number, announce: (text: str
   }
   lastPlayer.copyFrom(me.pos);
   planes = G.scene.activeCamera ? Frustum.GetPlanes(G.scene.getTransformMatrix()) : [];
+  updateNests();
+
+  // The run is over: no more spawns (the end screen comes later).
+  if (minutes() >= WAVES[region].minutes) {
+    if (!ended) announce(T('runDone', { m: WAVES[region].minutes }));
+    ended = true;
+    return;
+  }
 
   const ev = WAVES[region].events;
   while (eventIndex < ev.length && minutes() >= ev[eventIndex].at) runEvent(ev[eventIndex++], rand, announce);

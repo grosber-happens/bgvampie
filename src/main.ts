@@ -48,6 +48,7 @@ import './fighter';
 import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
+import { nestInfo } from './horde';
 import { INV, absorbArmor, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
 import { ITEM, RARITY_COLOR, SLAM, WALL_RUN } from './gear';
 import { SPECIALS } from './specials';
@@ -1307,6 +1308,7 @@ window.addEventListener('resize', () => engine.resize());
   ground: (x: number, z: number) => world.field?.height(x, z) ?? 0,
   mobs: () => G.units.filter((u) => u.kind === 'mob').map((u) => ({ name: u.name, x: Math.round(u.pos.x), z: Math.round(u.pos.z), hp: u.hp })),
   levelUp: () => grantXp(player, xpNeeded(player.level) - player.xp),
+  nests: () => nestInfo(),
   /** Test hook: jump the match clock to a minute (the spawn director follows it). */
   skipTo: (min: number) => (G.time = min * 60),
   /** Test hook: live mobs, how many are elite, charging or still sprouting. */

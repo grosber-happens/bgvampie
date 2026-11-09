@@ -137,6 +137,8 @@ const UI: Dict = {
   mobDeer: ['Boynuzlu Geyik', 'Antlered Deer'],
   mobSnail: ['Dev Salyangoz', 'Giant Snail'],
   mobElite: ['Elit', 'Elite'],
+  mobSwarm: ['Sürü yaratığı', 'Swarm creature'],
+  runDone: ['{m} dakika doldu: bölgeyi atlattın!', '{m} minutes are up: you survived the region!'],
   hordeRing: ['Etrafın sarılıyor!', 'They are closing in!'],
   hordeStampede: ['Geyik sürüsü geliyor!', 'Stampede incoming!'],
   hordeElite: ['Bir elit yaratık uyandı', 'An elite creature woke up'],

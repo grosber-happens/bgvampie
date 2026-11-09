@@ -2,7 +2,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { forwardFromYaw, rightFromYaw } from './actors';
 import { createCharacterBody, type SkinName } from './characters';
-import { BOSS, BOTS, DAGGERS, HORDE, MOBS, MOB_SPECIES, SHADOW_TRAIL, type MobSpecies } from './balance';
+import { BOSS, BOTS, DAGGERS, HORDE, MOBS, NESTS, MOB_SPECIES, SHADOW_TRAIL, type MobSpecies } from './balance';
 import { createCreatureBody, creatureReady } from './creatures';
 import { resetHorde, updateHorde } from './horde';
 import { t as T } from './i18n';
@@ -47,7 +47,7 @@ export function resetDirector(rand: () => number) {
   botQueue = [];
   boss = null;
   for (let i = 0; i < BOTS.count; i++) spawnBot(BOT_LOOKS[i % BOT_LOOKS.length], 1, 0, 100 + i, rand);
-  resetHorde();
+  resetHorde(rand);
 }
 
 /** A spot far enough from the player. */
@@ -293,6 +293,30 @@ function updateMob(u: Unit, dt: number, rand: () => number) {
       }
     }
     if (ai.chargeT <= 0) ai.charge = null;
+    return;
+  }
+  // Nest creatures (horde.ts) stay where they are: they only turn and bite whoever comes within reach.
+  if (ai.nest) {
+    ai.attackT -= dt;
+    ai.think -= dt;
+    if (ai.think <= 0) {
+      ai.think = 0.3 + rand() * 0.2;
+      ai.target = nearestVisible(u, NESTS.sight, () => true);
+    }
+    moveUnit(u, Vector3.Zero(), 0, dt);
+    const t: Unit | null = ai.target?.alive ? ai.target : null;
+    if (!t) return;
+    faceTowards(u, t.pos, dt, 8);
+    const reach = spec.attackRange * (ai.size ?? 1) + t.radius;
+    const dist = flatDist(u.pos, t.pos);
+    if (ai.windT >= 0) {
+      ai.windT -= dt;
+      if (ai.windT < 0 && dist < reach + 0.4) dealDamage(u, t, MOBS.damage(minutes()) * spec.damage * NESTS.damage);
+    } else if (dist < reach && ai.attackT <= 0) {
+      ai.attackT = Math.max(MOBS.attackRate, spec.windup + 0.3);
+      ai.windT = spec.windup;
+      u.body.play?.('attack', 1, true);
+    }
     return;
   }
   ai.think -= dt;
