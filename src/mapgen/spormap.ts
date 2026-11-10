@@ -126,6 +126,8 @@ export const SPOR_MAP = {
     maze: { r: 70, spores: 2.2, fog: 1.5, fireflies: 1.2 },
     camp: { r: 45, spores: 1.2, fog: 1, fireflies: 2 },
   },
+  /** Sky and light (planner/atmos.ts): the pastel spore morning, as in the planner. */
+  atmos: { preset: 'spor' },
 };
 
 type Pt = { x: number; z: number };
@@ -482,7 +484,7 @@ export function buildSporMap(): MapFile {
       zone(M.camp[0], M.camp[1], M.fx.camp),
     ],
   };
-  return { v: 1, gen, ops, fx };
+  return { v: 1, gen, ops, fx, atmos: { ...M.atmos } };
 }
 
 /** Objects the test map adds, by kind (for the docs and quick checks). */

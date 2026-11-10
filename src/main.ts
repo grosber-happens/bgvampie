@@ -19,7 +19,8 @@ import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { placeSpor, useSporModels } from './spor';
 import { setupPuffballs, updatePuffballs } from './puf';
-import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
+import { clayLook, clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
+import { Atmosphere, gameAtmos } from './planner/atmos';
 import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, resolveWalls, solidBoxes } from './world';
 import { createRuler } from './ruler';
 import { placeNatureAssets } from './nature';
@@ -222,14 +223,30 @@ const cardsEl = $('cards');
 
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
-const world = buildWorld(scene, seed, { houseModel: true, mapFile: playingMap });
+const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
+camera.inputs.clear();
+camera.fov = CAMERA.fov;
+camera.minZ = 0.1;
+camera.maxZ = 3000;
+// Planner maps play under the planner's own sky, light, fog and ink lines, so the map looks as designed
+// (?look=classic keeps the old dusty sky). ?q=low: lighter shadows and no god rays.
+const LOW = params.get('q') === 'low';
+const atmos = playingMap && clayLook ? new Atmosphere(scene, camera, LOW, () => player.pos, { rays: !LOW }) : null;
+// ?sky=altin|tutulma|kizil|spor tries another atmosphere preset on the map.
+const mapAtmos = playingMap && atmos ? gameAtmos(params.has('sky') ? { ...playingMap.atmos, preset: params.get('sky') } : playingMap.atmos) : null;
+if (atmos && mapAtmos) atmos.set(mapAtmos);
+const world = buildWorld(scene, seed, {
+  houseModel: true,
+  mapFile: playingMap,
+  light: atmos && mapAtmos ? { shadows: atmos.shadows, fogDensity: 0.006 * mapAtmos.fog + 0.0016 * mapAtmos.haze } : undefined,
+});
 if (world.field && world.mapObjects) {
   placeNatureAssets(scene, world.field, world.mapObjects).catch((e) => console.error('Nature models failed to load', e));
 }
 buildVendors(scene, world, seed);
 buildPads(scene, world);
 const groundCover = buildGroundCover(scene, world);
-const regionFx = setupRegionFx(scene, world);
+const regionFx = setupRegionFx(scene, world, atmos);
 furnishInteriors(scene, world).catch((e) => console.error('Interior props failed to load', e));
 const input = new Input(canvas);
 const levelUpUi = createLevelUpUi(input);
@@ -253,13 +270,8 @@ placeProps(scene, world)
 const seedText = () => ($('seed').textContent = `${playingMap ? `${T('map')} ${mapLabel}` : `${mapError ? `${T('mapFailed')} · ` : ''}${T('city')} #${seed} · ${T('newCity')}`}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
 seedText();
 
-const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
-camera.inputs.clear();
-camera.fov = CAMERA.fov;
-camera.minZ = 0.1;
-
 Object.assign(G, { scene, world, camera, input });
-initLook(scene, camera, world.shadows);
+initLook(scene, camera, world.shadows, !atmos);
 clayifyScene();
 initFeel(scene);
 

@@ -357,6 +357,8 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 - **Materials [Decided]:** **characters and buildings look like hand-shaped clay**: rounded, slightly imperfect forms, fingerprints, soft light. **The sky and effects are watercolor**, with paper texture and darker edges.
   - Don't put a full watercolor filter over the whole screen; fights must stay readable.
   - The implementation is in `src/look.ts`; `?look=classic` turns it off.
+  - Planner maps (the Spor Ormanı test map too) play under the planner's atmosphere (`src/planner/atmos.ts`): watercolor sky, height fog, ink outlines, tone mapping and cascaded shadows, so a map looks the same in the planner and in play. `?sky=altin|tutulma|kizil|spor` tries another preset; `?q=low` drops the god rays and uses lighter shadows.
+  - Painted region models get the watercolor paper by world position (`src/gltf.ts`), the same 2.4 m tile as Blender's box projection; the packed models carry no UVs.
 - **References [Decided]:** Kim Jung Gi, Moebius, Neri Oxman, Ukiyo-e, Yayoi Kusama, Xiaojing Yan, Karl Kopinski, Rembert Montald, Enki Bilal, P. Craig Russell. (The owner removed Beatrix Potter from the region pairing.)
 - **[Proposal] Region–reference pairing:**
   - Mushroom: Kusama, Xiaojing Yan, Neri Oxman.
