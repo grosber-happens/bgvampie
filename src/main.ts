@@ -13,7 +13,7 @@ import '@babylonjs/core/Culling/ray';
 import './style.css';
 import { Input } from './input';
 import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, unlockAudio, updateFeel } from './feel';
-import { createHippoBody, loadCharacterKits } from './characters';
+import { HIPPO_HEIGHT, createHippoBody, loadCharacterKits } from './characters';
 import { loadCreatures } from './creatures';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
@@ -21,6 +21,7 @@ import { placeSpor, useSporModels } from './spor';
 import { setupPuffballs, updatePuffballs } from './puf';
 import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
 import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, resolveWalls, solidBoxes } from './world';
+import { createRuler } from './ruler';
 import { placeNatureAssets } from './nature';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
 
@@ -236,8 +237,10 @@ placeHouses(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('House model failed to load', e));
 let indoor: ReturnType<typeof setupIndoor> | null = null;
+const ruler = createRuler(scene, world.boxes, $('ruler'), HIPPO_HEIGHT);
 placeSpor(scene, world)
   .then((placed) => {
+    ruler.setHouses(placed);
     setupPuffballs(placed);
     indoor = setupIndoor(placed, world.boxes);
   })
@@ -1264,6 +1267,10 @@ engine.runRenderLoop(() => {
       setCamMode(camMode === 'high' ? 'classic' : 'high');
       toast(T(camMode === 'high' ? 'camHigh' : 'camClassic'), 2.4);
     }
+    if (input.consume('KeyM')) {
+      ruler.toggle();
+      if (ruler.on) toast(T('rulerOn'), 3);
+    }
     if (!playingMap && input.consume('KeyN')) {
       location.search = '?map=city';
       return;
@@ -1279,6 +1286,7 @@ engine.runRenderLoop(() => {
   updateCamera(dt);
   world.stream?.(player.pos.x, player.pos.z);
   groundCover.update(dt, player.pos.x, player.pos.z);
+  ruler.update(player);
   regionFx.update(dt, player.pos.x, player.pos.z, player.pos.y);
   threats.update();
   gameHud.update(live ? dt : 0);

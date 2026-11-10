@@ -8,7 +8,7 @@ import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import houseColliders from './assets/house-colliders.json';
-import { Field, KINDS, SPOR_KINDS, applyOps, baseHeight, generate, sporInstanced, type MapFile, type Obj, type SporKind } from './mapgen/generate';
+import { Field, KINDS, SPOR_KINDS, applyOps, baseHeight, generate, sporInstanced, withKindScale, type MapFile, type Obj, type SporKind } from './mapgen/generate';
 import { sporShape } from './collide';
 import { MapView } from './planner/build';
 import { BOUNCE } from './balance';
@@ -97,7 +97,7 @@ function toLocal(b: Box, x: number, z: number): [number, number] {
 /** Half size of the square city district. */
 export const CITY_HALF = 40;
 /** Highest ledge an actor walks onto without jumping (curbs, rubble). */
-export const STEP_HEIGHT = 0.4;
+export const STEP_HEIGHT = 0.45;
 
 /** Where a house model goes; its collision box is already in `boxes`. */
 export type HouseSlot = { x: number; z: number; y: number; scale: number; rotY: number };
@@ -195,7 +195,8 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
   if (opts.mapFile) {
     const file = opts.mapFile;
     const field = new Field(file.gen, file.ops ?? []);
-    const mapObjects = applyOps(generate(field), file.ops ?? []);
+    // Houses come out at their drawn size (HOUSE_SCALE), so models, collision, interiors and nests all agree.
+    const mapObjects = applyOps(generate(field), file.ops ?? []).map(withKindScale);
     scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
     const view = new MapView(scene);
     // Only near objects cast shadows, so the shadow map covers the fight, not the whole 4 km map.

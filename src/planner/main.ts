@@ -22,7 +22,7 @@ import './planner.css';
 import { setLookScene } from '../look';
 import { isLucky } from '../shop.ts';
 import { getLang, setLang } from '../i18n';
-import { BIOMES, DEFAULT_PARAMS, EDIT, Field, KINDS, KIND_LIST, NB, SPOR_KINDS, applyOps, generate, type Category, type Kind, type MapFile, type Obj, type Op, type Params, type SporGroup } from '../mapgen/generate';
+import { BIOMES, DEFAULT_PARAMS, EDIT, Field, KINDS, KIND_LIST, NB, SPOR_KINDS, applyOps, generate, withKindScale, type Category, type Kind, type MapFile, type Obj, type Op, type Params, type SporGroup } from '../mapgen/generate';
 import { FX, defaultFx, fxAt, type FxValues, type MapFx } from '../mapgen/fx';
 import { emptyInteriors, moveOverride, type Interiors } from '../mapgen/interior';
 import { Atmosphere, DEFAULT_ATMOS, PRESETS, type Atmos, type PresetId } from './atmos';
@@ -138,7 +138,8 @@ function rebuild(terrain = true, areas?: Area[], mini = true) {
   }
   objs = applyOps(genCache, S.ops);
   if (terrain) view.buildTerrain(field, areas);
-  view.buildObjects(field, objs, areas);
+  // Houses are drawn at their in-game size (HOUSE_SCALE); objs keep the hand-set size the editor saves.
+  view.buildObjects(field, objs.map(withKindScale), areas);
   atmos.setMapSize(S.gen.size);
   camera.upperRadiusLimit = designer.active ? 60 : Math.min(S.gen.size * 2, 3000);
   camera.maxZ = Math.max(3000, Math.min(S.gen.size * 2, 3000) + S.gen.size);
@@ -152,7 +153,7 @@ function rebuild(terrain = true, areas?: Area[], mini = true) {
 }
 
 function redrawInteriors() {
-  interiorView.set(placedProps({ field, mapObjects: objs, mapFile: { v: 1, gen: S.gen, ops: [], interiors: S.interiors } })).catch((e) => console.error('Interior props failed to load', e));
+  interiorView.set(placedProps({ field, mapObjects: objs.map(withKindScale), mapFile: { v: 1, gen: S.gen, ops: [], interiors: S.interiors } })).catch((e) => console.error('Interior props failed to load', e));
 }
 
 let pending = 0;

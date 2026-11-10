@@ -90,6 +90,20 @@ export type Category = 'trees' | 'mushrooms' | 'giants' | 'mech' | 'ruins' | 'ro
  * cell = spacing of the placement grid, r = footprint radius at scale 1 (keeps things from overlapping).
  */
 /**
+ * Enterable houses are drawn this much bigger than their Blender models, on every map (planner maps too),
+ * so the doors clearly tower over the 1.90 m, 1.48 m wide hippo. Measured 2026-11-10: the models' doors are
+ * 2.8 m (glass, mosaic) to 3.7 m (stained glass) and 3.5 m (mushroom houses), which read about the size of the
+ * character from the third-person camera. Furniture inside keeps its own size; collision, floors and swarm
+ * nests scale with the house. Map files keep the hand-set size; this factor comes on top when the map loads.
+ */
+export const HOUSE_SCALE = {
+  /** The five mushroom houses: 3.5 m doors become 4.55 m. */
+  mushroom: 1.3,
+  /** Glass and Gaudí town houses: 2.8 x 2.0 m doors become 3.9 x 2.8 m. */
+  town: 1.4,
+};
+
+/**
  * Spor Ormanı and kasaba Blender models (src/spor.ts, packed by tools/assets/pack-spor.mjs), placed by hand
  * in the planner, never scattered. r: planner footprint. group: planner palette group.
  * solid: 'baked' = walkable collision (floors, stairs, walls) from src/assets/spor/carpisma.json (tools/assets/bake-collision.mjs),
@@ -98,16 +112,16 @@ export type Category = 'trees' | 'mushrooms' | 'giants' | 'mech' | 'ruins' | 'ro
  * full: always a full model (animated or walkable inside), never thin-instanced.
  */
 export const SPOR_KINDS = {
-  ev_kule: { name: 'Mantar ev: kule', cat: 'landmark', group: 'ev', r: 8.9, solid: 'baked' },
-  ev_genis: { name: 'Mantar ev: geniş', cat: 'landmark', group: 'ev', r: 10.9, solid: 'baked' },
-  ev_kulube: { name: 'Mantar ev: kulübe', cat: 'landmark', group: 'ev', r: 7.7, solid: 'baked' },
-  ev_iki_kat: { name: 'Mantar ev: iki katlı', cat: 'landmark', group: 'ev', r: 6.8, solid: 'baked' },
-  ev_uc_kat: { name: 'Mantar ev: üç katlı', cat: 'landmark', group: 'ev', r: 7.4, solid: 'baked' },
-  ev_cam_kule: { name: 'Cam ev: kule', cat: 'landmark', group: 'ev', r: 6.1, solid: 'baked' },
-  ev_cam_ikiz: { name: 'Cam ev: ikiz', cat: 'landmark', group: 'ev', r: 5.4, solid: 'baked' },
-  ev_cam_genis: { name: 'Cam ev: geniş', cat: 'landmark', group: 'ev', r: 6.2, solid: 'baked' },
-  ev_mozaik: { name: 'Gaudí ev: mozaik', cat: 'landmark', group: 'ev', r: 4.9, solid: 'baked' },
-  ev_vitray: { name: 'Gaudí ev: vitray', cat: 'landmark', group: 'ev', r: 7.9, solid: 'baked' },
+  ev_kule: { name: 'Mantar ev: kule', cat: 'landmark', group: 'ev', r: 8.9, solid: 'baked', scale: HOUSE_SCALE.mushroom },
+  ev_genis: { name: 'Mantar ev: geniş', cat: 'landmark', group: 'ev', r: 10.9, solid: 'baked', scale: HOUSE_SCALE.mushroom },
+  ev_kulube: { name: 'Mantar ev: kulübe', cat: 'landmark', group: 'ev', r: 7.7, solid: 'baked', scale: HOUSE_SCALE.mushroom },
+  ev_iki_kat: { name: 'Mantar ev: iki katlı', cat: 'landmark', group: 'ev', r: 6.8, solid: 'baked', scale: HOUSE_SCALE.mushroom },
+  ev_uc_kat: { name: 'Mantar ev: üç katlı', cat: 'landmark', group: 'ev', r: 7.4, solid: 'baked', scale: HOUSE_SCALE.mushroom },
+  ev_cam_kule: { name: 'Cam ev: kule', cat: 'landmark', group: 'ev', r: 6.1, solid: 'baked', scale: HOUSE_SCALE.town },
+  ev_cam_ikiz: { name: 'Cam ev: ikiz', cat: 'landmark', group: 'ev', r: 5.4, solid: 'baked', scale: HOUSE_SCALE.town },
+  ev_cam_genis: { name: 'Cam ev: geniş', cat: 'landmark', group: 'ev', r: 6.2, solid: 'baked', scale: HOUSE_SCALE.town },
+  ev_mozaik: { name: 'Gaudí ev: mozaik', cat: 'landmark', group: 'ev', r: 4.9, solid: 'baked', scale: HOUSE_SCALE.town },
+  ev_vitray: { name: 'Gaudí ev: vitray', cat: 'landmark', group: 'ev', r: 7.9, solid: 'baked', scale: HOUSE_SCALE.town },
   kopru_tas: { name: 'Taş köprü', cat: 'ruins', group: 'kopru', r: 13.0, solid: 'baked' },
   kopru_tas_yikik: { name: 'Yıkık taş köprü', cat: 'ruins', group: 'kopru', r: 13.0, solid: 'baked' },
   kopru_ahsap: { name: 'Ahşap köprü', cat: 'ruins', group: 'kopru', r: 7.9, solid: 'baked' },
@@ -204,10 +218,19 @@ export const SPOR_KINDS = {
   odun_yigini: { name: 'Odun yığını', cat: 'mech', group: 'esya', r: 0.5, solid: [0.55, 0.8] },
   kavanoz_ates: { name: 'Ateş böceği kavanozu', cat: 'mech', group: 'esya', r: 0.3, solid: null },
 } as const satisfies Record<string, SporDef>;
-type SporDef = { name: string; cat: Category; group: SporGroup; r: number; solid: 'baked' | readonly [number, number] | null; lift?: number; full?: boolean };
+type SporDef = { name: string; cat: Category; group: SporGroup; r: number; solid: 'baked' | readonly [number, number] | null; lift?: number; full?: boolean; scale?: number };
 export type SporGroup = 'ev' | 'kopru' | 'anit' | 'mantar' | 'agac' | 'tas' | 'ucan' | 'kamp' | 'esya';
 const sporDef = (k: string): SporDef | undefined => (SPOR_KINDS as Record<string, SporDef>)[k];
 export type SporKind = keyof typeof SPOR_KINDS;
+
+/** How much bigger than its model a kind is drawn (HOUSE_SCALE for houses, 1 for everything else). */
+export const kindScale = (k: string): number => sporDef(k)?.scale ?? 1;
+
+/** The object at the size it is drawn and collides at: its hand-set size times kindScale. */
+export const withKindScale = (o: Obj): Obj => {
+  const f = kindScale(o.k);
+  return f === 1 ? o : { ...o, s: o.s * f };
+};
 
 /**
  * Ground height an object stands on. Bridges rest on their banks: the lower of the two ground heights
@@ -234,7 +257,7 @@ function sporKinds() {
   const out = {} as { [K in SporKind]: { name: string; cat: Category; aff: readonly number[]; cell: number; r: number; s: readonly [number, number] } };
   for (const k of Object.keys(SPOR_KINDS) as SporKind[]) {
     const d = SPOR_KINDS[k];
-    out[k] = { name: d.name, cat: d.cat, aff: [0, 0, 0, 0, 0, 0], cell: 0, r: d.r, s: [1, 1] };
+    out[k] = { name: d.name, cat: d.cat, aff: [0, 0, 0, 0, 0, 0], cell: 0, r: d.r * kindScale(k), s: [1, 1] };
   }
   return out;
 }

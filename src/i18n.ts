@@ -163,8 +163,8 @@ const UI: Dict = {
   playMap8011: ['Harita 8011’i oyna', 'Play map 8011'],
   mapFailed: ['Harita yüklenemedi, şehir bloğu açıldı', 'Map could not be loaded, playing the city block'],
   hint: [
-    'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan (yakın silahla: özel saldırı) · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab basılı tut: kart · O kamera · tekerlek yakınlaştır · Esc duraklat',
-    'WASD move · W W sprint · A/D + Space side dash · Space jump (Space Space at a wall: wall kick) · Left click fire · Right click aim (melee: special attack) · F weapon · R reload · Q E 1 2 3 skills · X bandage · I bag · G set skill · hold Tab: cards · O camera · wheel zoom · Esc pause',
+    'WASD hareket · W W koş · A/D + Space yana dash · Space zıpla (duvarda Space Space: duvardan sek) · Sol tık ateş · Sağ tık nişan (yakın silahla: özel saldırı) · F silah · R şarjör · Q E 1 2 3 yetenek · X bandaj · I çanta · G set yeteneği · Tab basılı tut: kart · O kamera · M ölçü cetveli · tekerlek yakınlaştır · Esc duraklat',
+    'WASD move · W W sprint · A/D + Space side dash · Space jump (Space Space at a wall: wall kick) · Left click fire · Right click aim (melee: special attack) · F weapon · R reload · Q E 1 2 3 skills · X bandage · I bag · G set skill · hold Tab: cards · O camera · M scale ruler · wheel zoom · Esc pause',
   ],
   credits: ['Bir Moebius rüyası, Kim Jung Gi çizgisi, Kopinski tozu.', 'A Moebius dream, a Kim Jung Gi line, Kopinski dust.'],
   postcard: ['Ufuk-i Kehribar’dan selamlar', 'Greetings from Ufuk-i Kehribar'],
@@ -176,6 +176,9 @@ const UI: Dict = {
   slam: ['Yere çakıl! (havada Ctrl)', 'Ground slam! (Ctrl in the air)'],
   camHigh: ['Kamera: yüksek (tekerlek yakınlaştırır, O klasik)', 'Camera: high (wheel zooms, O for classic)'],
   camClassic: ['Kamera: klasik omuz arkası (O yüksek)', 'Camera: classic over the shoulder (O for high)'],
+  ruler: ['Ölçü (M) · karakter {h} m · baş üstü boşluk {c}', 'Ruler (M) · character {h} m · free height overhead {c}'],
+  rulerHouse: ['{k} {s}× (model × {f})', '{k} {s}× (model × {f})'],
+  rulerOn: ['Ölçü cetveli açık (M kapatır). Kapının içinde dur: baş üstü boşluk kapı yüksekliğidir.', 'Ruler on (M hides it). Stand in a doorway: the free height overhead is the door height.'],
 };
 
 /** Add a screen's own strings (the map planner's) to the dictionary. */
