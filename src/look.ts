@@ -134,12 +134,15 @@ export function clayify(m: Material, tiling = 1) {
       m.emissiveColor = new Color3(1, 1, 1);
     }
   } else if (m instanceof PBRMaterial) {
+    // Matte, like paint on paper: no metal, no glossy spots (a model's own gloss map made the hippo
+    // look wet and plastic next to the painted world).
+    m.metallicTexture = null;
     m.metallic = 0;
-    m.roughness = 0.62;
+    m.roughness = 0.9;
     m.sheen.isEnabled = true;
-    m.sheen.intensity = 0.35;
+    m.sheen.intensity = 0.2;
     m.sheen.color = Color3.FromHexString('#ffe6d0');
-    m.sheen.roughness = 0.5;
+    m.sheen.roughness = 0.8;
     if (!m.bumpTexture) {
       m.bumpTexture = clayBump(tiling * 3, 0.35);
     }
@@ -217,8 +220,11 @@ function makeWash(name: string, seed: number, layers: number, wobble: number): T
  */
 export function watercolorFxMaterial(hex: string, alpha: number, kind: 'wash' | 'splat' = 'wash'): StandardMaterial | null {
   if (!clayLook) return null;
-  wash ??= makeWash('wc-wash', 11, 3, 0.22);
-  splat ??= makeWash('wc-splat', 29, 2, 0.5);
+  // A wash made before the look had its scene (or for a scene since disposed) never becomes ready,
+  // and every effect painted with it stays invisible: make it again for this scene.
+  const stale = (t: Texture | null) => !t || t.getScene() !== scene || !t.getInternalTexture();
+  if (stale(wash)) wash = makeWash('wc-wash', 11, 3, 0.22);
+  if (stale(splat)) splat = makeWash('wc-splat', 29, 2, 0.5);
   const m = new StandardMaterial(`wc-${kind}-${hex}-${alpha}`, scene);
   m.disableLighting = true;
   // Unlit: color = emissive × texture. Slightly lift the color so it reads as paint, not neon.
@@ -347,10 +353,13 @@ export function setLookScene(s: Scene) {
   scene = s;
 }
 
-/** Set up the look for the scene: sky, softer clay lighting and the paper pass. */
-export function initLook(s: Scene, camera: Camera, shadows?: ShadowGenerator) {
+/**
+ * Set up the look for the scene: sky, softer clay lighting and the paper pass.
+ * `ownSky: false` when the planner's Atmosphere already draws the sky, light and paper (planner maps).
+ */
+export function initLook(s: Scene, camera: Camera, shadows?: ShadowGenerator, ownSky = true) {
   scene = s;
-  if (!clayLook) return;
+  if (!clayLook || !ownSky) return;
   makeSky();
   paperPass(camera);
   // Clay reads best under soft, even light with gentle shadows.

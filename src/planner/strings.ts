@@ -192,7 +192,7 @@ const KIND_EN: Record<string, string> = {
   ev_cam_kule: 'Glass house: tower', ev_cam_ikiz: 'Glass house: twin', ev_cam_genis: 'Glass house: wide', ev_mozaik: 'Gaudí house: mosaic', ev_vitray: 'Gaudí house: stained glass',
   kopru_tas: 'Stone bridge', kopru_tas_yikik: 'Broken stone bridge', kopru_ahsap: 'Wooden bridge', kopru_gaudi_mozaik: 'Gaudí bridge: mosaic', kopru_gaudi_viyaduk: 'Gaudí bridge: viaduct',
   kopru_gecit_12: 'Balcony bridge 12 m', kopru_gecit_20: 'Balcony bridge 20 m', kopru_gecit_20_kat: 'Balcony bridge 20 m, climbing', kopru_gecit_28: 'Balcony bridge 28 m',
-  gecit_duz: 'Mycelium passage: straight', gecit_kavis: 'Mycelium passage: curve', gecit_son: 'Mycelium passage: gate', heykel_mantar_kadin: 'Mushroom woman statue',
+  gecit_duz: 'Mycelium passage: straight', gecit_kavis: 'Mycelium passage: curve', gecit_son: 'Mycelium passage: gate', heykel_mantar_kadin: 'Mushroom woman statue', heykel_kaide: 'Mushroom woman (boss): plinth',
   labirent_duvar_a: 'Maze wall A', labirent_duvar_b: 'Maze wall B', labirent_duvar_c: 'Maze wall C (glowing)', labirent_dugum_a: 'Maze post A', labirent_dugum_b: 'Maze post B', labirent_yol_a: 'Maze path A', labirent_yol_b: 'Maze path B',
   mantar_kumesi: 'Giant mushroom cluster', mantar_kume_1: 'Mushroom cluster 1', mantar_kume_2: 'Mushroom cluster 2', mantar_kume_3: 'Mushroom cluster 3', mantar_kume_4: 'Mushroom cluster 4', mantar_kume_5: 'Mushroom cluster 5',
   mantar_buyuk: 'Big mushroom', mantar_orta: 'Medium mushroom', mantar_kucuk: 'Small mushroom', mantar_semsiye: 'Violet parasol', mantar_murekkep: 'Ink caps', mantar_huni: 'Golden funnels', mantar_mercan: 'Coral fungus', mantar_cin: 'Scarlet pixie caps',

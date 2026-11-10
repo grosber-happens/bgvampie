@@ -13,18 +13,20 @@ import '@babylonjs/core/Culling/ray';
 import './style.css';
 import { Input } from './input';
 import { addShake, feel, initFeel, kick, muzzleFlash, shakeOffset, sfx, unlockAudio, updateFeel } from './feel';
-import { createHippoBody, loadCharacterKits } from './characters';
+import { HIPPO_HEIGHT, createHippoBody, loadCharacterKits } from './characters';
 import { loadCreatures } from './creatures';
 import { placeHouses } from './houses';
 import { placeProps } from './props';
 import { placeSpor, useSporModels } from './spor';
 import { setupPuffballs, updatePuffballs } from './puf';
-import { clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
+import { clayLook, clayifyScene, initLook, splatPlane, watercolorFxMaterial } from './look';
+import { Atmosphere, gameAtmos } from './planner/atmos';
 import { buildWorld, ceilingHeight, groundHeight, padUnder, pointHitsObstacle, resolveWalls, solidBoxes } from './world';
+import { createRuler } from './ruler';
 import { placeNatureAssets } from './nature';
 import { createActorBody, forwardFromYaw, rightFromYaw } from './actors';
 
-import { G, MODS, PS, chest, glowMat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, updateBullets, updateFx, type Unit } from './core';
+import { G, MODS, PS, chest, dealDamage, glowMat, lineFx, makeUnit, ringFx, spawnFx, tickStatus, clearCorpses, updateBullets, updateCorpses, updateFx, type Unit } from './core';
 import {
   P,
   allKits,
@@ -49,6 +51,7 @@ import './scout';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { botDied, resetDirector, spawnBoss, spawnDummy, updateAI } from './ai';
 import { nestInfo } from './horde';
+import { placeStatues, statueInfo, statuePose, wakeStatue } from './heykel';
 import { INV, absorbArmor, debugKit, spawnDrop, dashTouch, gearAfterHit, gearAtkMult, gearDashCost, gearIncoming, gearOutgoing, gearSlam, gearSpeedMult, gearWallRun, landSlam, onKill as gearOnKill, resetInventory, slamReady, stopBandage, tryBandage, tryReel, updateInventory } from './inventory';
 import { ITEM, RARITY_COLOR, SLAM, WALL_RUN } from './gear';
 import { SPECIALS } from './specials';
@@ -220,14 +223,30 @@ const cardsEl = $('cards');
 
 const engine = new Engine(canvas, true, { stencil: true });
 const scene = new Scene(engine);
-const world = buildWorld(scene, seed, { houseModel: true, mapFile: playingMap });
+const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
+camera.inputs.clear();
+camera.fov = CAMERA.fov;
+camera.minZ = 0.1;
+camera.maxZ = 3000;
+// Planner maps play under the planner's own sky, light, fog and ink lines, so the map looks as designed
+// (?look=classic keeps the old dusty sky). ?q=low: lighter shadows and no god rays.
+const LOW = params.get('q') === 'low';
+const atmos = playingMap && clayLook ? new Atmosphere(scene, camera, LOW, () => player.pos, { rays: !LOW }) : null;
+// ?sky=altin|tutulma|kizil|spor tries another atmosphere preset on the map.
+const mapAtmos = playingMap && atmos ? gameAtmos(params.has('sky') ? { ...playingMap.atmos, preset: params.get('sky') } : playingMap.atmos) : null;
+if (atmos && mapAtmos) atmos.set(mapAtmos);
+const world = buildWorld(scene, seed, {
+  houseModel: true,
+  mapFile: playingMap,
+  light: atmos && mapAtmos ? { shadows: atmos.shadows, fogDensity: 0.006 * mapAtmos.fog + 0.0016 * mapAtmos.haze } : undefined,
+});
 if (world.field && world.mapObjects) {
   placeNatureAssets(scene, world.field, world.mapObjects).catch((e) => console.error('Nature models failed to load', e));
 }
 buildVendors(scene, world, seed);
 buildPads(scene, world);
 const groundCover = buildGroundCover(scene, world);
-const regionFx = setupRegionFx(scene, world);
+const regionFx = setupRegionFx(scene, world, atmos);
 furnishInteriors(scene, world).catch((e) => console.error('Interior props failed to load', e));
 const input = new Input(canvas);
 const levelUpUi = createLevelUpUi(input);
@@ -235,26 +254,24 @@ placeHouses(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('House model failed to load', e));
 let indoor: ReturnType<typeof setupIndoor> | null = null;
+const ruler = createRuler(scene, world.boxes, $('ruler'), HIPPO_HEIGHT);
 placeSpor(scene, world)
   .then((placed) => {
+    ruler.setHouses(placed);
     setupPuffballs(placed);
     indoor = setupIndoor(placed, world.boxes);
   })
   .catch((e) => console.error('Spor Ormanı models failed to load', e));
 useSporModels(scene, world).catch((e) => console.error('Spor Ormanı scatter models failed to load', e));
+placeStatues(scene, world).catch((e) => console.error('Mushroom Woman boss failed to load', e));
 placeProps(scene, world)
   .then(clayifyScene)
   .catch((e) => console.error('Street props failed to load', e));
 const seedText = () => ($('seed').textContent = `${playingMap ? `${T('map')} ${mapLabel}` : `${mapError ? `${T('mapFailed')} · ` : ''}${T('city')} #${seed} · ${T('newCity')}`}${DEBUG ? ' · L lv · B boss · K $' : ''}`);
 seedText();
 
-const camera = new UniversalCamera('cam', new Vector3(0, 3, -6), scene);
-camera.inputs.clear();
-camera.fov = CAMERA.fov;
-camera.minZ = 0.1;
-
 Object.assign(G, { scene, world, camera, input });
-initLook(scene, camera, world.shadows);
+initLook(scene, camera, world.shadows, !atmos);
 clayifyScene();
 initFeel(scene);
 
@@ -1043,7 +1060,7 @@ G.hooks.kill = (killer, victim) => {
   if (victim.kind === 'decoy' || victim.kind === 'pet') return;
   const kName = killer ? (killer === player ? T('you') : killer.name) : T('poison');
   if (victim.kind !== 'mob' || killer === player) feed(`${kName} ▸ ${victim.name}${killer === player && xp ? `  +${xp} XP` : ''}`);
-  if (victim.kind === 'boss') toast(killer === player ? T('bossDown') : T('bossDownBy', { n: kName }), 2.5);
+  if (victim.kind === 'boss') toast(victim.ai?.statue ? (killer === player ? T('statueDown') : T('statueDownBy', { n: kName })) : killer === player ? T('bossDown') : T('bossDownBy', { n: kName }), 2.5);
 };
 
 // ---- Match ---------------------------------------------------------------------------
@@ -1131,8 +1148,12 @@ buildStyles();
 
 function resetMatch() {
   setRandomSeed(seed);
-  for (const u of [...G.units]) if (u !== player) u.body.root.dispose(false, true);
+  for (const u of [...G.units]) if (u !== player) {
+    u.ai?.tele?.dispose();
+    u.body.root.dispose(false, true);
+  }
   G.units = [player];
+  clearCorpses();
   for (const b of G.bullets) b.mesh.dispose();
   G.bullets = [];
   G.time = 0;
@@ -1237,6 +1258,7 @@ function simStep(dt: number) {
   for (const u of [...G.units]) if (u.alive) tickStatus(u, dt);
   updateBullets(dt);
   updateFx(dt);
+  updateCorpses(dt);
   updateZones(dt);
   updateFeel(dt);
   gameHud.step(dt);
@@ -1249,12 +1271,17 @@ engine.runRenderLoop(() => {
   if (running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen() && input.consume('KeyV')) {
     const m = nearMachine(player.pos);
     if (m) shopUi.open(m);
+    else wakeStatue(player.pos, (t) => toast(t, 3));
   }
   const live = running && !levelUpUi.isOpen() && !invUi.isOpen() && !shopUi.isOpen();
   if (live) {
     if (input.consume('KeyO')) {
       setCamMode(camMode === 'high' ? 'classic' : 'high');
       toast(T(camMode === 'high' ? 'camHigh' : 'camClassic'), 2.4);
+    }
+    if (input.consume('KeyM')) {
+      ruler.toggle();
+      if (ruler.on) toast(T('rulerOn'), 3);
     }
     if (!playingMap && input.consume('KeyN')) {
       location.search = '?map=city';
@@ -1271,6 +1298,7 @@ engine.runRenderLoop(() => {
   updateCamera(dt);
   world.stream?.(player.pos.x, player.pos.z);
   groundCover.update(dt, player.pos.x, player.pos.z);
+  ruler.update(player);
   regionFx.update(dt, player.pos.x, player.pos.z, player.pos.y);
   threats.update();
   gameHud.update(live ? dt : 0);
@@ -1303,6 +1331,10 @@ window.addEventListener('resize', () => engine.resize());
     u.stunT = 1e6;
     return u.id;
   },
+  /** Test hook: the Mushroom Woman statues (state, health, current attack). */
+  statues: statueInfo,
+  statuePose,
+  wakeStatue: () => wakeStatue(player.pos, (t) => toast(t, 3)),
   /** Test hook: where the objects of one map kind stand. */
   objects: (k: string) => (world.mapObjects ?? []).filter((o) => o.k === k).map((o) => ({ x: o.x, z: o.z, r: o.r })),
   ground: (x: number, z: number) => world.field?.height(x, z) ?? 0,
@@ -1429,6 +1461,10 @@ window.addEventListener('resize', () => engine.resize());
         const bb = m.getBoundingInfo().boundingBox;
         return { name: m.name, enabled: m.isEnabled(), vis: m.isVisible, verts: m.getTotalVertices(), min: bb.minimumWorld.asArray().map((v) => +v.toFixed(2)), max: bb.maximumWorld.asArray().map((v) => +v.toFixed(2)), skel: !!m.skeleton, parent: m.parent?.name };
       }),
+  /** Test hook: the player hits every mob for `dmg` (hit flinch, death clip and corpse checks). */
+  hurtMobs: (dmg: number) => {
+    for (const u of [...G.units]) if (u.kind === 'mob') dealDamage(player, u, dmg);
+  },
   freeze: (sec: number) => {
     for (const u of G.units) if (u !== player) u.stunT = sec;
   },

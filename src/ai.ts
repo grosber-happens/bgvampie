@@ -1,10 +1,13 @@
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { forwardFromYaw, rightFromYaw } from './actors';
 import { createCharacterBody, type SkinName } from './characters';
 import { BOSS, BOTS, DAGGERS, HORDE, MOBS, NESTS, MOB_SPECIES, SHADOW_TRAIL, type MobSpecies } from './balance';
-import { createCreatureBody, creatureReady } from './creatures';
+import { attackClipSpeed, createCreatureBody, creatureReady } from './creatures';
 import { resetHorde, updateHorde } from './horde';
+import { resetStatues, updateStatues } from './heykel';
 import { t as T } from './i18n';
 import {
   G,
@@ -46,6 +49,8 @@ export function resetDirector(rand: () => number) {
   bossIndex = 0;
   botQueue = [];
   boss = null;
+  resetStatues();
+  warmTelegraph();
   for (let i = 0; i < BOTS.count; i++) spawnBot(BOT_LOOKS[i % BOT_LOOKS.length], 1, 0, 100 + i, rand);
   resetHorde(rand);
 }
@@ -92,6 +97,18 @@ export function spawnMob(species: MobSpecies, p: Vector3, home: Vector3, hp: num
     yaw: rand() * Math.PI * 2,
     ai: { home: home.clone(), target: null, think: 0, attackT: 0, windT: -1, wander: p.clone(), wanderT: 0, species, size: scale },
   });
+}
+
+/** A pack of forest creatures round a point (the Mushroom Woman calls one). */
+export function summonPack(at: Vector3, n: number) {
+  const species = random() < 0.65 ? 'geyik' : 'salyangoz';
+  const spec = MOB_SPECIES[species];
+  const min = minutes();
+  for (let i = 0; i < n; i++) {
+    const p = at.add(new Vector3((random() - 0.5) * 6, 0, (random() - 0.5) * 6));
+    p.y = G.world.field ? G.world.field.height(p.x, p.z) : at.y;
+    spawnMob(species, p, at, Math.round(MOBS.hp(min) * spec.hp), T(species === 'geyik' ? 'mobDeer' : 'mobSnail'), random);
+  }
 }
 
 /** Test helper: one creature (a deer unless told otherwise) at a point. */
@@ -268,11 +285,105 @@ function updateBot(u: Unit, dt: number, rand: () => number) {
 
 // ---- Mobs ----------------------------------------------------------------------
 /** Zombie numbers for mobs without a species (old saves, failed loads). */
-const ZOMBIE = { speed: MOBS.speed, attackRange: MOBS.attackRange, windup: 0.35, damage: 1 };
+const ZOMBIE = { speed: MOBS.speed, attackRange: MOBS.attackRange, windup: 0.35, damage: 1, arc: 90 };
+
+/** Reach of a mob attack from its center: the zone drawn on the ground, the same one that hits. */
+const reach = (spec: { attackRange: number }) => spec.attackRange + 0.4;
+
+const SECTOR_RINGS = 5;
+
+/** Ground height under a point (terrain on big maps, the unit's own floor elsewhere). */
+const floorAt = (x: number, z: number, fallback: number) => (G.world.field ? G.world.field.height(x, z) : fallback);
+
+/**
+ * A pie slice in front of `u` (its facing, `radius` m, `arcDeg` wide) laid on the ground: every vertex
+ * sits on the terrain, so a slope never hides it. Called again to grow it (updatable positions).
+ */
+function laySector(m: Mesh | null, name: string, u: Unit, radius: number, arcDeg: number, lift: number): Mesh {
+  const half = (arcDeg * Math.PI) / 360;
+  const n = Math.max(6, Math.round(arcDeg / 6));
+  const pos = [u.pos.x, floorAt(u.pos.x, u.pos.z, u.pos.y) + lift, u.pos.z];
+  for (let j = 1; j <= SECTOR_RINGS; j++) {
+    const r = (radius * j) / SECTOR_RINGS;
+    for (let i = 0; i <= n; i++) {
+      const a = u.yaw - half + (2 * half * i) / n;
+      const x = u.pos.x + Math.sin(a) * r, z = u.pos.z + Math.cos(a) * r;
+      pos.push(x, floorAt(x, z, u.pos.y) + lift, z);
+    }
+  }
+  if (m) {
+    m.updateVerticesData('position', pos);
+    m.refreshBoundingInfo();
+    return m;
+  }
+  // Clockwise seen from above: Babylon's front face.
+  const idx: number[] = [];
+  const at = (j: number, i: number) => 1 + (j - 1) * (n + 1) + i;
+  for (let i = 0; i < n; i++) idx.push(0, at(1, i), at(1, i + 1));
+  for (let j = 1; j < SECTOR_RINGS; j++)
+    for (let i = 0; i < n; i++) idx.push(at(j, i), at(j + 1, i), at(j + 1, i + 1), at(j, i), at(j + 1, i + 1), at(j, i + 1));
+  const mesh = new Mesh(name, G.scene);
+  const vd = new VertexData();
+  vd.positions = pos;
+  vd.indices = idx;
+  vd.normals = pos.map((_, i) => (i % 3 === 1 ? 1 : 0));
+  // The watercolor fx material paints through its wash texture: keep the UVs inside the solid
+  // middle of the wash so the slice reads as one even wash with paper grain, edge to edge.
+  const uvs = [0.5, 0.38];
+  for (let j = 1; j <= SECTOR_RINGS; j++) for (let i = 0; i <= n; i++) uvs.push(0.38 + (0.24 * i) / n, 0.38 + (0.24 * j) / SECTOR_RINGS);
+  vd.uvs = uvs;
+  vd.applyToMesh(mesh, true);
+  mesh.isPickable = false;
+  return mesh;
+}
+
+/**
+ * The attack telegraph: a faint slice on the ground showing the whole zone, and a stronger slice that
+ * grows out from the creature and fills the zone exactly when the blow lands. The creature keeps its
+ * facing during the windup, so stepping out of the slice (or behind the creature) dodges the attack.
+ */
+function telegraph(u: Unit, spec: { attackRange: number; arc: number }) {
+  const zone = laySector(null, `${u.name}-tele`, u, reach(spec), spec.arc, 0.08);
+  zone.material = glowMat('#ff4a2a', 0.18);
+  const fill = laySector(null, `${u.name}-telefill`, u, reach(spec) * 0.05, spec.arc, 0.1);
+  fill.material = glowMat('#ff3a1a', 0.42);
+  fill.parent = zone;
+  return zone;
+}
+
+/** Compile the telegraph shaders at match start, so the first windup of the match already shows. */
+function warmTelegraph() {
+  const m = laySector(null, 'tele-warm', G.player, 1, 60, -50);
+  let left = 2;
+  for (const hex of ['#ff4a2a', '#ff3a1a']) {
+    const mat = glowMat(hex, hex === '#ff4a2a' ? 0.18 : 0.42);
+    mat.forceCompilation(m, () => --left === 0 && m.dispose());
+  }
+}
+
+function clearTelegraph(u: Unit) {
+  u.ai!.tele?.dispose();
+  u.ai!.tele = null;
+}
+
+/** Is `t` inside the attack zone of `u` (its facing, its reach, its arc)? Any part of t's capsule counts. */
+function inAttackZone(u: Unit, t: Unit, spec: { attackRange: number; arc: number }) {
+  const d = flatDist(u.pos, t.pos);
+  if (d > reach(spec) + t.radius) return false;
+  if (d < t.radius + 0.3) return true;
+  const fwd = forwardFromYaw(u.yaw);
+  const to = new Vector3(t.pos.x - u.pos.x, 0, t.pos.z - u.pos.z).scaleInPlace(1 / d);
+  const ang = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(fwd, to))));
+  return ang <= (spec.arc * Math.PI) / 360 + Math.asin(Math.min(1, t.radius / d));
+}
 
 function updateMob(u: Unit, dt: number, rand: () => number) {
   const ai = u.ai!;
-  const spec = ai.species && creatureReady(ai.species) ? MOB_SPECIES[ai.species as MobSpecies] : ZOMBIE;
+  const species = ai.species && creatureReady(ai.species) ? (ai.species as MobSpecies) : null;
+  const spec = species ? MOB_SPECIES[species] : ZOMBIE;
+  // The attack zone grows with the body (elites, the small nest creatures).
+  const zone = { attackRange: spec.attackRange * (ai.size ?? 1), arc: spec.arc };
+  const dmgMul = ai.nest ? NESTS.damage : ai.elite ? HORDE.elite.damage : 1;
   // Horde mobs grow out of the ground first (horde.ts) and cannot act meanwhile.
   if (ai.sproutT > 0) {
     ai.sproutT -= dt;
@@ -295,9 +406,34 @@ function updateMob(u: Unit, dt: number, rand: () => number) {
     if (ai.chargeT <= 0) ai.charge = null;
     return;
   }
+  ai.attackT -= dt;
+  if (u.stunT > 0) {
+    ai.windT = -1;
+    clearTelegraph(u);
+    moveUnit(u, Vector3.Zero(), 0, dt);
+    return;
+  }
+  // The windup runs to the end even if the target walks off: that is the point of the telegraph.
+  if (ai.windT >= 0) {
+    ai.windT -= dt;
+    moveUnit(u, Vector3.Zero(), 0, dt);
+    const k = Math.min(1, 1 - ai.windT / spec.windup);
+    const fill = ai.tele?.getChildMeshes()[0] as Mesh | undefined;
+    if (fill) laySector(fill, '', u, reach(zone) * Math.max(0.05, k), zone.arc, 0.1);
+    if (ai.windT < 0) {
+      clearTelegraph(u);
+      for (const t of [...G.units]) if (hostile(u, t) && t.kind !== 'mob' && t.pos.y - u.pos.y < 2.5 && inAttackZone(u, t, zone)) dealDamage(u, t, MOBS.damage(minutes()) * spec.damage * dmgMul);
+    }
+    return;
+  }
+  const startAttack = () => {
+    ai.attackT = Math.max(MOBS.attackRate, spec.windup + 0.3);
+    ai.windT = spec.windup;
+    ai.tele = telegraph(u, zone);
+    u.body.play?.('attack', species ? attackClipSpeed(species) : 1, true);
+  };
   // Nest creatures (horde.ts) stay where they are: they only turn and bite whoever comes within reach.
   if (ai.nest) {
-    ai.attackT -= dt;
     ai.think -= dt;
     if (ai.think <= 0) {
       ai.think = 0.3 + rand() * 0.2;
@@ -307,20 +443,10 @@ function updateMob(u: Unit, dt: number, rand: () => number) {
     const t: Unit | null = ai.target?.alive ? ai.target : null;
     if (!t) return;
     faceTowards(u, t.pos, dt, 8);
-    const reach = spec.attackRange * (ai.size ?? 1) + t.radius;
-    const dist = flatDist(u.pos, t.pos);
-    if (ai.windT >= 0) {
-      ai.windT -= dt;
-      if (ai.windT < 0 && dist < reach + 0.4) dealDamage(u, t, MOBS.damage(minutes()) * spec.damage * NESTS.damage);
-    } else if (dist < reach && ai.attackT <= 0) {
-      ai.attackT = Math.max(MOBS.attackRate, spec.windup + 0.3);
-      ai.windT = spec.windup;
-      u.body.play?.('attack', 1, true);
-    }
+    if (flatDist(u.pos, t.pos) < zone.attackRange + t.radius && ai.attackT <= 0) startAttack();
     return;
   }
   ai.think -= dt;
-  ai.attackT -= dt;
   if (ai.think <= 0) {
     ai.think = 0.4 + rand() * 0.2;
     const t = nearestVisible(u, MOBS.aggro, () => true);
@@ -330,26 +456,13 @@ function updateMob(u: Unit, dt: number, rand: () => number) {
     if (ai.target && (!ai.target.alive || (!ai.horde && flatDist(u.pos, ai.home) > MOBS.leash))) ai.target = null;
     if (ai.horde && ai.target === G.player && playerVisibility() === 0) ai.target = null;
   }
-  if (u.stunT > 0) {
-    ai.windT = -1;
-    moveUnit(u, Vector3.Zero(), 0, dt);
-    return;
-  }
   const t: Unit | null = ai.target?.alive ? ai.target : null;
   if (t) {
     const dist = flatDist(u.pos, t.pos);
     faceTowards(u, t.pos, dt, 8);
-    if (ai.windT >= 0) {
-      ai.windT -= dt;
+    if (dist < zone.attackRange + t.radius) {
       moveUnit(u, Vector3.Zero(), 0, dt);
-      if (ai.windT < 0 && dist < spec.attackRange * (ai.size ?? 1) + t.radius + 0.4) dealDamage(u, t, MOBS.damage(minutes()) * spec.damage * (ai.elite ? HORDE.elite.damage : 1));
-    } else if (dist < spec.attackRange * (ai.size ?? 1) + t.radius) {
-      moveUnit(u, Vector3.Zero(), 0, dt);
-      if (ai.attackT <= 0) {
-        ai.attackT = Math.max(MOBS.attackRate, spec.windup + 0.3);
-        ai.windT = spec.windup;
-        u.body.play?.('attack', 1, true);
-      }
+      if (ai.attackT <= 0) startAttack();
     } else steer(u, t.pos.subtract(u.pos), spec.speed, dt);
     return;
   }
@@ -439,10 +552,11 @@ export function updateAI(dt: number, rand: () => number, announce: Announce) {
     if (!u.alive) continue;
     if (u.kind === 'bot') updateBot(u, dt, rand);
     else if (u.kind === 'mob') updateMob(u, dt, rand);
-    else if (u.kind === 'boss') updateBoss(u, dt);
+    else if (u.kind === 'boss' && !u.ai?.statue) updateBoss(u, dt);
   }
   // Mobs: the survivors-style director (horde.ts).
   updateHorde(dt, rand, announce);
+  updateStatues(dt, summonPack, announce);
   // Bosses at fixed minutes.
   if (bossIndex < BOSS.minutes.length && minutes() >= BOSS.minutes[bossIndex]) {
     bossIndex++;

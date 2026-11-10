@@ -8,7 +8,7 @@ import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import houseColliders from './assets/house-colliders.json';
-import { Field, KINDS, SPOR_KINDS, applyOps, baseHeight, generate, sporInstanced, type MapFile, type Obj, type SporKind } from './mapgen/generate';
+import { Field, KINDS, SPOR_KINDS, applyOps, baseHeight, generate, sporInstanced, withKindScale, type MapFile, type Obj, type SporKind } from './mapgen/generate';
 import { sporShape } from './collide';
 import { MapView } from './planner/build';
 import { BOUNCE } from './balance';
@@ -97,7 +97,7 @@ function toLocal(b: Box, x: number, z: number): [number, number] {
 /** Half size of the square city district. */
 export const CITY_HALF = 40;
 /** Highest ledge an actor walks onto without jumping (curbs, rubble). */
-export const STEP_HEIGHT = 0.4;
+export const STEP_HEIGHT = 0.45;
 
 /** Where a house model goes; its collision box is already in `boxes`. */
 export type HouseSlot = { x: number; z: number; y: number; scale: number; rotY: number };
@@ -168,11 +168,11 @@ function rng(seed: number) {
   };
 }
 
-export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boolean; mapFile?: MapFile }): World {
-  const rand = rng(seed);
-  const between = (a: number, b: number) => a + rand() * (b - a);
+/** Light and shadows made outside the world (the Atmosphere). */
+export type WorldLight = { shadows: ShadowGenerator; /** How thick its fog is at the ground (streaming radius). */ fogDensity: number };
 
-  // Dusty post-apocalyptic sky.
+/** The city block's dusty sky: flat fog, soft sky light and a warm sun. */
+function oldLight(scene: Scene): ShadowGenerator {
   scene.clearColor = Color4.FromHexString('#d9a37aff');
   scene.fogMode = Scene.FOGMODE_EXP2;
   scene.fogDensity = 0.012;
@@ -191,19 +191,29 @@ export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boole
   const shadows = new ShadowGenerator(2048, sun);
   shadows.usePercentageCloserFiltering = true;
   shadows.bias = 0.0008;
+  return shadows;
+}
 
+export function buildWorld(scene: Scene, seed: number, opts: { houseModel: boolean; mapFile?: MapFile; light?: WorldLight }): World {
+  const rand = rng(seed);
+  const between = (a: number, b: number) => a + rand() * (b - a);
+
+  // Planner maps bring their own sky, light and fog (the planner's Atmosphere, src/main.ts).
+  const shadows = opts.light?.shadows ?? oldLight(scene);
   if (opts.mapFile) {
     const file = opts.mapFile;
     const field = new Field(file.gen, file.ops ?? []);
-    const mapObjects = applyOps(generate(field), file.ops ?? []);
-    scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
+    // Houses come out at their drawn size (HOUSE_SCALE), so models, collision, interiors and nests all agree.
+    const mapObjects = applyOps(generate(field), file.ops ?? []).map(withKindScale);
+    if (!opts.light) scene.fogDensity = Math.max(0.002, 0.012 * Number(file.atmos?.fog ?? 1));
+    const fogDensity = opts.light?.fogDensity ?? scene.fogDensity;
     const view = new MapView(scene);
     // Only near objects cast shadows, so the shadow map covers the fight, not the whole 4 km map.
     view.castLods = 1;
     view.terrainCasts = false;
     view.glow = 1;
     view.glowLods = 1;
-    view.viewRadius = loadRadiusForFog(scene.fogDensity);
+    view.viewRadius = loadRadiusForFog(fogDensity);
     view.onCasters = (meshes) => meshes.forEach((mesh) => shadows.addShadowCaster(mesh));
     view.buildTerrain(field);
     // Spor Ormanı houses, bridges and landmarks are placed by spor.ts; its mushrooms, rocks, props and maze pieces
