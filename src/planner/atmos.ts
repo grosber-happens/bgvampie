@@ -2,8 +2,9 @@
  * The planner's atmosphere: a watercolor sky with the huge amber sun, height fog with sun glow,
  * Moebius-style ink outlines, god rays, spores in the air, a few koi high up and the Kızıl Sis ring.
  * Everything is drawn in code from the world palette (design/dunya-tasarimi.md §3, §6, §11.4).
+ * The game uses it too (src/main.ts), so a map looks the same in the planner and in play.
  */
-import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
+import type { Camera } from '@babylonjs/core/Cameras/camera';
 import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Constants } from '@babylonjs/core/Engines/constants';
@@ -218,7 +219,7 @@ export class Atmosphere {
   private sunMesh: Mesh;
   private depth: DepthRenderer;
   private post: PostProcess;
-  private vls: VolumetricLightScatteringPostProcess;
+  private vls: VolumetricLightScatteringPostProcess | null = null;
   private pipe: DefaultRenderingPipeline;
   private spores: ParticleSystem;
   private koi: TransformNode[] = [];
@@ -229,7 +230,11 @@ export class Atmosphere {
   private t = 0;
   mapSize = 300;
 
-  constructor(private scene: Scene, private camera: ArcRotateCamera, low = false) {
+  /**
+   * `focus` is where the air spores gather (the planner: the orbit target; the game: the player).
+   * `rays: false` leaves out the god-ray pass (the game: one full-screen pass less every frame).
+   */
+  constructor(private scene: Scene, private camera: Camera, low = false, private focus: () => Vector3 = () => (camera as Camera & { target?: Vector3 }).target ?? camera.position, opts: { rays?: boolean } = {}) {
     scene.fogMode = Scene.FOGMODE_NONE;
     scene.clearColor = new Color4(0, 0, 0, 1);
     this.hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
@@ -277,12 +282,14 @@ export class Atmosphere {
       ['depthSampler'], 1, camera, Texture.BILINEAR_SAMPLINGMODE, scene.getEngine(), false, null, Constants.TEXTURETYPE_HALF_FLOAT);
     this.post.onApply = (e) => this.applyPost(e);
 
-    this.vls = new VolumetricLightScatteringPostProcess('vls', 0.6, camera, this.sunMesh, 70, Texture.BILINEAR_SAMPLINGMODE, scene.getEngine(), false);
-    this.vls.exposure = 0.25;
-    this.vls.decay = 0.965;
-    this.vls.weight = 0.6;
-    this.vls.density = 0.92;
-    this.vls.excludedMeshes = [this.sky];
+    if (opts.rays !== false) {
+      this.vls = new VolumetricLightScatteringPostProcess('vls', 0.6, camera, this.sunMesh, 70, Texture.BILINEAR_SAMPLINGMODE, scene.getEngine(), false);
+      this.vls.exposure = 0.25;
+      this.vls.decay = 0.965;
+      this.vls.weight = 0.6;
+      this.vls.density = 0.92;
+      this.vls.excludedMeshes = [this.sky];
+    }
 
     this.pipe = new DefaultRenderingPipeline('planner-pp', true, scene, [camera]);
     this.pipe.fxaaEnabled = true;
@@ -309,7 +316,7 @@ export class Atmosphere {
 
   /** Meshes the god-ray pass should ignore (transparent things). */
   exclude(m: Mesh) {
-    this.vls.excludedMeshes.push(m);
+    this.vls?.excludedMeshes.push(m);
   }
 
   private applyPost(e: Effect) {
@@ -368,7 +375,7 @@ export class Atmosphere {
     this.pipe.imageProcessing.exposure = a.exposure;
     this.pipe.bloomWeight = a.bloom;
     this.pipe.bloomEnabled = a.bloom > 0.01;
-    this.vls.exposure = 0.3 * a.rays;
+    if (this.vls) this.vls.exposure = 0.3 * a.rays;
     this.pipe.grainEnabled = a.grain > 0.01;
     this.pipe.grain.intensity = a.grain * 9;
     this.pipe.grain.animated = false;
@@ -490,7 +497,7 @@ export class Atmosphere {
     this.t += dt;
     this.skyMat.setFloat('time', this.t);
     // Spores follow the camera target so the air near the viewer is always alive.
-    const tgt = this.camera.target;
+    const tgt = this.focus();
     (this.spores.emitter as Vector3).set(tgt.x, Math.max(0, tgt.y - 4), tgt.z);
     for (const k of this.koi) {
       const md = k.metadata;
@@ -506,4 +513,13 @@ export class Atmosphere {
   cast(meshes: Mesh[]) {
     for (const m of meshes) this.shadows.addShadowCaster(m, false);
   }
+}
+
+/**
+ * A map file's atmosphere as the game plays it: the preset's values under the map's own, without the
+ * planner-only extras (the game draws its own air spores per region, and the Kızıl Sis ring is a BG thing).
+ */
+export function gameAtmos(file: Record<string, unknown> | undefined): Atmos {
+  const preset = (file?.preset as PresetId) in PRESETS ? (file!.preset as PresetId) : DEFAULT_ATMOS.preset;
+  return { ...DEFAULT_ATMOS, ...PRESETS[preset].atmos, ...(file as Partial<Atmos>), preset, spores: 0, ring: false };
 }

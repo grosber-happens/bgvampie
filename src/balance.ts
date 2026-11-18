@@ -140,13 +140,15 @@ export const MOBS = {
  * Spor Ormanı creatures that replace the Kenney zombie packs (src/creatures.ts). Each species scales
  * the MOBS numbers. hp/damage are multipliers; speed in m/s; radius/height are the gameplay capsule;
  * attackRange is from the creature's center; windup is the time from the attack start to the hit;
- * walkRef is the move speed at which the walk clip plays at 1×; chance is the share of packs;
- * pack is the [min, max] pack size.
+ * walkRef / runRef are the move speeds at which the walk / run clips play at 1× (the run clip takes
+ * over halfway between them); arc is the width (degrees) of the attack zone in front of the creature,
+ * drawn on the ground during the windup, and only targets inside it are hit; chance is the share of
+ * packs; pack is the [min, max] pack size.
  */
 export const MOB_SPECIES = {
-  geyik: { hp: 1, damage: 1, speed: 6.5, radius: 0.8, height: 2.6, attackRange: 2.5, windup: 0.45, walkRef: 3.2, chance: 0.65, pack: [2, 4] },
-  salyangoz: { hp: 2.4, damage: 1.7, speed: 2.8, radius: 1.6, height: 4.8, attackRange: 3.4, windup: 0.7, walkRef: 1.4, chance: 0.35, pack: [1, 2] },
-} as const satisfies Record<string, { hp: number; damage: number; speed: number; radius: number; height: number; attackRange: number; windup: number; walkRef: number; chance: number; pack: readonly [number, number] }>;
+  geyik: { hp: 1, damage: 1, speed: 6.5, radius: 0.8, height: 2.6, attackRange: 2.5, windup: 0.45, walkRef: 3.2, runRef: 6.5, arc: 70, chance: 0.65, pack: [2, 4] },
+  salyangoz: { hp: 2.4, damage: 1.7, speed: 2.8, radius: 1.6, height: 4.8, attackRange: 3.4, windup: 0.7, walkRef: 1.4, runRef: 2.8, arc: 80, chance: 0.35, pack: [1, 2] },
+} as const satisfies Record<string, { hp: number; damage: number; speed: number; radius: number; height: number; attackRange: number; windup: number; walkRef: number; runRef: number; arc: number; chance: number; pack: readonly [number, number] }>;
 export type MobSpecies = keyof typeof MOB_SPECIES;
 
 /**
@@ -242,6 +244,8 @@ export const WAVES: Record<string, { minutes: number; stages: { from: number; al
     ],
   },
 };
+/** A dead creature lies still this long after its death clip, then sinks into the ground over `sink` seconds. */
+export const CORPSE = { lie: 2.5, sink: 1.2 };
 
 /** One boss at these match minutes. */
 export const BOSS = {
@@ -257,6 +261,53 @@ export const BOSS = {
   rockDamage: 20,
   rockEvery: 3,
   rockSpeed: 22,
+};
+
+/**
+ * The Mushroom Woman (Spor Ormanı boss, src/heykel.ts): the statue in the maze. She stands as a statue on
+ * her plinth until a player wakes her (V on the plinth), then fights round the maze. She steps over the
+ * maze walls, but the walls still block her gill breath. Every attack is telegraphed on the ground first.
+ * [Proposal] numbers are first guesses for the owner to tune.
+ * Clip hit times (s) match spor_heykel_boss.py in the shared regions/spor-ormani/scriptler folder; the game speeds a clip up or down so its hit
+ * lands on the windup below.
+ */
+export const BOSS_STATUE = {
+  hp: (min: number) => Math.round(4200 * (1 + 0.06 * min)),
+  /** Gameplay capsule (the 16 m figure); shots hit inside it. */
+  radius: 2.6,
+  height: 16,
+  /** Stand within this of the plinth centre to wake her with V. */
+  wakeReach: 9,
+  /** The awakening clip; she cannot be hurt until it ends. */
+  wakeTime: 4.5,
+  /** Players she notices (m, no line of sight needed: she looks over the maze). */
+  aggro: 42,
+  /** She never walks farther than this from her plinth; past leash + 10 she gives up. */
+  leash: 34,
+  walkSpeed: 2.4,
+  /** Turn rate (rad/s): slow, so running round her buys time. */
+  turn: 0.9,
+  /** Walks towards a target farther than this. */
+  closeTo: 11,
+  /** Pause after each attack. */
+  rest: 1.4,
+  /** Back on the plinth with nobody in sight this long: she turns to stone again with full health. */
+  calmTime: 8,
+  /** Phase two below this share of health: summons a pack once and attacks faster. */
+  enrageAt: 0.5,
+  enrageCooldown: 0.75,
+  enragePack: 4,
+  /** Cap crash: a circle in front of her, she drives the cap down on it. */
+  crash: { cd: 7, range: 14, ahead: 8, radius: 6.5, windup: 1.6, clipHit: 1.6, clipLen: 3.0, damage: 48 },
+  /** Spore rain: circles on every target near her plus a few random ones; spores land after the windup. */
+  rain: { cd: 10, range: 32, count: 4, enrageCount: 7, scatter: 9, radius: 3, windup: 1.9, clipLen: 3.2, damage: 22 },
+  /** Root wave: she stamps, a ring of roots runs out along the ground. Jump over it. */
+  wave: { cd: 9, range: 22, windup: 1.15, clipHit: 1.15, clipLen: 2.6, speed: 10, maxR: 26, band: 1.1, jumpClear: 0.7, damage: 30 },
+  /** Gill breath: she bends down and sweeps a spore cone across (her left to her right). Maze walls and
+   * the plinth block it (line of sight from her gills, 3 m up). */
+  breath: { cd: 14, range: 26, from: 3, arc: 45, width: 12, windup: 1.2, sweep: 2.0, clipLen: 4.0, tick: 0.2, damage: 9 },
+  /** Hold the death pose this long, then she sinks into the plinth. */
+  deadHold: 20,
 };
 
 // ---- Bouncy morel (zıplama mantarı, Spor Ormanı) ---------------------------

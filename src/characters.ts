@@ -179,8 +179,11 @@ export function createCharacterBody(scene: Scene, world: World, name: string, sk
   };
 }
 
+/** The hippo's drawn height (m); its collision capsule is a little shorter (player.height). */
+export const HIPPO_HEIGHT = 1.9;
+
 /** The player's hippo body (also used for the player's decoys). */
 export function createHippoBody(scene: Scene, world: World, name: string): ActorBody | null {
   if (!kits.hippo) return null;
-  return createCharacterBody(scene, world, name, { kit: 'hippo', height: 1.9 });
+  return createCharacterBody(scene, world, name, { kit: 'hippo', height: HIPPO_HEIGHT });
 }

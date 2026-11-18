@@ -48,10 +48,6 @@ export const SPOR_MAP = {
   ] as [number, number][],
   villageRadius: 36,
   villageClear: 62,
-  /** Mushroom houses are placed this much bigger than their models (owner, 2026-11-09: houses read too
-   * small next to the 1.90 m character). Furniture inside keeps its own size. */
-  mushroomHouseScale: 1.3,
-  mushroomHouses: ['ev_kule', 'ev_genis', 'ev_kulube', 'ev_iki_kat', 'ev_uc_kat'] as Kind[],
   /** Forest: [kind, grid cell in m, base chance, forest-noise weight]. Bigger first. */
   forest: [
     ['mantar_kumesi', 110, 0.25, 0.5],
@@ -79,7 +75,7 @@ export const SPOR_MAP = {
   campClear: 22,
   /** A small town of plaster, glass and mosaic houses, as many as fit round a square. */
   town: [280, -90] as [number, number],
-  townRadius: 34,
+  townRadius: 38,
   townClear: 62,
   townHouses: ['ev_iki_kat', 'ev_uc_kat', 'ev_cam_kule', 'ev_mozaik', 'ev_cam_ikiz', 'ev_vitray', 'ev_cam_genis'] as Kind[],
   /** The temple tree on its own hill, with floating rocks round it. */
@@ -130,13 +126,13 @@ export const SPOR_MAP = {
     maze: { r: 70, spores: 2.2, fog: 1.5, fireflies: 1.2 },
     camp: { r: 45, spores: 1.2, fog: 1, fireflies: 2 },
   },
+  /** Sky and light (planner/atmos.ts): the pastel spore morning, as in the planner. */
+  atmos: { preset: 'spor' },
 };
 
 type Pt = { x: number; z: number };
 
 /** Creek center line, north (+z) to south. */
-/** Placement scale of a house kind (mushroom houses are placed bigger, see SPOR_MAP.mushroomHouseScale). */
-const houseScale = (k: Kind) => (SPOR_MAP.mushroomHouses.includes(k) ? SPOR_MAP.mushroomHouseScale : 1);
 
 function creekLine(): Pt[] {
   const { size } = SPOR_MAP;
@@ -236,8 +232,8 @@ export function buildSporMap(): MapFile {
       const a = a0 + (h / n) * Math.PI * 2 + (r() - 0.5) * 0.3;
       const k = houses[(vi + h) % houses.length];
       const x = vx + Math.sin(a) * M.villageRadius, z = vz + Math.cos(a) * M.villageRadius;
-      const s = houseScale(k);
-      add(k, x, z, s, a + Math.PI + (r() - 0.5) * 0.4, KINDS[k].r * s + 2);
+      // KINDS[k].r already holds the house's HOUSE_SCALE; the map keeps size 1 and the game scales it up.
+      add(k, x, z, 1, a + Math.PI + (r() - 0.5) * 0.4, KINDS[k].r + 2);
     }
     for (let m = 0; m < 2; m++) {
       const a = a0 + Math.PI / n + m * Math.PI;
@@ -252,9 +248,10 @@ export function buildSporMap(): MapFile {
   });
 
   // The statue in its maze. The Blender layout turns into game axes: x = -x, z = -y, yaw = -rotation.
+  // The plinth is a map object; the figure on it is the boss (src/heykel.ts), standing as a statue until woken.
   {
     const [mx, mz] = M.maze;
-    add('heykel_mantar_kadin', mx, mz, 1, 0, 0);
+    add('heykel_kaide', mx, mz, 1, 0, 0);
     for (const [ki, bx, by, rot] of MAZE) add(MAZE_KINDS[ki], mx - bx, mz - by, 1, (-rot * Math.PI) / 180, 0);
     take(mx, mz, M.mazeClear);
   }
@@ -294,7 +291,7 @@ export function buildSporMap(): MapFile {
     const n = M.townHouses.length;
     M.townHouses.forEach((k, h) => {
       const a = (h / n) * Math.PI * 2 + (r() - 0.5) * 0.2;
-      add(k, tx + Math.sin(a) * M.townRadius, tz + Math.cos(a) * M.townRadius, houseScale(k), a + Math.PI, 0);
+      add(k, tx + Math.sin(a) * M.townRadius, tz + Math.cos(a) * M.townRadius, 1, a + Math.PI, 0);
     });
     for (let m = 0; m < 2; m++) add('morel', tx + (m ? 6 : -6), tz, 1, r() * 6.28, 0);
     add('cimen', tx, tz, 2.4, 0, 0);
@@ -487,7 +484,7 @@ export function buildSporMap(): MapFile {
       zone(M.camp[0], M.camp[1], M.fx.camp),
     ],
   };
-  return { v: 1, gen, ops, fx };
+  return { v: 1, gen, ops, fx, atmos: { ...M.atmos } };
 }
 
 /** Objects the test map adds, by kind (for the docs and quick checks). */

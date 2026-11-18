@@ -5,6 +5,7 @@
 import type { Scene } from '@babylonjs/core/scene';
 import { FX, fxAt, type FxValues } from './mapgen/fx';
 import { SPORE_FX, makeSporeCloud } from './sporfx';
+import type { Atmosphere } from './planner/atmos';
 import type { World } from './world';
 
 /** Spor Ormanı pigments: rose madder and a pale mint. */
@@ -12,7 +13,8 @@ const SPORE_COLORS = ['#e98fc0', '#a8dcc8'];
 
 export type RegionFx = { update(dt: number, x: number, z: number, y: number): void };
 
-export function setupRegionFx(scene: Scene, world: World): RegionFx {
+/** With an Atmosphere (planner maps) the region thickens its height fog; otherwise the scene's flat fog. */
+export function setupRegionFx(scene: Scene, world: World, atmos: Atmosphere | null = null): RegionFx {
   const field = world.field;
   if (!field || !world.mapFile) return { update() {} };
   const file = world.mapFile;
@@ -27,7 +29,8 @@ export function setupRegionFx(scene: Scene, world: World): RegionFx {
   spores.maxEmitBox.set(45, 18, 45);
   let t = 0;
   const apply = () => {
-    scene.fogDensity = baseFog * now.fog;
+    if (atmos) atmos.setLocal({ ...now, spores: 0 });
+    else scene.fogDensity = baseFog * now.fog;
     spores.emitRate = SPORE_FX.rate * 0.5 * baseSpores * now.spores;
   };
   apply();

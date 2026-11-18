@@ -17,6 +17,12 @@ export type ActorBody = {
   hpBar?: Mesh;
   /** Animated characters only. */
   play?: (anim: Anim, speed?: number, restart?: boolean) => void;
+  /** Creatures only: pick idle, walk or run from the ground speed in m/s. */
+  move?: (speed: number) => void;
+  /** Creatures only: a short flinch when hit (never cuts an attack short). */
+  hit?: () => void;
+  /** Creatures only: play the death clip; returns how long the body should stay (s). */
+  die?: () => number;
   dispose?: () => void;
 };
 

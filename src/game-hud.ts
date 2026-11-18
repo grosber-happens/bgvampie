@@ -11,6 +11,7 @@ import { hud, t as T } from './i18n';
 import { prog, xpNeeded } from './progression';
 import { SETTINGS, shopUi } from './ui';
 import { nearMachine } from './vendor';
+import { statueNear } from './heykel';
 import { skillIcon } from './icons';
 import { visualRandom } from './random';
 
@@ -173,8 +174,10 @@ export function createGameHud(runtime: HudRuntime) {
     $('timer').textContent = fmtTime(G.time);
     $('pick-hint').classList.toggle('hidden', prog.pending <= 0);
     const atShop = runtime.running() && !shopUi.isOpen() && !!nearMachine(player.pos);
-    $('shop-hint').classList.toggle('hidden', !atShop);
+    const atStatue = runtime.running() && !shopUi.isOpen() && !atShop && statueNear(player.pos);
+    $('shop-hint').classList.toggle('hidden', !atShop && !atStatue);
     if (atShop) $('shop-hint').innerHTML = T('shopHint');
+    else if (atStatue) $('shop-hint').innerHTML = T('statueHint');
     $('pick-hint').innerHTML = `${T('levelUp')} <b>Tab</b> ${prog.pending > 1 ? `${prog.pending} ${T('cards')}` : T('card')} ${T('pickCards')}`;
     crosshair.classList.toggle('hit', hitMarkerT > 0);
     crosshair.classList.toggle('kill', killMarkerT > 0);
@@ -194,6 +197,7 @@ export function createGameHud(runtime: HudRuntime) {
     const boss = G.units.find((u) => u.kind === 'boss' && u.alive);
     if (boss) {
       $('boss').classList.remove('hidden');
+      $('boss').querySelector('.boss-name')!.textContent = boss.name;
       $('boss-fill').style.width = `${(boss.hp / boss.maxHp) * 100}%`;
     } else $('boss').classList.add('hidden');
 

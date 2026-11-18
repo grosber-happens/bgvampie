@@ -33,7 +33,7 @@ export const BAKED = [
   'ev_kule', 'ev_genis', 'ev_kulube', 'ev_iki_kat', 'ev_uc_kat', 'ev_cam_kule', 'ev_cam_ikiz', 'ev_cam_genis', 'ev_mozaik', 'ev_vitray',
   'kopru_tas', 'kopru_tas_yikik', 'kopru_ahsap', 'kopru_gaudi_mozaik', 'kopru_gaudi_viyaduk', 'kopru_gecit_12', 'kopru_gecit_20', 'kopru_gecit_20_kat', 'kopru_gecit_28',
   'gecit_duz', 'gecit_kavis', 'gecit_son',
-  'heykel_mantar_kadin', 'labirent_duvar_a', 'labirent_duvar_b', 'labirent_duvar_c', 'labirent_dugum_a', 'labirent_dugum_b',
+  'heykel_mantar_kadin', 'heykel_kaide', 'labirent_duvar_a', 'labirent_duvar_b', 'labirent_duvar_c', 'labirent_dugum_a', 'labirent_dugum_b',
   'kamp_cadir',
   'ucan_blok_kucuk', 'ucan_blok_orta', 'ucan_ada', 'ucan_kaya', 'ucan_basamak', 'ucan_ikiz', 'ucan_sivri', 'ucan_harabe',
   'tas_buyuk', 'tas_kaya', 'tas_yarik', 'tas_grup', 'tas_dengeli', 'tas_dikili', 'tas_kemer', 'tas_sivri', 'tas_yassi', 'blok_yikik_duvar', 'blok_kesme',

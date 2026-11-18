@@ -15,7 +15,7 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import type { Scene } from '@babylonjs/core/scene';
 import { INTERIOR } from '../balance';
-import { baseHeight, type Field, type Obj } from '../mapgen/generate';
+import { baseHeight, withKindScale, type Field, type Obj } from '../mapgen/generate';
 import { houseKey, worldToLocal, furnToWorld, type Furn, type Interiors } from '../mapgen/interior';
 import { IC, PROP_NAMES, enterable } from '../interiors';
 import { sporShape } from '../collide';
@@ -106,7 +106,8 @@ export class InteriorDesigner {
   enter(o: Obj) {
     const cam = this.h.camera;
     if (!this.house) this.saved = { a: cam.alpha, b: cam.beta, r: cam.radius, t: cam.target.clone(), lo: cam.lowerRadiusLimit, hi: cam.upperRadiusLimit };
-    this.house = o;
+    // At its drawn size (HOUSE_SCALE), so props land where the game puts them.
+    this.house = withKindScale(o);
     this.floor = 0;
     this.sel = -1;
     this.placing = null;
@@ -114,7 +115,7 @@ export class InteriorDesigner {
     cam.upperRadiusLimit = 60;
     this.setFloor(0);
     // After the target: setting a target recomputes the radius from where the camera stands.
-    cam.radius = 14 * o.s;
+    cam.radius = 14 * this.house.s;
     cam.beta = 0.6;
     this.h.changed(true);
     this.render();

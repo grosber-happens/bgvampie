@@ -303,6 +303,8 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
     - [Decided, owner 2026-11-09] **Swarm creatures don't chase the player.** In some parts of the map they stay still inside houses (`NESTS` in `src/balance.ts`): a few nest areas are picked away from the start, and every enterable house inside one gets creatures on each floor. They only turn and bite whoever comes within reach. A nest loads when the player comes within 55 m and unloads past 110 m; killed creatures stay dead. The creature is a stand-in (a small green-tinted deer) until the owner designs it. [Proposal] the numbers.
     - Later, BG mode uses the same director, spawning along the shrinking creature ring.
   - The packs are the Spor Ormanı creatures made in Blender (`src/creatures.ts`, numbers in `MOB_SPECIES`): **antlered deer** (fast, packs of 2–4) and **giant snail** (slow and tough, hits hard, alone or in pairs). [Proposal] The species numbers are first guesses.
+  - Creature motion: idle, walk, run (the run clip takes over when they chase), attack, hit flinch and death. A dead creature lies for a moment, then sinks into the ground.
+  - [Proposal] Telegraphed attacks: when a creature starts its attack it stops, keeps its facing and paints a red slice on the ground (its reach and width, `arc` in `MOB_SPECIES`). A stronger slice grows out from it and fills the zone when the blow lands; only targets inside the slice are hit, so stepping out of it or behind the creature dodges. The attack clip is timed so the blow lands at that moment.
 - **Bosses:**
   - The prototype spawns a zombie giant (slam and rock throw) at minutes 5, 13 and 21.
   - [Proposal, from the simulation] On the full map: two region bosses at minute 5, two at 11 and two at 16, then the final boss Crimson Countess at 21 with 1.3× health.
@@ -328,6 +330,12 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
   | Region | Mob 1 | Mob 2 | Mob 3 | Boss |
   |---|---|---|---|---|
   | Mushroom | Spore spitter: ranged spore ball that leaves a poison cloud | Mycelium crawler: bursts from the ground in swarms and slows | Polka-dot bloater: slow, bursts into spores on death | Root Mother: roots that block areas, spawns baby mushrooms, spores block vision |
+- **The Mushroom Woman (Spor Ormanı boss) [Decided by the owner 2026-11-09 that the statue is a boss; the trigger and attacks below are a Proposal, in the prototype]:** the 16 m statue in the maze is the boss. She stands as a statue until a player on or by her plinth presses **V**, then wakes (4.5 s) and fights round the maze. She steps over the maze walls; the walls still stop her gill breath. Every attack is shown on the ground first:
+  - Cap crash: a red circle in front of her, then she drives her cap down on it. Step out.
+  - Spore rain: pink circles on every player near her and a few around; the spores land 1.9 s later. Step out.
+  - Root wave: she stamps, an orange ring runs out along the ground. Jump over it.
+  - Gill breath: she bends down and sweeps a spore cone from her left to her right. Hide behind a maze wall or the plinth.
+  - Below half health she calls one pack of forest creatures and attacks a quarter faster. If everyone leaves, she climbs back onto her plinth and turns to stone again with full health. Numbers: `BOSS_STATUE` in `src/balance.ts`; model and clips: `spor_heykel_boss.py`.
   | Ruined city | Zombie: melee swarm (in the prototype) | Scrap hound: fast, runs at gunfire | Watcher drone: flies, marks the player, calls nearby mobs | Scrap Giant: slam and rock throw (in the prototype as the zombie giant) |
   | Monkey treetops | Branch jumper: leaps between trees and attacks from above | Fruit bomber: throws exploding fruit from high up | Totem guard: shielded and slow, blocks frontal damage (a good Backstab target) | Silverback Shaman: drum rhythm buffs monkeys, breaks tree bridges |
   | Desert | Sand swimmer: moves under the sand and leaps out | Glass scorpion: poison tail, bullet-proof front shell | Mirage: faint and ghostly, appears up close and mimics your copy | Sandworm Mother: travels underground, warns with tremors, swallow attack |
@@ -349,6 +357,8 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 - **Materials [Decided]:** **characters and buildings look like hand-shaped clay**: rounded, slightly imperfect forms, fingerprints, soft light. **The sky and effects are watercolor**, with paper texture and darker edges.
   - Don't put a full watercolor filter over the whole screen; fights must stay readable.
   - The implementation is in `src/look.ts`; `?look=classic` turns it off.
+  - Planner maps (the Spor Ormanı test map too) play under the planner's atmosphere (`src/planner/atmos.ts`): watercolor sky, height fog, ink outlines, tone mapping and cascaded shadows, so a map looks the same in the planner and in play. `?sky=altin|tutulma|kizil|spor` tries another preset; `?q=low` drops the god rays and uses lighter shadows.
+  - Painted region models get the watercolor paper by world position (`src/gltf.ts`), the same 2.4 m tile as Blender's box projection; the packed models carry no UVs.
 - **References [Decided]:** Kim Jung Gi, Moebius, Neri Oxman, Ukiyo-e, Yayoi Kusama, Xiaojing Yan, Karl Kopinski, Rembert Montald, Enki Bilal, P. Craig Russell. (The owner removed Beatrix Potter from the region pairing.)
 - **[Proposal] Region–reference pairing:**
   - Mushroom: Kusama, Xiaojing Yan, Neri Oxman.
@@ -373,10 +383,10 @@ This is the brief for anyone continuing the game, including the agents (see `AGE
 - A third-person controller: aim, dash, jump, coyote time, weapon switching.
 - All 4 classes, with every skill at all 3 tiers, both weapons, passives and playstyles.
 - Level-up cards, XP, the tier-3 lock and token.
-- Bots, Spor Ormanı creature packs (deer, snail) and the zombie giant boss.
+- Bots, Spor Ormanı creature packs (deer, snail), the zombie giant boss and the Mushroom Woman statue boss.
 - One ruined-city block with walkable houses (porch, stairs, balcony, roof).
 - The Spor Ormanı test map with our own Blender models: mushroom houses and small-town houses you can enter, bridges, the mushroom-woman statue in its maze, the nomad camp, fantastical trees, floating rocks, and furniture inside the buildings.
-- **Building scale [Decided, 2026-11-04]:** ground floor walls 4.5 m, upper floors 4.0 m, slabs 0.5 m, so a 2-storey building is 9.0 m and a 3-storey one 13.5 m inside; the roof or mushroom cap sits on top. Doors are 2.0 × 2.8 m (the hippo is 1.48 m wide), stairs are spiral, risers at most 0.3 m. Footprints grew about 15% to match. The Gaudí stained-glass house is one grand storey under tall domes; the mosaic house has two. The rules live in the Blender scripts' `olcek.py` (`/mnt/project-files/regions/evler-kat/scriptler`). **[Decided, 2026-11-09]** The five mushroom houses are placed 1.3× bigger on the map (`mushroomHouseScale` in `SPOR_MAP`), so their storeys read as about 5.9 m and 5.2 m next to the 1.90 m character; furniture inside keeps its own size.
+- **Building scale [Decided, 2026-11-04]:** ground floor walls 4.5 m, upper floors 4.0 m, slabs 0.5 m, so a 2-storey building is 9.0 m and a 3-storey one 13.5 m inside; the roof or mushroom cap sits on top. Doors are 2.0 × 2.8 m (the hippo is 1.48 m wide), stairs are spiral, risers at most 0.3 m. Footprints grew about 15% to match. The Gaudí stained-glass house is one grand storey under tall domes; the mosaic house has two. The rules live in the Blender scripts' `olcek.py` (`/mnt/project-files/regions/evler-kat/scriptler`). **[Proposal, 2026-11-10]** Every enterable house is drawn bigger than its model on every map, planner maps included (`HOUSE_SCALE` in `src/mapgen/generate.ts`): the five mushroom houses 1.3× (3.5 m doors become 4.55 m), the glass and Gaudí town houses 1.4× (2.8 × 2.0 m doors become 3.9 × 2.8 m, the stained-glass doors 5.2 m). Measured in game, the old doors read about as tall as the 1.90 m, 1.48 m wide hippo from the third-person camera, and the earlier 1.3× only reached the code-built test map. Map files keep the hand-set size; the factor comes on top when the map loads. Furniture inside keeps its own size; collision, floors and swarm nests scale with the house. The step-up limit is 0.45 m so the 1.4× stairs (0.42 m risers) still climb. Press **M** in a match for the scale ruler: a pole marked every 0.5 m with a red ring at 1.90 m, and the free height over the head (a door's height when you stand in it).
 - The clay and watercolor look.
 - A playable single-file build for sharing.
 

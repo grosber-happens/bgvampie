@@ -7,7 +7,7 @@ import { clayLook, watercolorFxMaterial } from './look';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { disposeBody, flash, forwardFromYaw, type ActorBody } from './actors';
-import { BACKSTAB, COMBAT_LOCK, DECOY_HITS } from './balance';
+import { BACKSTAB, COMBAT_LOCK, CORPSE, DECOY_HITS } from './balance';
 import type { Input } from './input';
 import type { SkinName } from './characters';
 import { groundHeight, pointHitsObstacle, resolveWalls, type World } from './world';
@@ -64,6 +64,8 @@ export type Bullet = {
 };
 
 type Fx = { mesh: Mesh; t: number; total: number; grow?: number; fade?: boolean };
+/** A dead creature playing its death clip, then lying still, then sinking into the ground. */
+type Corpse = { body: ActorBody; t: number; sink: number };
 
 /** Rogue-only timers for the player (skills write these, combat reads them). */
 export const PS = {
@@ -93,6 +95,7 @@ export const G = {
   units: [] as Unit[],
   bullets: [] as Bullet[],
   fx: [] as Fx[],
+  corpses: [] as Corpse[],
   player: null as unknown as Unit,
   nextId: 1,
   hooks: {
@@ -125,6 +128,8 @@ const mats = new Map<string, StandardMaterial>();
 export function glowMat(hex: string, alpha = 1): StandardMaterial {
   const key = `${hex}-${alpha}`;
   let m = mats.get(key);
+  // Drop a cached watercolor material whose wash texture was lost (made before the scene was set up).
+  if (m && m.diffuseTexture && !m.diffuseTexture.getInternalTexture()) m = undefined;
   if (!m && clayLook) {
     m = watercolorFxMaterial(hex, alpha)!;
     mats.set(key, m);
@@ -176,6 +181,7 @@ export function makeUnit(kind: Kind, name: string, body: ActorBody, pos: Vector3
 
 export function removeUnit(u: Unit) {
   u.alive = false;
+  u.ai?.tele?.dispose();
   disposeBody(u.body);
   G.units = G.units.filter((x) => x !== u);
 }
@@ -285,6 +291,7 @@ export function dealDamage(src: Unit | null, target: Unit, amount: number, opts:
   if (opts.poison && credit) applyPoison(credit, target);
   if (credit === G.player) MODS.afterHit(target, dmg, src, opts);
   if (target.hp <= 0) killUnit(credit, target);
+  else if (!opts.isDot) target.body.hit?.();
   return dmg;
 }
 
@@ -319,6 +326,16 @@ export function killUnit(killer: Unit | null, victim: Unit) {
   victim.alive = false;
   G.hooks.kill(killer, victim);
   if (victim.kind === 'player') return;
+  victim.ai?.tele?.dispose();
+  if (victim.body.die) {
+    // Creatures fall and lie for a while; the unit itself is gone at once.
+    const t = victim.body.die();
+    flash(victim.body, 0, victim.tint); // tickStatus no longer runs for it, so clear the hit flash now
+    G.units = G.units.filter((x) => x !== victim);
+    for (const m of victim.body.meshes) m.isPickable = false;
+    G.corpses.push({ body: victim.body, t: t + CORPSE.sink, sink: CORPSE.sink });
+    return;
+  }
   removeUnit(victim);
   // A small burst where it fell.
   spawnFx(MeshBuilder.CreateSphere('pop', { diameter: 1.2, segments: 8 }, G.scene), chest(victim), victim.kind === 'decoy' ? '#b46cff' : '#ff8a5c', 0.3, 2.5);
@@ -351,6 +368,7 @@ export function tickStatus(u: Unit, dt: number) {
     const air = u.velY > 0.5 || u.velY < -2;
     if (u.stunT > 0) u.body.play('idle', 0.3);
     else if (air) u.body.play('jump');
+    else if (u.body.move) u.body.move(speed);
     else if (speed > 0.6) u.body.play('run', Math.max(0.6, Math.min(1.6, speed / 6)));
     else u.body.play('idle');
     u.prev = u.pos.clone();
@@ -476,6 +494,20 @@ export function lineFx(a: Vector3, b: Vector3, color: string, t = 0.15) {
   const m = MeshBuilder.CreateBox('trail', { width: w, height: w, depth: len }, G.scene);
   spawnFx(m, a.add(d.scale(0.5)), color, t, 0, 0.8);
   m.lookAt(b);
+}
+
+export function updateCorpses(dt: number) {
+  G.corpses = G.corpses.filter((c) => {
+    c.t -= dt;
+    if (c.t < c.sink) c.body.root.position.y -= (dt * 2.5) / c.sink;
+    if (c.t <= 0) disposeBody(c.body);
+    return c.t > 0;
+  });
+}
+
+export function clearCorpses() {
+  for (const c of G.corpses) disposeBody(c.body);
+  G.corpses = [];
 }
 
 export function updateFx(dt: number) {
